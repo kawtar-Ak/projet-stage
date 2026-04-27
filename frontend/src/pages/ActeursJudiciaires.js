@@ -1,36 +1,36 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-function MessagesAdministratifs() {
-  const [messages, setMessages] = useState([]);
+function ActeursJudiciaires() {
+  const [items, setItems] = useState([]);
   const [motCle, setMotCle] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchMessages = async () => {
+  const fetchItems = async () => {
     setLoading(true);
     try {
       const url = motCle.trim()
-        ? `/api/courriers/search?motCle=${encodeURIComponent(motCle.trim())}`
-        : '/api/courriers';
+        ? `/api/acteursjudiciaires/search?motCle=${encodeURIComponent(motCle.trim())}`
+        : '/api/acteursjudiciaires';
       const res = await axios.get(url);
-      setMessages(res.data);
+      setItems(res.data);
       setError('');
     } catch (err) {
-      setError(getErrorMessage(err, 'Erreur chargement des messages administratifs'));
+      setError(getErrorMessage(err, 'Erreur chargement des acteurs et messageries judiciaires'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    const timeout = setTimeout(fetchMessages, 250);
+    const timeout = setTimeout(fetchItems, 250);
     return () => clearTimeout(timeout);
   }, [motCle]);
 
   return (
     <div className="page-container">
-      <h1 className="page-title">Messages et contenus administratifs</h1>
+      <h1 className="page-title">Acteurs et messageries judiciaires</h1>
 
       {error && <div className="error-message">{error}</div>}
 
@@ -39,7 +39,7 @@ function MessagesAdministratifs() {
           type="text"
           value={motCle}
           onChange={e => setMotCle(e.target.value)}
-          placeholder="Rechercher par N BO, source, objet, destinataire, observation, etat"
+          placeholder="Rechercher par tribunal, sujet, destinataire, emplacement, etat"
         />
         <button type="button" className="btn-secondary" onClick={() => setMotCle('')}>Reinitialiser</button>
       </div>
@@ -48,35 +48,37 @@ function MessagesAdministratifs() {
         <table className="modern-table">
           <thead>
             <tr>
-              <th>N BO</th>
               <th>Date</th>
-              <th>Source</th>
+              <th>Tribunal / Source</th>
+              <th>N dossier</th>
               <th>Objet</th>
               <th>Direction</th>
               <th>Destinataire</th>
               <th>Service</th>
               <th>Etat</th>
-              <th>Observation</th>
+              <th>Emplacement</th>
+              <th>Retraits</th>
               <th>PDF</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="10">Chargement...</td></tr>
-            ) : messages.length === 0 ? (
-              <tr><td colSpan="10">Aucun message administratif trouve.</td></tr>
+              <tr><td colSpan="11">Chargement...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan="11">Aucun element judiciaire trouve.</td></tr>
             ) : (
-              messages.map(item => (
+              items.map(item => (
                 <tr key={item.id}>
-                  <td>{item.idBureauOrdre || '-'}</td>
                   <td>{formatDate(item.date)}</td>
-                  <td>{item.source || '-'}</td>
+                  <td>{item.tribunalSource || '-'}</td>
+                  <td>{item.numeroDossier || '-'}</td>
                   <td>{item.sujet || '-'}</td>
                   <td>{item.direction || '-'}</td>
                   <td>{item.destinataire || '-'}</td>
                   <td>{item.serviceNom || item.idService || '-'}</td>
-                  <td>{item.etat || '-'}</td>
-                  <td>{item.description || '-'}</td>
+                  <td>{item.etatArchive || '-'}</td>
+                  <td>{item.emplacement || '-'}</td>
+                  <td>{item.retraitsCount ?? 0}</td>
                   <td>{item.lienPdf ? <a href={item.lienPdf} target="_blank" rel="noreferrer">PDF</a> : '-'}</td>
                 </tr>
               ))
@@ -99,4 +101,4 @@ function getErrorMessage(error, fallback) {
   return fallback;
 }
 
-export default MessagesAdministratifs;
+export default ActeursJudiciaires;

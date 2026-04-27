@@ -10,6 +10,8 @@ import GererUtilisateurs from './pages/GererUtilisateurs';
 import GererEquipements from './pages/GererEquipements';
 import GererCourriers from './pages/GererCourriers';
 import Registre from './pages/Registre';
+import MessagesAdministratifs from './pages/MessagesAdministratifs';
+import ActeursJudiciaires from './pages/ActeursJudiciaires';
 // ... puis dans les routes
 
 // ... importez toutes vos pages (equipements, transactions, etc.)
@@ -30,6 +32,8 @@ function AppRoutes() {
       {/* Routes pour chaque fonctionnalité (selon les paths définis dans le menu) */}
       <Route path="/courriers" element={<PrivateRoute><MainLayout><GererCourriers /></MainLayout></PrivateRoute>} />
       <Route path="/registre" element={<PrivateRoute><MainLayout><Registre /></MainLayout></PrivateRoute>} />
+      <Route path="/messages-administratifs" element={<PrivateRoute><MainLayout><MessagesAdministratifs /></MainLayout></PrivateRoute>} />
+      <Route path="/acteurs-judiciaires" element={<PrivateRoute><MainLayout><ActeursJudiciaires /></MainLayout></PrivateRoute>} />
       <Route path="/equipements" element={<PrivateRoute><MainLayout><GererEquipements /></MainLayout></PrivateRoute>} />
       <Route path="/services" element={<PrivateRoute><MainLayout><GererServices /></MainLayout></PrivateRoute>} />
       <Route path="/utilisateurs" element={<PrivateRoute><MainLayout><GererUtilisateurs /></MainLayout></PrivateRoute>} />
