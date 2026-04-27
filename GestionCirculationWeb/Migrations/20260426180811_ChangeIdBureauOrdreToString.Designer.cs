@@ -4,6 +4,7 @@ using GestionCourrier.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GestionCirculationWeb.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260426180811_ChangeIdBureauOrdreToString")]
+    partial class ChangeIdBureauOrdreToString
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -84,8 +87,8 @@ namespace GestionCirculationWeb.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("IdBureauOrdre")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int?>("IdBureauOrdre")
+                        .HasColumnType("int");
 
                     b.Property<int>("IdService")
                         .HasColumnType("int");
@@ -94,9 +97,8 @@ namespace GestionCirculationWeb.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("NumeroDeCourrier")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<int>("NumeroDeCourrier")
+                        .HasColumnType("int");
 
                     b.Property<int?>("ParentId")
                         .HasColumnType("int");
@@ -109,19 +111,12 @@ namespace GestionCirculationWeb.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("TypeCorrespondance")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("TypeDocument")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("TypeGenerale")
                         .HasColumnType("int");
-
-                    b.Property<string>("TypeRegistre")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("IdEntite");
 

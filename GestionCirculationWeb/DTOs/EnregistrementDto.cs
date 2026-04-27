@@ -15,6 +15,6 @@ namespace GestionCourrier.DTOs
         public int? NumeroCourrier { get; set; }   // pour administratif
         public string? NumeroDossier { get; set; } // pour judiciaire
         public bool EstArchive { get; set; }
-        public int? IdBureauOrdre { get; set; }     // nouveau : identifiant bureau d’ordre
+        public string? IdBureauOrdre { get; set; }     // nouveau : identifiant bureau d’ordre
     }
 }

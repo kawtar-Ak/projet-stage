@@ -16,5 +16,6 @@ namespace GestionCourrier.DTOs
         public string? NumeroDossier { get; set; }       
         public string? ParentSujet { get; set; }         
         public int IdService { get; set; } = 1;
+        public string? ServiceNom { get; set; }
     }
 }

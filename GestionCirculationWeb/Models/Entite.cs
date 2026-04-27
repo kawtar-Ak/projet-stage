@@ -15,20 +15,22 @@ namespace GestionCourrier.Models
     {
         [Key]
         public int IdEntite { get; set; }
-        public int? IdBureauOrdre { get; set; }
+        public string? IdBureauOrdre { get; set; }
         public DateTime DateCreation { get; set; }
         public string Source { get; set; }= string.Empty;
         public string Etat { get; set; }= string.Empty;
         public string LienPdf { get; set; }= string.Empty;
         public string Description { get; set; }= string.Empty;
         public string TypeDocument { get; set; }= string.Empty;
-        public int NumeroDeCourrier { get; set; }
+        public string NumeroDeCourrier { get; set; } = string.Empty;
         public TypeEntite TypeGenerale { get; set; }
         public bool EstArchive { get; set; } = false;
         public string Sujet { get; set; }= string.Empty;
         public string Direction { get; set; } = "Entrant";
         public string Destinataire { get; set; } = string.Empty;
         public int? ParentId { get; set; }
+        public string TypeRegistre { get; set; } = "Waridat";
+        public string? TypeCorrespondance { get; set; }
 
         // Navigation
         public int IdService { get; set; }
