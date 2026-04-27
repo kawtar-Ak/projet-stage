@@ -11,6 +11,7 @@ namespace GestionCourrier.Controllers
     [ApiController]
     public class CourriersController : ControllerBase
     {
+        // Valeurs metier utilisees pour distinguer les lignes du registre administratif.
         private const string TypeDocumentAdministratif = "Administratif";
         private const string TypeRegistreWaridat = "Waridat";
         private const string TypeRegistreMorasalat = "Morasalat";
@@ -29,6 +30,7 @@ namespace GestionCourrier.Controllers
             [FromQuery] DateTime? date,
             [FromQuery] string? type)
         {
+            // Retourne les courriers administratifs non archives avec filtres structurés optionnels.
             var courriers = await ApplyStructuredFilters(
                     BaseQuery().Where(e => !e.EstArchive),
                     numeroBureauOrdre,
@@ -44,6 +46,7 @@ namespace GestionCourrier.Controllers
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetById(int id)
         {
+            // Charge une seule entree administrative avec son service.
             var courrier = await BaseQuery()
                 .FirstOrDefaultAsync(e => e.IdEntite == id);
 
@@ -53,6 +56,7 @@ namespace GestionCourrier.Controllers
         [HttpGet("waridat")]
         public async Task<IActionResult> GetWaridat()
         {
+            // Liste uniquement les الواردات principales, utilisables comme parent d'une مراسلة liee.
             var waridat = await BaseQuery()
                 .Where(e => !e.EstArchive &&
                     e.ParentId == null &&
@@ -67,9 +71,11 @@ namespace GestionCourrier.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(CourrierAdministratifRequest request)
         {
+            // Valide les champs obligatoires avant d'appliquer les regles metier du registre.
             var validation = await ValidateRequest(request);
             if (validation != null) return validation;
 
+            // Normalise les valeurs envoyees par le frontend pour eviter les variantes de casse ou de direction.
             var typeRegistre = NormalizeTypeRegistre(request.TypeRegistre);
             var typeCorrespondance = NormalizeTypeCorrespondance(request.TypeCorrespondance, request.Direction);
             var direction = NormalizeDirection(request.Direction);
@@ -79,6 +85,8 @@ namespace GestionCourrier.Controllers
 
             if (typeRegistre == TypeRegistreMorasalat)
             {
+                // Cas 1: مراسلة liee a une واردة.
+                // Elle ne cree pas un nouveau numero d'ordre: elle recupere celui du parent.
                 if (request.ParentId.HasValue && request.ParentId.Value > 0)
                 {
                     var parent = await FindWaridatParent(request.ParentId.Value);
@@ -94,6 +102,8 @@ namespace GestionCourrier.Controllers
                 }
                 else
                 {
+                    // Cas 2: مراسلة independante.
+                    // Elle est une ligne principale et doit donc avoir un numero unique.
                     idBureauOrdre = request.IdBureauOrdre!.Trim();
                     if (await ExistsIdBureauOrdre(idBureauOrdre))
                         return BadRequest("Ce numero bureau d'ordre existe deja.");
@@ -103,6 +113,8 @@ namespace GestionCourrier.Controllers
             }
             else
             {
+                // Cas 3: واردة.
+                // C'est toujours une ligne principale avec son propre numero d'ordre.
                 idBureauOrdre = request.IdBureauOrdre!.Trim();
                 if (await ExistsIdBureauOrdre(idBureauOrdre))
                     return BadRequest("Ce numero bureau d'ordre existe deja.");
@@ -111,6 +123,7 @@ namespace GestionCourrier.Controllers
                 typeCorrespondance = null;
             }
 
+            // Persiste toutes les donnees administratives dans la table Entites.
             var courrier = new Entite
             {
                 IdBureauOrdre = idBureauOrdre,
@@ -142,6 +155,7 @@ namespace GestionCourrier.Controllers
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, CourrierAdministratifRequest request)
         {
+            // On modifie uniquement les courriers administratifs, pas les autres types d'entites.
             var courrier = await _context.Entites
                 .FirstOrDefaultAsync(e => e.IdEntite == id && e.TypeDocument == TypeDocumentAdministratif);
 
@@ -158,6 +172,7 @@ namespace GestionCourrier.Controllers
 
             if (typeRegistre == TypeRegistreMorasalat)
             {
+                // Si la مراسلة est liee, son numero reste synchronise avec la واردة parent.
                 if (request.ParentId.HasValue && request.ParentId.Value > 0)
                 {
                     var parent = await FindWaridatParent(request.ParentId.Value);
@@ -173,6 +188,7 @@ namespace GestionCourrier.Controllers
                 }
                 else
                 {
+                    // Si la مراسلة devient independante, son numero doit etre unique parmi les lignes principales.
                     idBureauOrdre = request.IdBureauOrdre!.Trim();
                     if (await ExistsIdBureauOrdre(idBureauOrdre, id))
                         return BadRequest("Ce numero bureau d'ordre est deja utilise par une autre ligne principale.");
@@ -182,6 +198,7 @@ namespace GestionCourrier.Controllers
             }
             else
             {
+                // Une واردة modifiee reste une ligne principale.
                 idBureauOrdre = request.IdBureauOrdre!.Trim();
                 if (await ExistsIdBureauOrdre(idBureauOrdre, id))
                     return BadRequest("Ce numero bureau d'ordre est deja utilise par une autre waridat.");
@@ -208,6 +225,7 @@ namespace GestionCourrier.Controllers
             courrier.TypeRegistre = typeRegistre;
             courrier.TypeCorrespondance = typeCorrespondance;
 
+            // Si le numero d'une واردة change, toutes ses مراسلات liees doivent reprendre le nouveau numero.
             if (typeRegistre == TypeRegistreWaridat && oldIdBureauOrdre != idBureauOrdre)
             {
                 var children = await _context.Entites
@@ -227,6 +245,7 @@ namespace GestionCourrier.Controllers
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id)
         {
+            // Suppression physique du courrier administratif selectionne.
             var courrier = await _context.Entites
                 .FirstOrDefaultAsync(e => e.IdEntite == id && e.TypeDocument == TypeDocumentAdministratif);
 
@@ -241,6 +260,7 @@ namespace GestionCourrier.Controllers
         [HttpPut("archiver/{id:int}")]
         public async Task<IActionResult> Archiver(int id)
         {
+            // Archivage logique: le courrier reste en base mais disparait des listes actives.
             var courrier = await _context.Entites
                 .FirstOrDefaultAsync(e => e.IdEntite == id && e.TypeDocument == TypeDocumentAdministratif);
 
@@ -260,6 +280,7 @@ namespace GestionCourrier.Controllers
             [FromQuery] DateTime? date,
             [FromQuery] string? type)
         {
+            // Recherche combinee: filtres structurés puis recherche "commence par" sur les champs texte.
             var query = ApplyStructuredFilters(
                 BaseQuery().AsNoTracking().Where(e => !e.EstArchive),
                 numeroBureauOrdre,
@@ -293,6 +314,7 @@ namespace GestionCourrier.Controllers
             [FromQuery] DateTime? date,
             [FromQuery] string? type)
         {
+            // Reprend les memes filtres que l'ecran pour exporter exactement le registre affiche.
             var query = ApplyStructuredFilters(
                 BaseQuery().Where(e => !e.EstArchive),
                 numeroBureauOrdre,
@@ -318,6 +340,7 @@ namespace GestionCourrier.Controllers
 
             using var workbook = new XLWorkbook();
             var ws = workbook.Worksheets.Add("Courriers");
+            // Colonnes du registre manuel: une ligne principale regroupe ses مراسلات liees.
             string[] headers =
             {
                 "رقم مكتب الضبط",
@@ -342,6 +365,7 @@ namespace GestionCourrier.Controllers
                 .GroupBy(c => c.ParentId!.Value)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            // Export des lignes principales avec leurs details lies dans les colonnes correspondantes.
             var exportedIds = new HashSet<int>();
             int row = 2;
             foreach (var courrier in courriers.Where(c => !c.ParentId.HasValue))
@@ -369,6 +393,7 @@ namespace GestionCourrier.Controllers
                 row++;
             }
 
+            // Export de securite pour les lignes isolees qui n'ont pas ete rattachees au premier passage.
             foreach (var courrier in courriers.Where(c => !exportedIds.Contains(c.IdEntite)))
             {
                 ws.Cell(row, 1).Value = courrier.IdBureauOrdre;
@@ -404,6 +429,7 @@ namespace GestionCourrier.Controllers
         [HttpPost("import/excel")]
         public async Task<IActionResult> ImportExcel(IFormFile file)
         {
+            // Importe le fichier Excel au format du registre exporte par cette API.
             if (file == null || file.Length == 0)
                 return BadRequest("Fichier Excel requis.");
 
@@ -420,6 +446,7 @@ namespace GestionCourrier.Controllers
 
             foreach (var row in rows)
             {
+                // Lecture des colonnes dans l'ordre du modele Excel.
                 var idBureauOrdre = row.Cell(1).GetString().Trim();
                 var dateText = row.Cell(2).GetString().Trim();
                 var source = row.Cell(3).GetString().Trim();
@@ -436,6 +463,8 @@ namespace GestionCourrier.Controllers
                 var hasWaridatFields = !string.IsNullOrWhiteSpace(source) || !string.IsNullOrWhiteSpace(sujet);
                 var hasSortante = !string.IsNullOrWhiteSpace(correspondanceSortante);
                 var hasEntrante = !string.IsNullOrWhiteSpace(correspondanceEntrante);
+                // Si les colonnes source/sujet de la واردة sont remplies, on importe une واردة.
+                // Sinon on importe une مراسلة independante.
                 var typeRegistre = hasWaridatFields ? TypeRegistreWaridat : TypeRegistreMorasalat;
                 var typeCorrespondance = hasSortante ? TypeCorrespondanceSortante :
                     hasEntrante ? TypeCorrespondanceEntrante : (string?)null;
@@ -472,10 +501,12 @@ namespace GestionCourrier.Controllers
 
                 if (lineErrors.Any())
                 {
+                    // Les erreurs sont renvoyees par ligne afin que l'utilisateur corrige son fichier.
                     errors.Add($"Ligne {lineNumber}: {string.Join(" | ", lineErrors)}");
                 }
                 else
                 {
+                    // Les imports creent uniquement des lignes principales; les liens parent/enfant se font depuis l'interface.
                     _context.Entites.Add(new Entite
                     {
                         IdBureauOrdre = idBureauOrdre,
@@ -512,6 +543,7 @@ namespace GestionCourrier.Controllers
             DateTime? date,
             string? type)
         {
+            // Filtre par numero d'ordre, par date exacte et par famille de registre.
             if (!string.IsNullOrWhiteSpace(numeroBureauOrdre))
             {
                 var numero = numeroBureauOrdre.Trim();
@@ -556,6 +588,7 @@ namespace GestionCourrier.Controllers
 
         private IQueryable<Entite> BaseQuery()
         {
+            // Requete de base commune: uniquement les courriers administratifs avec le service charge.
             return _context.Entites
                 .Include(e => e.Service)
                 .Where(e => e.TypeDocument == TypeDocumentAdministratif);
@@ -563,6 +596,7 @@ namespace GestionCourrier.Controllers
 
         private async Task<IActionResult?> ValidateRequest(CourrierAdministratifRequest request)
         {
+            // Validation commune aux POST/PUT avant application des cas Waridat/Morasalat.
             var typeRegistre = NormalizeTypeRegistre(request.TypeRegistre);
 
             if (typeRegistre == TypeRegistreWaridat && string.IsNullOrWhiteSpace(request.IdBureauOrdre))
@@ -593,6 +627,7 @@ namespace GestionCourrier.Controllers
 
         private async Task<bool> ExistsIdBureauOrdre(string idBureauOrdre, int? excludedId = null)
         {
+            // Le numero d'ordre est unique seulement pour les lignes principales (ParentId == null).
             var normalizedIdBureauOrdre = idBureauOrdre.Trim();
 
             return await _context.Entites.AnyAsync(e =>
@@ -605,6 +640,7 @@ namespace GestionCourrier.Controllers
 
         private async Task<Entite?> FindWaridatParent(int parentId)
         {
+            // Une مراسلة liee ne peut avoir comme parent qu'une واردة principale.
             return await _context.Entites.FirstOrDefaultAsync(e =>
                 e.IdEntite == parentId &&
                 e.TypeDocument == TypeDocumentAdministratif &&
@@ -614,6 +650,7 @@ namespace GestionCourrier.Controllers
 
         private async Task<Service?> FindService(string value)
         {
+            // L'import accepte soit l'identifiant du service, soit son nom.
             if (int.TryParse(value, out var idService))
                 return await _context.Services.FirstOrDefaultAsync(s => s.IdService == idService);
 
@@ -622,6 +659,7 @@ namespace GestionCourrier.Controllers
 
         private static bool TryReadDate(IXLCell cell, string text, out DateTime value)
         {
+            // ClosedXML peut lire une vraie date Excel ou une date saisie comme texte.
             if (cell.DataType == XLDataType.DateTime)
             {
                 value = cell.GetDateTime();
@@ -633,6 +671,7 @@ namespace GestionCourrier.Controllers
 
         private static string NormalizeDirection(string? direction)
         {
+            // Convertit les directions inconnues vers Entrant par defaut.
             if (direction?.Equals("Sortant", StringComparison.OrdinalIgnoreCase) == true)
                 return "Sortant";
 
@@ -644,6 +683,7 @@ namespace GestionCourrier.Controllers
 
         private static string NormalizeTypeRegistre(string? typeRegistre)
         {
+            // Par compatibilite, une valeur absente ou inconnue est traitee comme Waridat.
             if (typeRegistre?.Equals(TypeRegistreMorasalat, StringComparison.OrdinalIgnoreCase) == true)
                 return TypeRegistreMorasalat;
 
@@ -652,6 +692,7 @@ namespace GestionCourrier.Controllers
 
         private static string? NormalizeTypeCorrespondance(string? typeCorrespondance, string? direction)
         {
+            // Determine si une مراسلة est sortante ou entrante.
             if (typeCorrespondance?.Equals(TypeCorrespondanceEntrante, StringComparison.OrdinalIgnoreCase) == true)
                 return TypeCorrespondanceEntrante;
 
@@ -666,6 +707,7 @@ namespace GestionCourrier.Controllers
 
         private static string FromArabicDirection(string? direction)
         {
+            // Convertit les libelles arabes importes depuis Excel vers les valeurs internes.
             return direction switch
             {
                 "وارد" or "الواردات" => "Entrant",
@@ -677,6 +719,7 @@ namespace GestionCourrier.Controllers
 
         private static string ToArabicDirection(string? direction)
         {
+            // Convertit une direction interne vers son libelle arabe pour l'export.
             return direction switch
             {
                 "Sortant" => "صادر",
@@ -687,6 +730,7 @@ namespace GestionCourrier.Controllers
 
         private static string ToArabicRegister(Entite courrier)
         {
+            // Libelle arabe du type de registre utilise dans l'export.
             if (courrier.TypeRegistre == TypeRegistreMorasalat)
             {
                 return courrier.TypeCorrespondance == TypeCorrespondanceEntrante
@@ -699,18 +743,21 @@ namespace GestionCourrier.Controllers
 
         private static bool IsCorrespondanceSortante(Entite courrier)
         {
+            // Identifie les مراسلات sortantes pour remplir la colonne export dediee.
             return courrier.TypeRegistre == TypeRegistreMorasalat &&
                 (courrier.TypeCorrespondance == TypeCorrespondanceSortante || courrier.Direction == "Sortant");
         }
 
         private static bool IsCorrespondanceEntrante(Entite courrier)
         {
+            // Identifie les مراسلات entrantes pour remplir la colonne export dediee.
             return courrier.TypeRegistre == TypeRegistreMorasalat &&
                 (courrier.TypeCorrespondance == TypeCorrespondanceEntrante || courrier.Direction == "Interne");
         }
 
         private static string FormatCorrespondance(Entite courrier)
         {
+            // Regroupe les champs importants d'une مراسلة dans une cellule Excel lisible.
             var parts = new List<string>();
 
             if (courrier.DateCreation != default)
@@ -733,11 +780,13 @@ namespace GestionCourrier.Controllers
 
         private static string JoinLines(IEnumerable<string?> values)
         {
+            // Regroupe plusieurs valeurs non vides sur plusieurs lignes dans Excel.
             return string.Join(Environment.NewLine, values.Where(v => !string.IsNullOrWhiteSpace(v)));
         }
 
         private static string NormalizeEtat(string? etat)
         {
+            // Uniformise les etats venant du frontend ou d'anciens libelles accentues.
             if (etat?.Equals("En cours", StringComparison.OrdinalIgnoreCase) == true)
                 return "En cours";
 
@@ -754,6 +803,7 @@ namespace GestionCourrier.Controllers
 
         private static string FromArabicEtat(string? etat)
         {
+            // Convertit les etats arabes importes depuis Excel vers les valeurs internes.
             return etat switch
             {
                 "جديد" => "Nouveau",
@@ -766,6 +816,7 @@ namespace GestionCourrier.Controllers
 
         private static string ToArabicEtat(string? etat)
         {
+            // Convertit les etats internes vers les libelles arabes pour l'export.
             return etat switch
             {
                 "En cours" => "قيد المعالجة",
@@ -777,6 +828,7 @@ namespace GestionCourrier.Controllers
 
         private static TypeEntite GetTypeGenerale(string direction)
         {
+            // Alimente l'ancien champ TypeGenerale a partir de la direction interne.
             return direction switch
             {
                 "Sortant" => TypeEntite.CourrierSortant,
@@ -787,6 +839,7 @@ namespace GestionCourrier.Controllers
 
         private static object ToResponse(Entite e)
         {
+            // DTO anonyme renvoye au frontend React avec les champs utiles a l'affichage.
             return new
             {
                 id = e.IdEntite,
@@ -815,6 +868,7 @@ namespace GestionCourrier.Controllers
 
     public class CourrierAdministratifRequest
     {
+        // Payload envoye par le frontend pour creer ou modifier une entree du registre.
         public string? IdBureauOrdre { get; set; }
         public DateTime Date { get; set; }
         public string Source { get; set; } = string.Empty;
