@@ -6,5 +6,4 @@ function PrivateRoute({ children }) {
   if (loading) return <div>Chargement...</div>;
   return user ? children : <Navigate to="/login" />;
 }
-
 export default PrivateRoute;

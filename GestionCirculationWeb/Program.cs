@@ -61,6 +61,33 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     dbContext.Database.Migrate();
+    dbContext.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('Entites', 'EstTransmissible') IS NULL
+BEGIN
+    ALTER TABLE Entites ADD EstTransmissible bit NOT NULL CONSTRAINT DF_Entites_EstTransmissible DEFAULT CAST(0 AS bit);
+END
+");
+    dbContext.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('EntitesDJs', 'EstTransmissible') IS NULL
+BEGIN
+    ALTER TABLE EntitesDJs ADD EstTransmissible bit NOT NULL CONSTRAINT DF_EntitesDJs_EstTransmissible DEFAULT CAST(0 AS bit);
+END
+UPDATE EntitesDJs SET EstTransmissible = CAST(1 AS bit);
+");
+    dbContext.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('EntitesDJs', 'IdBureauOrdre') IS NOT NULL
+AND EXISTS (
+    SELECT 1
+    FROM sys.columns c
+    JOIN sys.types t ON c.user_type_id = t.user_type_id
+    WHERE c.object_id = OBJECT_ID('EntitesDJs')
+      AND c.name = 'IdBureauOrdre'
+      AND t.name <> 'nvarchar'
+)
+BEGIN
+    ALTER TABLE EntitesDJs ALTER COLUMN IdBureauOrdre nvarchar(100) NULL;
+END
+");
     if (!dbContext.Utilisateurs.Any())
     {
         var adminService = dbContext.Services.FirstOrDefault(s => s.NomService == "Administrateur");

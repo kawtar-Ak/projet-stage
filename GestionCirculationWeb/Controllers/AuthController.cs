@@ -25,9 +25,11 @@ namespace GestionCourrier.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
+            var normalizedLogin = dto.Login.Trim();
+
             var user = await _context.Utilisateurs
                 .Include(u => u.Service)
-                .FirstOrDefaultAsync(u => u.Login == dto.Login);
+                .FirstOrDefaultAsync(u => u.Login == normalizedLogin);
 
             if (user == null)
                 return Unauthorized(new { message = "Login incorrect" });
@@ -46,7 +48,7 @@ namespace GestionCourrier.Controllers
                 Login = user.Login,
                 NomComplet = user.NomComplet,
                 IdService = user.IdService,
-                NomService = user.Service.NomService
+                NomService = user.Service != null ? user.Service.NomService : string.Empty
             });
         }
 
@@ -73,7 +75,7 @@ namespace GestionCourrier.Controllers
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Name, user.Login),
                 new Claim("IdService", user.IdService.ToString()),
-                new Claim("NomService", user.Service.NomService)
+                new Claim("NomService", user.Service != null ? user.Service.NomService : string.Empty)
             };
 
             var token = new JwtSecurityToken(

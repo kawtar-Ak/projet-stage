@@ -80,6 +80,9 @@ namespace GestionCirculationWeb.Migrations
                     b.Property<bool>("EstArchive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("EstTransmissible")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Etat")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -158,6 +161,9 @@ namespace GestionCirculationWeb.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("EstArchive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EstTransmissible")
                         .HasColumnType("bit");
 
                     b.Property<string>("EtatArchive")

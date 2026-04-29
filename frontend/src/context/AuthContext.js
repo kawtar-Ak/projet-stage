@@ -22,15 +22,27 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (login, password) => {
-   const response = await axios.post('http://localhost:5127/api/auth/login', { login, password });
-    const { token, id, login: userLogin, nomComplet, idService, nomService } = response.data;
+    const response = await axios.post('/api/auth/login', {
+      login: login.trim(),
+      password,
+    });
+
+    const data = response.data;
+    const token = data.token || data.Token;
+    const id = data.id || data.Id;
+    const userLogin = data.login || data.Login;
+    const nomComplet = data.nomComplet || data.NomComplet;
+    const idService = data.idService || data.IdService;
+    const nomService = data.nomService || data.NomService;
+
     localStorage.setItem('token', token);
     localStorage.setItem('login', userLogin);
+    localStorage.setItem('nomComplet', nomComplet || '');
     localStorage.setItem('nomService', nomService);
     localStorage.setItem('idService', idService);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    setUser({ token, login: userLogin, nomComplet, idService, nomService });
-    return response.data;
+    setUser({ token, id, login: userLogin, nomComplet, idService, nomService });
+    return data;
   };
 
   const logout = () => {

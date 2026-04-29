@@ -18,10 +18,12 @@ namespace GestionCourrier.Controllers
         private const string TypeCorrespondanceSortante = "Sortante";
         private const string TypeCorrespondanceEntrante = "Entrante";
         private readonly ApplicationDbContext _context;
+        private readonly IWebHostEnvironment _environment;
 
-        public CourriersController(ApplicationDbContext context)
+        public CourriersController(ApplicationDbContext context, IWebHostEnvironment environment)
         {
             _context = context;
+            _environment = environment;
         }
 
         [HttpGet]
@@ -140,6 +142,8 @@ namespace GestionCourrier.Controllers
                 NumeroDeCourrier = request.NumeroDeCourrier?.Trim() ?? string.Empty,
                 IdService = request.IdService,
                 EstArchive = false,
+                // Valeur cochee dans le formulaire React.
+                EstTransmissible = request.EstTransmissible,
                 ParentId = parentId,
                 TypeRegistre = typeRegistre,
                 TypeCorrespondance = typeCorrespondance
@@ -221,6 +225,8 @@ namespace GestionCourrier.Controllers
             courrier.TypeGenerale = GetTypeGenerale(direction);
             courrier.NumeroDeCourrier = request.NumeroDeCourrier?.Trim() ?? string.Empty;
             courrier.IdService = request.IdService;
+            // Met a jour le statut transmissible lors de la modification.
+            courrier.EstTransmissible = request.EstTransmissible;
             courrier.ParentId = parentId;
             courrier.TypeRegistre = typeRegistre;
             courrier.TypeCorrespondance = typeCorrespondance;
@@ -271,6 +277,36 @@ namespace GestionCourrier.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(ToResponse(courrier));
+        }
+
+        [HttpPost("upload-document")]
+        public async Task<IActionResult> UploadDocument([FromForm] IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest("Fichier requis.");
+
+            var extension = Path.GetExtension(file.FileName);
+            var allowedExtensions = new[] { ".pdf", ".doc", ".docx" };
+            if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+                return BadRequest("Seuls les fichiers PDF ou Word sont acceptes.");
+
+            var uploadsRoot = Path.Combine(_environment.WebRootPath, "uploads", "documents");
+            Directory.CreateDirectory(uploadsRoot);
+
+            var safeBaseName = Path.GetFileNameWithoutExtension(file.FileName);
+            safeBaseName = string.Join("-", safeBaseName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+            if (string.IsNullOrWhiteSpace(safeBaseName))
+                safeBaseName = "document";
+
+            var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}-{safeBaseName}{extension.ToLowerInvariant()}";
+            var filePath = Path.Combine(uploadsRoot, fileName);
+
+            await using (var stream = System.IO.File.Create(filePath))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            return Ok(new { lienPdf = $"/uploads/documents/{fileName}" });
         }
 
         [HttpGet("search")]
@@ -525,7 +561,8 @@ namespace GestionCourrier.Controllers
                         TypeRegistre = typeRegistre,
                         TypeCorrespondance = typeCorrespondance,
                         ParentId = null,
-                        EstArchive = false
+                        EstArchive = false,
+                        EstTransmissible = false
                     });
                     imported++;
                 }
@@ -860,6 +897,8 @@ namespace GestionCourrier.Controllers
                 typeDocument = e.TypeDocument,
                 typeGenerale = e.TypeGenerale,
                 numeroDeCourrier = e.NumeroDeCourrier,
+                // Champ renvoye tel quel pour l'affichage Oui/Non dans React.
+                estTransmissible = e.EstTransmissible,
                 idService = e.IdService,
                 serviceNom = e.Service != null ? e.Service.NomService : null
             };
@@ -883,5 +922,8 @@ namespace GestionCourrier.Controllers
         public int? ParentId { get; set; }
         public int IdService { get; set; }
         public string? NumeroDeCourrier { get; set; }
+
+        // Recu depuis la case a cocher "Transmissible".
+        public bool EstTransmissible { get; set; }
     }
 }

@@ -11,6 +11,9 @@ namespace GestionCourrier.DTOs
         public string Destinataire { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string LienPdf { get; set; } = string.Empty;
+
+        // Expose le choix de transmission au frontend.
+        public bool EstTransmissible { get; set; }
         public int? ParentId { get; set; }
         public string? TribunalSource { get; set; }      
         public string? NumeroDossier { get; set; }       

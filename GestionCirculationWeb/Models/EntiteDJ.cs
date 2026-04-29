@@ -13,7 +13,7 @@ namespace GestionCourrier.Models
         public DateTime DateArchivage { get; set; }
         public string Emplacement { get; set; }= string.Empty;
 
-        public int? IdBureauOrdre { get; set; }
+        public string? IdBureauOrdre { get; set; }
 
         public int IdService { get; set; }
 
@@ -24,6 +24,9 @@ namespace GestionCourrier.Models
         public string Description { get; set; } = string.Empty;
         public string LienPdf { get; set; } = string.Empty;
         public bool EstArchive { get; set; } = false;
+
+        // Les dossiers judiciaires sont transmissibles par defaut; l'action de transmission sera ajoutee separement.
+        public bool EstTransmissible { get; set; } = true;
         public Service? Service { get; set; }
         public NumeroDossierJuridique? NumeroDossier { get; set; }
         public ICollection<Retrait> Retraits { get; set; } = new List<Retrait>();

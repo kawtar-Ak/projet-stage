@@ -1,0 +1,10 @@
+bin/
+obj/
+build-check/
+frontend/build/
+GestionCirculationWeb/wwwroot/uploads/
+*.user
+*.suo
+*.cache
+.vs/
+node_modules/
