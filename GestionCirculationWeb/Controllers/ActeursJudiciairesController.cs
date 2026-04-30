@@ -39,6 +39,37 @@ namespace GestionCourrier.Controllers
             return item == null ? NotFound("Element judiciaire introuvable") : Ok(ToResponse(item));
         }
 
+        [HttpGet("archives")]
+        public async Task<IActionResult> GetArchives([FromQuery] string? motCle)
+        {
+            var query = BaseQuery().Where(e => e.EstArchive || e.EtatArchive == "Archive");
+
+            if (!string.IsNullOrWhiteSpace(motCle))
+            {
+                var keyword = motCle.Trim();
+                query = query.Where(e =>
+                    (e.IdBureauOrdre != null && e.IdBureauOrdre.Contains(keyword)) ||
+                    e.TribunalSource.Contains(keyword) ||
+                    e.Sujet.Contains(keyword) ||
+                    e.Destinataire.Contains(keyword) ||
+                    e.Description.Contains(keyword) ||
+                    e.Direction.Contains(keyword) ||
+                    e.EtatArchive.Contains(keyword) ||
+                    e.Emplacement.Contains(keyword) ||
+                    (e.NumeroDossier != null &&
+                        (e.NumeroDossier.Annee.ToString().Contains(keyword) ||
+                         e.NumeroDossier.Nombre.ToString().Contains(keyword) ||
+                         e.NumeroDossier.NumeroSujet.ToString().Contains(keyword))));
+            }
+
+            var items = await query
+                .OrderByDescending(e => e.DateArchivage)
+                .ThenByDescending(e => e.Id)
+                .ToListAsync();
+
+            return Ok(items.Select(ToResponse));
+        }
+
         [HttpPost]
         public async Task<IActionResult> Create(CourrierJudiciaireRequest request)
         {
@@ -127,6 +158,49 @@ namespace GestionCourrier.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(ToResponse(item));
+        }
+
+        [HttpPost("{id:int}/retraits")]
+        public async Task<IActionResult> EnregistrerRetrait(int id, RetraitRequest request)
+        {
+            var item = await _context.EntitesDJs.FirstOrDefaultAsync(e => e.Id == id);
+            if (item == null) return NotFound("Element judiciaire introuvable");
+
+            if (string.IsNullOrWhiteSpace(request.MotifDeRetrait))
+                return BadRequest("Motif de retrait obligatoire.");
+
+            var retrait = new Retrait
+            {
+                EntiteDJId = id,
+                DateDeRetrait = request.DateDeRetrait == default ? DateTime.Now : request.DateDeRetrait,
+                MotifDeRetrait = request.MotifDeRetrait.Trim(),
+                EffectuePar = request.EffectuePar?.Trim() ?? string.Empty,
+                DateDeRetour = request.DateDeRetour ?? DateTime.MinValue,
+                Notes = request.Notes?.Trim() ?? string.Empty
+            };
+
+            _context.Retraits.Add(retrait);
+            await _context.SaveChangesAsync();
+
+            var updated = await BaseQuery().FirstAsync(e => e.Id == id);
+            return Ok(ToResponse(updated));
+        }
+
+        [HttpPut("retraits/{retraitId:int}/retour")]
+        public async Task<IActionResult> EnregistrerRetour(int retraitId, RetraitRetourRequest request)
+        {
+            var retrait = await _context.Retraits.FirstOrDefaultAsync(r => r.Id == retraitId);
+            if (retrait == null) return NotFound("Retrait introuvable");
+
+            retrait.DateDeRetour = request.DateDeRetour == default ? DateTime.Now : request.DateDeRetour;
+
+            if (!string.IsNullOrWhiteSpace(request.Notes))
+                retrait.Notes = request.Notes.Trim();
+
+            await _context.SaveChangesAsync();
+
+            var updated = await BaseQuery().FirstAsync(e => e.Id == retrait.EntiteDJId);
+            return Ok(ToResponse(updated));
         }
 
         [HttpPost("upload-pdf")]
@@ -372,7 +446,7 @@ namespace GestionCourrier.Controllers
                         dateDeRetrait = r.DateDeRetrait,
                         motifDeRetrait = r.MotifDeRetrait,
                         effectuePar = r.EffectuePar,
-                        dateDeRetour = r.DateDeRetour,
+                        dateDeRetour = r.DateDeRetour == DateTime.MinValue ? (DateTime?)null : r.DateDeRetour,
                         notes = r.Notes
                     })
             };
@@ -564,5 +638,20 @@ namespace GestionCourrier.Controllers
         public int? NumeroDossierAnnee { get; set; }
         public int? NumeroDossierNombre { get; set; }
         public int? NumeroDossierSujet { get; set; }
+    }
+
+    public class RetraitRequest
+    {
+        public DateTime DateDeRetrait { get; set; }
+        public string MotifDeRetrait { get; set; } = string.Empty;
+        public string? EffectuePar { get; set; }
+        public DateTime? DateDeRetour { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    public class RetraitRetourRequest
+    {
+        public DateTime DateDeRetour { get; set; }
+        public string? Notes { get; set; }
     }
 }

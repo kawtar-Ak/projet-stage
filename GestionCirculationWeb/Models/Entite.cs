@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace GestionCourrier.Models
@@ -25,20 +24,17 @@ namespace GestionCourrier.Models
         public string NumeroDeCourrier { get; set; } = string.Empty;
         public TypeEntite TypeGenerale { get; set; }
         public bool EstArchive { get; set; } = false;
-
-        // Indique si le courrier administratif peut etre transmis a un autre service.
-        public bool EstTransmissible { get; set; } = false;
         public string Sujet { get; set; }= string.Empty;
         public string Direction { get; set; } = "Entrant";
         public string Destinataire { get; set; } = string.Empty;
         public int? ParentId { get; set; }
         public string TypeRegistre { get; set; } = "Waridat";
         public string? TypeCorrespondance { get; set; }
-
+        public bool EstTransmissible { get; set; } = false;
+        public string? EtatWorkflow { get; set; } // stocke la valeur de DocumentState
         // Navigation
         public int IdService { get; set; }
         public Service? Service { get; set; }
-        public ICollection<Circulation> Circulations { get; set; } = new List<Circulation>();
 
         public void CreerEntite() { }
         public void ModifierEntite() { }

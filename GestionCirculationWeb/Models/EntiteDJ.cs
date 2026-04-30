@@ -24,6 +24,8 @@ namespace GestionCourrier.Models
         public string Description { get; set; } = string.Empty;
         public string LienPdf { get; set; } = string.Empty;
         public bool EstArchive { get; set; } = false;
+        public string? EtatWorkflow { get; set; } // stocke la valeur de DocumentState
+
 
         // Les dossiers judiciaires sont transmissibles par defaut; l'action de transmission sera ajoutee separement.
         public bool EstTransmissible { get; set; } = true;
@@ -39,3 +41,4 @@ namespace GestionCourrier.Models
         public void AffecterService() { }
     }
 }
+       

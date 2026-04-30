@@ -6,4 +6,8 @@ function PrivateRoute({ children }) {
   if (loading) return <div>Chargement...</div>;
   return user ? children : <Navigate to="/login" />;
 }
+function MyComponent() {
+  const { t } = useTranslation();
+  return <h1>{t('dashboard')}</h1>;
+}
 export default PrivateRoute;

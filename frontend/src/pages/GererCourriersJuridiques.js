@@ -1,38 +1,35 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const TEXT_TRANSFER = "\u0625\u062d\u0627\u0644\u0629";
-const TRANSFER_PROMPT = "\u0623\u062f\u062e\u0644 \u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064a\u0647 \u0623\u0648 \u0627\u0644\u0645\u0635\u0644\u062d\u0629 \u0627\u0644\u0645\u0633\u062a\u0642\u0628\u0644\u0629";
-const TRANSFER_SUCCESS = "\u062a\u0645\u062a \u0625\u062d\u0627\u0644\u0629 \u0627\u0644\u0645\u0631\u0627\u0633\u0644\u0629 \u0627\u0644\u0642\u0636\u0627\u0626\u064a\u0629 \u0628\u0646\u062c\u0627\u062d.";
-const TRANSFER_ERROR = "\u062a\u0639\u0630\u0631\u062a \u0625\u062d\u0627\u0644\u0629 \u0627\u0644\u0645\u0631\u0627\u0633\u0644\u0629.";
-const PDF_UPLOAD_SUCCESS = "\u062a\u0645 \u0631\u0641\u0639 \u0627\u0644\u0645\u0644\u0641 \u0648\u062a\u0639\u0628\u0626\u0629 \u0627\u0644\u0631\u0627\u0628\u0637 \u062a\u0644\u0642\u0627\u0626\u064a\u0627.";
-const PDF_UPLOAD_ERROR = "\u062a\u0639\u0630\u0631 \u0631\u0641\u0639 \u0627\u0644\u0645\u0644\u0641. \u0627\u0644\u0645\u0633\u0645\u0648\u062d: PDF \u0623\u0648 Word.";
-const PDF_FILE_LABEL = "\u0627\u062e\u062a\u064a\u0627\u0631 \u0645\u0644\u0641 PDF \u0623\u0648 Word";
-const PDF_UPLOADING_LABEL = "\u062c\u0627\u0631\u064a \u0631\u0641\u0639 \u0627\u0644\u0645\u0644\u0641...";
-const ALLOWED_DOCUMENT_EXTENSIONS = [".pdf", ".doc", ".docx"];
-const OPEN_DOCUMENT_LABEL = "\u0641\u062a\u062d \u0627\u0644\u0645\u0644\u0641";
-const REMOVE_DOCUMENT_LABEL = "\u062d\u0630\u0641";
-
-function GererCourriersJuridiques() {
+function GererCourriersJuridiques({ embedded = false }) {
   const [courriers, setCourriers] = useState([]);
   const [services, setServices] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [motCle, setMotCle] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [form, setForm] = useState(getInitialForm());
-  const safeForm = normalizeForm(form, services);
+  const [selectedArchiveItem, setSelectedArchiveItem] = useState(null);
+  const [retraitForm, setRetraitForm] = useState(getInitialRetraitForm());
 
   useEffect(() => {
     fetchCourriers();
     fetchServices();
   }, []);
 
+  useEffect(() => {
+    const timeout = setTimeout(fetchCourriers, 250);
+    return () => clearTimeout(timeout);
+  }, [motCle]);
+
   const fetchCourriers = async () => {
     try {
-      const response = await axios.get("/api/acteursjudiciaires");
+      const url = motCle.trim()
+        ? `/api/acteursjudiciaires/search?motCle=${encodeURIComponent(motCle.trim())}`
+        : "/api/acteursjudiciaires";
+      const response = await axios.get(url);
       setCourriers(response.data);
       setError("");
     } catch (err) {
@@ -45,104 +42,89 @@ function GererCourriersJuridiques() {
       const response = await axios.get("/api/services");
       setServices(response.data);
       if (response.data.length > 0) {
-        setForm((prev) => normalizeForm({ ...prev, idService: prev.idService || response.data[0].idService }, response.data));
+        setForm((prev) => ({
+          ...prev,
+          idService: prev.idService || response.data[0].idService,
+        }));
       }
     } catch (err) {
       setError(getErrorMessage(err, "تعذر تحميل المصالح."));
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => normalizeForm({ ...prev, [name]: type === "checkbox" ? checked : value }, services));
+  const handleChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : name === "idService" ? Number(value) : value,
+    }));
   };
 
-  const handlePdfSelect = async (e) => {
-    const file = e.target.files?.[0];
+  const handleRetraitChange = (event) => {
+    const { name, value } = event.target;
+    setRetraitForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleDocumentSelect = async (event) => {
+    const file = event.target.files[0];
     if (!file) return;
 
-    const fileName = file.name.toLowerCase();
-    const hasAllowedExtension = ALLOWED_DOCUMENT_EXTENSIONS.some((extension) => fileName.endsWith(extension));
-    if (!hasAllowedExtension) {
-      setError(PDF_UPLOAD_ERROR);
-      e.target.value = "";
-      return;
-    }
-
-    setUploadingPdf(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    setUploading(true);
     setError("");
     setSuccess("");
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await axios.post("/api/acteursjudiciaires/upload-document", formData);
-      const lienPdf = response.data?.lienPdf || "";
-
-      if (!lienPdf) {
-        throw new Error(PDF_UPLOAD_ERROR);
-      }
-
-      setForm((prev) => normalizeForm({ ...prev, lienPdf }, services));
-      setSuccess(PDF_UPLOAD_SUCCESS);
+      const response = await axios.post("/api/acteursjudiciaires/upload-pdf", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setForm((prev) => ({ ...prev, lienPdf: response.data.lienPdf || "" }));
+      setSuccess("تم رفع الوثيقة. المرجو حفظ المراسلة للاحتفاظ بالرابط.");
     } catch (err) {
-      setError(getErrorMessage(err, PDF_UPLOAD_ERROR));
+      setError(getErrorMessage(err, "تعذر رفع الوثيقة."));
     } finally {
-      setUploadingPdf(false);
-      e.target.value = "";
+      setUploading(false);
+      event.target.value = "";
     }
   };
 
-  const clearDocumentLink = () => {
-    setForm((prev) => normalizeForm({ ...prev, lienPdf: "" }, services));
-  };
-
-  const resetForm = () => {
-    setEditingId(null);
-    setForm(getInitialForm(services));
-    setError("");
-    setSuccess("");
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError("");
     setSuccess("");
 
-    const currentForm = normalizeForm(form, services);
-    const validationError = validateForm(currentForm);
+    const validationError = validateForm(form);
     if (validationError) {
       setError(validationError);
       return;
     }
 
-    const dataToSend = {
-      idBureauOrdre: currentForm.idBureauOrdre.trim() || null,
-      date: new Date(currentForm.date).toISOString(),
-      tribunalSource: currentForm.tribunalSource.trim(),
-      sujet: currentForm.sujet.trim(),
-      direction: "Entrant",
-      destinataire: currentForm.destinataire.trim(),
-      description: currentForm.description.trim(),
-      etatArchive: currentForm.etatArchive,
-      emplacement: currentForm.emplacement.trim(),
-      lienPdf: currentForm.lienPdf.trim(),
-      idService: Number(currentForm.idService),
-      estTransmissible: true,
-      numeroDossier: currentForm.numeroDossier.trim(),
-      numeroDossierAnnee: null,
-      numeroDossierNombre: null,
-      numeroDossierSujet: null,
+    const payload = {
+      idBureauOrdre: form.idBureauOrdre.trim(),
+      date: new Date(form.date).toISOString(),
+      tribunalSource: form.tribunalSource.trim(),
+      sujet: form.sujet.trim(),
+      direction: form.direction,
+      destinataire: form.destinataire.trim(),
+      description: form.description.trim(),
+      etatArchive: form.etatArchive,
+      emplacement: form.emplacement.trim(),
+      lienPdf: form.lienPdf.trim(),
+      idService: Number(form.idService),
+      numeroDossier: form.numeroDossier.trim(),
+      estTransmissible: Boolean(form.estTransmissible),
     };
 
     try {
       if (editingId) {
-        await axios.put(`/api/acteursjudiciaires/${editingId}`, dataToSend);
+        await axios.put(`/api/acteursjudiciaires/${editingId}`, payload);
         setSuccess("تم تعديل المراسلة القضائية بنجاح.");
       } else {
-        await axios.post("/api/acteursjudiciaires", dataToSend);
+        await axios.post("/api/acteursjudiciaires", payload);
         setSuccess("تمت إضافة المراسلة القضائية بنجاح.");
       }
+
       resetForm();
       await fetchCourriers();
     } catch (err) {
@@ -152,244 +134,277 @@ function GererCourriersJuridiques() {
 
   const handleEdit = (courrier) => {
     setEditingId(courrier.id);
-    setForm(normalizeForm({
+    setForm({
       idBureauOrdre: courrier.idBureauOrdre || "",
       date: courrier.date ? courrier.date.slice(0, 10) : "",
       tribunalSource: courrier.tribunalSource || "",
+      numeroDossier: courrier.numeroDossier || "",
       sujet: courrier.sujet || "",
+      direction: courrier.direction || "Entrant",
       destinataire: courrier.destinataire || "",
       description: courrier.description || "",
       etatArchive: courrier.etatArchive || "Nouveau",
       emplacement: courrier.emplacement || "",
       lienPdf: courrier.lienPdf || "",
       idService: courrier.idService || getDefaultServiceId(services),
-      numeroDossier: courrier.numeroDossier || "",
-    }, services));
+      estTransmissible: Boolean(courrier.estTransmissible),
+    });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("هل تريد حذف هذه المراسلة القضائية؟")) return;
+
     try {
       await axios.delete(`/api/acteursjudiciaires/${id}`);
       setSuccess("تم حذف المراسلة القضائية بنجاح.");
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر حذف المراسلة."));
+      setError(getErrorMessage(err, "تعذر حذف المراسلة القضائية."));
     }
   };
 
   const handleArchive = async (id) => {
     if (!window.confirm("هل تريد أرشفة هذه المراسلة القضائية؟")) return;
+
     try {
       await axios.put(`/api/acteursjudiciaires/archiver/${id}`);
       setSuccess("تمت أرشفة المراسلة القضائية بنجاح.");
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر أرشفة المراسلة."));
+      setError(getErrorMessage(err, "تعذر أرشفة المراسلة القضائية."));
     }
   };
 
-  const handleTransfer = async (courrier) => {
-    const destinataire = window.prompt(TRANSFER_PROMPT, courrier.destinataire || "");
-    if (destinataire === null) return;
+  const openArchiveService = (courrier) => {
+    setSelectedArchiveItem(courrier);
+    setRetraitForm(getInitialRetraitForm());
+    setError("");
+    setSuccess("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
-    const destination = destinataire.trim();
-    if (!destination) {
-      setError(TRANSFER_PROMPT);
-      setSuccess("");
+  const closeArchiveService = () => {
+    setSelectedArchiveItem(null);
+    setRetraitForm(getInitialRetraitForm());
+  };
+
+  const handleSaveRetrait = async (event) => {
+    event.preventDefault();
+    if (!selectedArchiveItem) return;
+
+    if (!retraitForm.motifDeRetrait.trim()) {
+      setError("سبب السحب إجباري.");
       return;
     }
 
-    const dataToSend = {
-      idBureauOrdre: courrier.idBureauOrdre || null,
-      date: new Date(courrier.date).toISOString(),
-      tribunalSource: courrier.tribunalSource || "",
-      sujet: courrier.sujet || "",
-      direction: "Sortant",
-      destinataire: destination,
-      description: courrier.description || "",
-      etatArchive: courrier.etatArchive === "Archive" ? "En cours" : courrier.etatArchive || "En cours",
-      emplacement: courrier.emplacement || "",
-      lienPdf: courrier.lienPdf || "",
-      idService: Number(courrier.idService),
-      estTransmissible: true,
-      numeroDossier: courrier.numeroDossier || "",
-      numeroDossierAnnee: courrier.numeroDossierAnnee || null,
-      numeroDossierNombre: courrier.numeroDossierNombre || null,
-      numeroDossierSujet: courrier.numeroDossierSujet || null,
-    };
-
     try {
-      await axios.put(`/api/acteursjudiciaires/${courrier.id}`, dataToSend);
-      setSuccess(TRANSFER_SUCCESS);
-      setError("");
+      const payload = {
+        dateDeRetrait: retraitForm.dateDeRetrait
+          ? new Date(retraitForm.dateDeRetrait).toISOString()
+          : new Date().toISOString(),
+        motifDeRetrait: retraitForm.motifDeRetrait.trim(),
+        effectuePar: retraitForm.effectuePar.trim(),
+        notes: retraitForm.notes.trim(),
+      };
+
+      const response = await axios.post(`/api/acteursjudiciaires/${selectedArchiveItem.id}/retraits`, payload);
+      setSelectedArchiveItem(response.data);
+      setRetraitForm(getInitialRetraitForm());
+      setSuccess("تم تسجيل السحب بنجاح.");
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, TRANSFER_ERROR));
-      setSuccess("");
+      setError(getErrorMessage(err, "تعذر تسجيل السحب."));
     }
   };
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
+  const handleSaveRetour = async (retraitId) => {
     try {
-      if (!motCle.trim()) {
-        await fetchCourriers();
-        return;
-      }
-      const response = await axios.get(`/api/acteursjudiciaires/search?motCle=${encodeURIComponent(motCle.trim())}`);
-      setCourriers(response.data);
+      const response = await axios.put(`/api/acteursjudiciaires/retraits/${retraitId}/retour`, {
+        dateDeRetour: new Date().toISOString(),
+        notes: retraitForm.notes.trim(),
+      });
+      setSelectedArchiveItem(response.data);
+      setSuccess("تم تسجيل الإرجاع بنجاح.");
+      await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر البحث."));
+      setError(getErrorMessage(err, "تعذر تسجيل الإرجاع."));
     }
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setForm(getInitialForm(services));
+    setError("");
   };
 
   const exportToExcel = () => {
     fetch("/api/acteursjudiciaires/export/excel", {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
-      .then((res) => {
-        if (!res.ok) throw new Error("تعذر التصدير.");
-        return res.blob();
+      .then((response) => {
+        if (!response.ok) throw new Error("تعذر التصدير.");
+        return response.blob();
       })
       .then((blob) => {
         const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "courriers-juridiques.xlsx";
-        link.click();
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "courriers-juridiques.xlsx";
+        a.click();
         window.URL.revokeObjectURL(url);
       })
       .catch(() => setError("تعذر تصدير ملف Excel."));
   };
 
-  const importFromExcel = async (e) => {
-    const file = e.target.files?.[0];
+  const handleImportExcel = async (event) => {
+    const file = event.target.files[0];
     if (!file) return;
 
+    const formData = new FormData();
+    formData.append("file", file);
     setImporting(true);
     setError("");
     setSuccess("");
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
       const response = await axios.post("/api/acteursjudiciaires/import/excel", formData);
       const imported = response.data?.imported || 0;
       const errors = response.data?.errors || [];
-
-      setSuccess(`تم استيراد ${imported} سجل.`);
-      if (errors.length > 0) {
-        setError(`اكتمل الاستيراد مع أخطاء: ${errors.join(" | ")}`);
-      }
+      setSuccess(`تم الاستيراد: ${imported} سطر مضاف.`);
+      if (errors.length > 0) setError(errors.join(" | "));
       await fetchCourriers();
     } catch (err) {
       setError(getErrorMessage(err, "تعذر استيراد ملف Excel."));
     } finally {
       setImporting(false);
-      e.target.value = "";
+      event.target.value = "";
     }
   };
 
   return (
-    <div className="page-container" dir="rtl">
-      <h1 className="page-title">تدبير المراسلات القضائية</h1>
+    <div className={embedded ? "courriers-juridiques-content" : "page-container"} dir="rtl">
+      {!embedded && <h1 className="page-title">تدبير المراسلات القضائية</h1>}
+
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">{success}</div>}
 
       <div className="form-card">
         <h3>{editingId ? "تعديل" : "إضافة"} مراسلة قضائية</h3>
+
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
-            <Field label="رقم ملف الاستئناف القضائي *">
-              <input
-                type="text"
-                name="numeroDossier"
-                value={safeForm.numeroDossier}
-                onChange={handleChange}
-                placeholder="مثال: 2026/15/3"
-                required
-              />
-            </Field>
-            <Field label="رقم مكتب الضبط (اختياري)">
-              <input
-                type="text"
-                name="idBureauOrdre"
-                value={safeForm.idBureauOrdre}
-                onChange={handleChange}
-                inputMode="numeric"
-              />
-            </Field>
-            <Field label="التاريخ *">
-              <input type="date" name="date" value={safeForm.date} onChange={handleChange} required />
-            </Field>
-            <Field label="المحكمة / المصدر *">
-              <input type="text" name="tribunalSource" value={safeForm.tribunalSource} onChange={handleChange} required />
-            </Field>
-            <Field label="الموضوع *">
-              <input type="text" name="sujet" value={safeForm.sujet} onChange={handleChange} required />
-            </Field>
-            <Field label="المرسل إليه">
-              <input type="text" name="destinataire" value={safeForm.destinataire} onChange={handleChange} />
-            </Field>
-            <Field label="المصلحة المعنية *">
-              <select name="idService" value={safeForm.idService} onChange={handleChange} required>
+            <div className="form-field">
+              <label>الرقم الاستئنافي للملف *</label>
+              <input name="numeroDossier" value={form.numeroDossier} onChange={handleChange} placeholder="2026/15/3" required />
+            </div>
+
+            <div className="form-field">
+              <label>التاريخ *</label>
+              <input type="date" name="date" value={form.date} onChange={handleChange} required />
+            </div>
+
+            <div className="form-field">
+              <label>المحكمة / المصدر *</label>
+              <input name="tribunalSource" value={form.tribunalSource} onChange={handleChange} required />
+            </div>
+
+            <div className="form-field">
+              <label>رقم مكتب الضبط</label>
+              <input name="idBureauOrdre" value={form.idBureauOrdre} onChange={handleChange} />
+            </div>
+
+            <div className="form-field">
+              <label>الموضوع *</label>
+              <input name="sujet" value={form.sujet} onChange={handleChange} required />
+            </div>
+
+            <div className="form-field">
+              <label>نوع المراسلة</label>
+              <select name="direction" value={form.direction} onChange={handleChange}>
+                <option value="Entrant">واردة</option>
+                <option value="Sortant">صادرة</option>
+                <option value="Interne">داخلية</option>
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>المرسل إليه</label>
+              <input name="destinataire" value={form.destinataire} onChange={handleChange} />
+            </div>
+
+            <div className="form-field">
+              <label>المصلحة *</label>
+              <select name="idService" value={form.idService} onChange={handleChange} required>
                 <option value="">-- اختيار المصلحة --</option>
                 {services.map((service) => (
-                  <option key={service.idService} value={service.idService}>{service.nomService}</option>
+                  <option key={service.idService} value={service.idService}>
+                    {service.nomService}
+                  </option>
                 ))}
               </select>
-            </Field>
-            <Field label="الحالة">
-              <select name="etatArchive" value={safeForm.etatArchive} onChange={handleChange}>
+            </div>
+
+            <div className="form-field">
+              <label>الحالة</label>
+              <select name="etatArchive" value={form.etatArchive} onChange={handleChange}>
                 <option value="Nouveau">جديد</option>
                 <option value="En cours">قيد المعالجة</option>
                 <option value="Traite">تمت المعالجة</option>
                 <option value="Archive">مؤرشف</option>
               </select>
-            </Field>
-            <Field label="المكان / الموقع">
-              <input type="text" name="emplacement" value={safeForm.emplacement} onChange={handleChange} />
-            </Field>
-            <Field label="رابط PDF / Word">
-              <div className="document-upload">
-                <label className={uploadingPdf ? "document-upload-button disabled" : "document-upload-button"}>
-                  {uploadingPdf ? PDF_UPLOADING_LABEL : PDF_FILE_LABEL}
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={handlePdfSelect}
-                    disabled={uploadingPdf}
-                  />
+            </div>
+
+            <div className="form-field">
+              <label>قابل للإحالة</label>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  name="estTransmissible"
+                  checked={form.estTransmissible}
+                  onChange={handleChange}
+                />
+                نعم
+              </label>
+            </div>
+
+            <div className="form-field">
+              <label>الموقع</label>
+              <input name="emplacement" value={form.emplacement} onChange={handleChange} />
+            </div>
+
+            <div className="form-field full-width">
+              <label>الوثيقة PDF / Word</label>
+              <div className="document-control">
+                <label className="document-upload-button">
+                  {uploading ? "جاري رفع الملف..." : "اختيار ملف"}
+                  <input type="file" accept=".pdf,.doc,.docx" onChange={handleDocumentSelect} />
                 </label>
-                <div className={safeForm.lienPdf ? "document-link-preview filled" : "document-link-preview"}>
-                  {safeForm.lienPdf ? (
-                    <>
-                      <span title={safeForm.lienPdf}>{getDocumentName(safeForm.lienPdf)}</span>
-                      <a href={getDocumentHref(safeForm.lienPdf)} target="_blank" rel="noreferrer">{OPEN_DOCUMENT_LABEL}</a>
-                      <button type="button" onClick={clearDocumentLink}>{REMOVE_DOCUMENT_LABEL}</button>
-                    </>
-                  ) : (
-                    <span>{PDF_FILE_LABEL}</span>
+                <div className={form.lienPdf ? "document-link-preview filled" : "document-link-preview"}>
+                  <span title={form.lienPdf || ""}>{form.lienPdf ? getDocumentName(form.lienPdf) : "لم يتم اختيار ملف"}</span>
+                  {form.lienPdf && (
+                    <a href={getDocumentHref(form.lienPdf)} target="_blank" rel="noreferrer">
+                      فتح
+                    </a>
+                  )}
+                </div>
+                <div className="document-link-input">
+                  <input name="lienPdf" value={form.lienPdf} onChange={handleChange} placeholder="/uploads/documents/..." />
+                  {form.lienPdf && (
+                    <a href={getDocumentHref(form.lienPdf)} target="_blank" rel="noreferrer">
+                      فتح
+                    </a>
                   )}
                 </div>
               </div>
-              <input
-                className="sr-only-field"
-                type="text"
-                name="lienPdf"
-                value={safeForm.lienPdf}
-                onChange={handleChange}
-                tabIndex="-1"
-                placeholder={uploadingPdf ? PDF_UPLOADING_LABEL : PDF_FILE_LABEL}
-              />
-            </Field>
+            </div>
+
             <div className="form-field full-width">
               <label>الملاحظات</label>
-              <textarea name="description" value={safeForm.description} onChange={handleChange} rows="3" />
+              <textarea name="description" value={form.description} onChange={handleChange} rows="3" />
             </div>
           </div>
+
           <div className="form-actions">
             <button type="submit" className="btn-primary">{editingId ? "تعديل" : "إضافة"}</button>
             {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>إلغاء</button>}
@@ -397,56 +412,170 @@ function GererCourriersJuridiques() {
         </form>
       </div>
 
-      <div className="registry-panel">
-        <div className="registry-panel-header"><h3>البحث والسجل</h3></div>
-        <div className="filters">
-          <form onSubmit={handleSearch} className="search-form">
-            <input value={motCle} onChange={(e) => setMotCle(e.target.value)} placeholder="البحث بالمحكمة، رقم ملف الاستئناف القضائي، الموضوع، المرسل إليه، الحالة..." />
-            <button type="submit" className="btn-primary">بحث</button>
-            <button type="button" className="btn-secondary" onClick={() => { setMotCle(""); fetchCourriers(); }}>إعادة تعيين</button>
-            <button type="button" className="btn-primary" onClick={exportToExcel}>
-              تصدير Excel
+      {selectedArchiveItem && (
+        <div className="form-card archive-service-panel">
+          <div className="registry-panel-header">
+            <div>
+              <h3>خدمة الأرشيف: السحب والإرجاع</h3>
+              <p>
+                {selectedArchiveItem.numeroDossier || "-"} - {selectedArchiveItem.sujet || "-"}
+              </p>
+            </div>
+            <button type="button" className="btn-secondary" onClick={closeArchiveService}>
+              إغلاق
             </button>
+          </div>
+
+          <form onSubmit={handleSaveRetrait}>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>تاريخ السحب</label>
+                <input
+                  type="date"
+                  name="dateDeRetrait"
+                  value={retraitForm.dateDeRetrait}
+                  onChange={handleRetraitChange}
+                />
+              </div>
+
+              <div className="form-field">
+                <label>سبب السحب *</label>
+                <input
+                  name="motifDeRetrait"
+                  value={retraitForm.motifDeRetrait}
+                  onChange={handleRetraitChange}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label>تم بواسطة</label>
+                <input
+                  name="effectuePar"
+                  value={retraitForm.effectuePar}
+                  onChange={handleRetraitChange}
+                />
+              </div>
+
+              <div className="form-field full-width">
+                <label>ملاحظات</label>
+                <textarea
+                  name="notes"
+                  value={retraitForm.notes}
+                  onChange={handleRetraitChange}
+                  rows="2"
+                />
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">تسجيل السحب</button>
+            </div>
+          </form>
+
+          <div className="data-table-wrapper">
+            <h3>سجل السحوبات</h3>
+            <table className="modern-table">
+              <thead>
+                <tr>
+                  <th>تاريخ السحب</th>
+                  <th>السبب</th>
+                  <th>تم بواسطة</th>
+                  <th>تاريخ الإرجاع</th>
+                  <th>ملاحظات</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(selectedArchiveItem.retraits || []).length === 0 ? (
+                  <tr><td colSpan="6" style={{ textAlign: "center" }}>لا توجد سحوبات.</td></tr>
+                ) : (
+                  selectedArchiveItem.retraits.map((retrait) => (
+                    <tr key={retrait.id}>
+                      <td>{formatDate(retrait.dateDeRetrait)}</td>
+                      <td>{retrait.motifDeRetrait || "-"}</td>
+                      <td>{retrait.effectuePar || "-"}</td>
+                      <td>{retrait.dateDeRetour ? formatDate(retrait.dateDeRetour) : "-"}</td>
+                      <td>{retrait.notes || "-"}</td>
+                      <td>
+                        {!retrait.dateDeRetour ? (
+                          <button type="button" onClick={() => handleSaveRetour(retrait.id)}>
+                            تسجيل الإرجاع
+                          </button>
+                        ) : (
+                          "تم الإرجاع"
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className="registry-panel">
+        <div className="registry-panel-header">
+          <h3>البحث والسجل</h3>
+          <div className="registry-tools">
+            <button type="button" className="btn-primary" onClick={exportToExcel}>تصدير Excel</button>
             <label className="btn-secondary import-label">
               {importing ? "جاري الاستيراد..." : "استيراد Excel"}
-              <input type="file" accept=".xlsx,.xls" onChange={importFromExcel} hidden disabled={importing} />
+              <input type="file" accept=".xlsx" onChange={handleImportExcel} />
             </label>
-          </form>
+          </div>
         </div>
+
+        <div className="filters">
+          <input value={motCle} onChange={(e) => setMotCle(e.target.value)} placeholder="البحث بالمحكمة، الرقم الاستئنافي للملف، الموضوع..." />
+          <button type="button" className="btn-secondary" onClick={() => setMotCle("")}>إعادة تعيين</button>
+        </div>
+
         <div className="data-table-wrapper">
           <table className="modern-table">
             <thead>
               <tr>
-                <th>رقم مكتب الضبط</th><th>التاريخ</th><th>المحكمة / المصدر</th><th>رقم ملف الاستئناف القضائي</th><th>الموضوع</th>
-                <th>المرسل إليه</th><th>المصلحة</th><th>الحالة</th><th>الموقع</th>
-                <th>PDF</th><th>الإجراءات</th>
+                <th>التاريخ</th>
+                <th>المحكمة / المصدر</th>
+                <th>الرقم الاستئنافي للملف</th>
+                <th>الموضوع</th>
+                <th>نوع المراسلة</th>
+                <th>المرسل إليه</th>
+                <th>المصلحة</th>
+                <th>الحالة</th>
+                <th>الموقع</th>
+                <th>السحوبات</th>
+                <th>PDF</th>
+                <th>الإجراءات</th>
               </tr>
             </thead>
             <tbody>
               {courriers.length === 0 ? (
-                <tr><td colSpan="11" style={{ textAlign: "center" }}>لا توجد مراسلات قضائية.</td></tr>
-              ) : courriers.map((courrier) => (
-                <tr key={courrier.id}>
-                  <td>{courrier.idBureauOrdre || "-"}</td>
-                  <td>{formatDate(courrier.date)}</td>
-                  <td>{courrier.tribunalSource || "-"}</td>
-                  <td>{courrier.numeroDossier || "-"}</td>
-                  <td>{courrier.sujet || "-"}</td>
-                  <td>{courrier.destinataire || "-"}</td>
-                  <td>{courrier.serviceNom || courrier.idService || "-"}</td>
-                  <td>{courrier.etatArchive || "-"}</td>
-                  <td>{courrier.emplacement || "-"}</td>
-                  <td>{courrier.lienPdf ? <a href={getDocumentHref(courrier.lienPdf)} target="_blank" rel="noreferrer">PDF</a> : "-"}</td>
-                  <td className="action-icons">
-                    <button type="button" onClick={() => handleEdit(courrier)}>تعديل</button>
-                    {courrier.estTransmissible && (
-                      <button type="button" onClick={() => handleTransfer(courrier)} title={TEXT_TRANSFER}>{TEXT_TRANSFER}</button>
-                    )}
-                    <button type="button" onClick={() => handleArchive(courrier.id)}>أرشفة</button>
-                    <button type="button" onClick={() => handleDelete(courrier.id)}>حذف</button>
-                  </td>
-                </tr>
-              ))}
+                <tr><td colSpan="12" style={{ textAlign: "center" }}>لا توجد مراسلات قضائية.</td></tr>
+              ) : (
+                courriers.map((courrier) => (
+                  <tr key={courrier.id}>
+                    <td>{formatDate(courrier.date)}</td>
+                    <td>{courrier.tribunalSource || "-"}</td>
+                    <td>{courrier.numeroDossier || "-"}</td>
+                    <td>{courrier.sujet || "-"}</td>
+                    <td>{formatDirection(courrier.direction)}</td>
+                    <td>{courrier.destinataire || "-"}</td>
+                    <td>{courrier.serviceNom || courrier.idService || "-"}</td>
+                    <td>{formatEtat(courrier.etatArchive)}</td>
+                    <td>{courrier.emplacement || "-"}</td>
+                    <td>{courrier.retraitsCount ?? 0}</td>
+                    <td>{courrier.lienPdf ? <a href={getDocumentHref(courrier.lienPdf)} target="_blank" rel="noreferrer">فتح</a> : "-"}</td>
+                    <td className="action-icons">
+                      <button type="button" onClick={() => handleEdit(courrier)}>تعديل</button>
+                      <button type="button" onClick={() => openArchiveService(courrier)}>خدمة الأرشيف</button>
+                      <button type="button" onClick={() => handleArchive(courrier.id)}>أرشفة</button>
+                      <button type="button" onClick={() => handleDelete(courrier.id)}>حذف</button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -455,39 +584,14 @@ function GererCourriersJuridiques() {
   );
 }
 
-function Field({ label, children }) {
-  return <div className="form-field"><label>{label}</label>{normalizeControlledChildren(children)}</div>;
-}
-
-function normalizeControlledChildren(children) {
-  return React.Children.map(children, (child) => {
-    if (!React.isValidElement(child)) return child;
-
-    const props = {};
-    const isFormControl = ["input", "select", "textarea"].includes(child.type);
-
-    if (isFormControl && Object.prototype.hasOwnProperty.call(child.props, "value")) {
-      props.value = child.props.value ?? "";
-    }
-
-    if (isFormControl && Object.prototype.hasOwnProperty.call(child.props, "checked")) {
-      props.checked = Boolean(child.props.checked);
-    }
-
-    if (child.props.children) {
-      props.children = normalizeControlledChildren(child.props.children);
-    }
-
-    return Object.keys(props).length > 0 ? React.cloneElement(child, props) : child;
-  });
-}
-
 function getInitialForm(services = []) {
   return {
     idBureauOrdre: "",
     date: "",
     tribunalSource: "",
+    numeroDossier: "",
     sujet: "",
+    direction: "Entrant",
     destinataire: "",
     description: "",
     etatArchive: "Nouveau",
@@ -495,27 +599,15 @@ function getInitialForm(services = []) {
     lienPdf: "",
     idService: getDefaultServiceId(services),
     estTransmissible: true,
-    numeroDossier: "",
   };
 }
 
-function normalizeForm(form, services = []) {
-  const initial = getInitialForm(services);
+function getInitialRetraitForm() {
   return {
-    ...initial,
-    ...form,
-    idBureauOrdre: String(form?.idBureauOrdre ?? ""),
-    date: String(form?.date ?? ""),
-    tribunalSource: String(form?.tribunalSource ?? ""),
-    sujet: String(form?.sujet ?? ""),
-    destinataire: String(form?.destinataire ?? ""),
-    description: String(form?.description ?? ""),
-    etatArchive: String(form?.etatArchive ?? initial.etatArchive),
-    emplacement: String(form?.emplacement ?? ""),
-    lienPdf: String(form?.lienPdf ?? ""),
-    idService: form?.idService ?? initial.idService,
-    estTransmissible: true,
-    numeroDossier: String(form?.numeroDossier ?? ""),
+    dateDeRetrait: new Date().toISOString().slice(0, 10),
+    motifDeRetrait: "",
+    effectuePar: "",
+    notes: "",
   };
 }
 
@@ -523,13 +615,21 @@ function getDefaultServiceId(services) {
   return services.length > 0 ? services[0].idService : "";
 }
 
-function getDocumentName(value) {
-  if (!value) return "";
+function validateForm(form) {
+  if (!form.date) return "التاريخ إجباري.";
+  if (!form.tribunalSource.trim()) return "المحكمة / المصدر إجباري.";
+  if (!form.numeroDossier.trim()) return "الرقم الاستئنافي للملف إجباري.";
+  if (!/^\d+(\/\d+){0,2}$/.test(form.numeroDossier.trim())) {
+    return "الرقم الاستئنافي للملف غير صحيح. مثال: 2026/15/3.";
+  }
+  if (!form.sujet.trim()) return "الموضوع إجباري.";
+  if (!form.idService) return "المصلحة إجبارية.";
+  return "";
+}
 
-  const cleanValue = String(value).split("?")[0].split("#")[0];
-  const fileName = cleanValue.split("/").filter(Boolean).pop() || cleanValue;
-
-  return decodeURIComponent(fileName);
+function formatDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString();
 }
 
 function getDocumentHref(value) {
@@ -539,46 +639,31 @@ function getDocumentHref(value) {
   const normalizedValue = value.startsWith("/") ? value : `/${value}`;
   const isReactDevServer = window.location.hostname === "localhost" && window.location.port === "3000";
 
-  if (isReactDevServer) {
-    return `http://localhost:5127${normalizedValue}`;
-  }
-
-  return normalizedValue;
+  return isReactDevServer ? `http://localhost:5127${normalizedValue}` : normalizedValue;
 }
 
-function validateForm(form) {
-  if (!form.date) return "التاريخ إجباري.";
-  if (!form.tribunalSource.trim()) return "المحكمة / المصدر إجباري.";
-  if (!form.sujet.trim()) return "الموضوع إجباري.";
-  if (!form.numeroDossier.trim()) return "رقم ملف الاستئناف القضائي إجباري.";
-  if (!/^\d+(\/\d+){0,2}$/.test(form.numeroDossier.trim())) {
-    return "رقم ملف الاستئناف القضائي يجب أن يحتوي على أرقام و / فقط. مثال: 2026/15/3";
-  }
-  if (form.idBureauOrdre.trim() && !/^\d+(\/\d+)*$/.test(form.idBureauOrdre.trim())) {
-    return "رقم مكتب الضبط يجب أن يحتوي على أرقام و / فقط.";
-  }
-  if (!form.idService) return "المصلحة المعنية إجبارية.";
-  return "";
+function getDocumentName(value) {
+  if (!value) return "";
+  const cleanValue = String(value).split("?")[0].split("#")[0];
+  return decodeURIComponent(cleanValue.split("/").filter(Boolean).pop() || cleanValue);
 }
 
-function formatDate(value) {
-  if (!value) return "-";
-  return new Date(value).toLocaleDateString();
+function formatDirection(value) {
+  if (value === "Sortant") return "صادرة";
+  if (value === "Interne") return "داخلية";
+  return "واردة";
+}
+
+function formatEtat(value) {
+  if (value === "En cours") return "قيد المعالجة";
+  if (value === "Traite") return "تمت المعالجة";
+  if (value === "Archive") return "مؤرشف";
+  return "جديد";
 }
 
 function getErrorMessage(error, fallback) {
-  const data = error.response?.data;
-
-  if (typeof data === "string") return data;
-  if (data?.message) return data.message;
-  if (data?.title && data?.errors) {
-    const details = Object.values(data.errors).flat().join(" ");
-    return details || data.title;
-  }
-  if (data?.errors) {
-    return Object.values(data.errors).flat().join(" ");
-  }
-  if (data?.title) return data.title;
+  if (typeof error.response?.data === "string") return error.response.data;
+  if (error.response?.data?.message) return error.response.data.message;
   if (error.message) return error.message;
   return fallback;
 }
