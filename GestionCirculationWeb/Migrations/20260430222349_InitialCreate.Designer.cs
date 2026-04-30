@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GestionCirculationWeb.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260429131922_AddTransactionsAndWorkflowColumns")]
-    partial class AddTransactionsAndWorkflowColumns
+    [Migration("20260430222349_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

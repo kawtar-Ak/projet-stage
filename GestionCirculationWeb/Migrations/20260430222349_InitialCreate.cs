@@ -44,15 +44,24 @@ namespace GestionCirculationWeb.Migrations
                 {
                     IdEntite = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    IdBureauOrdre = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     DateCreation = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Source = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Etat = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     LienPdf = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     TypeDocument = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    NumeroDeCourrier = table.Column<int>(type: "int", nullable: false),
+                    NumeroDeCourrier = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     TypeGenerale = table.Column<int>(type: "int", nullable: false),
+                    EstArchive = table.Column<bool>(type: "bit", nullable: false),
                     Sujet = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Direction = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Destinataire = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ParentId = table.Column<int>(type: "int", nullable: true),
+                    TypeRegistre = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TypeCorrespondance = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    EstTransmissible = table.Column<bool>(type: "bit", nullable: false),
+                    EtatWorkflow = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     IdService = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
@@ -67,7 +76,7 @@ namespace GestionCirculationWeb.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "EntitesDJ",
+                name: "EntitesDJs",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
@@ -76,13 +85,23 @@ namespace GestionCirculationWeb.Migrations
                     TribunalSource = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     DateArchivage = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Emplacement = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    IdService = table.Column<int>(type: "int", nullable: false)
+                    IdBureauOrdre = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IdService = table.Column<int>(type: "int", nullable: false),
+                    Direction = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Destinataire = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ParentId = table.Column<int>(type: "int", nullable: true),
+                    Sujet = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    LienPdf = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    EstArchive = table.Column<bool>(type: "bit", nullable: false),
+                    EtatWorkflow = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    EstTransmissible = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_EntitesDJ", x => x.Id);
+                    table.PrimaryKey("PK_EntitesDJs", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_EntitesDJ_Services_IdService",
+                        name: "FK_EntitesDJs_Services_IdService",
                         column: x => x.IdService,
                         principalTable: "Services",
                         principalColumn: "IdService",
@@ -158,29 +177,6 @@ namespace GestionCirculationWeb.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Circulations",
-                columns: table => new
-                {
-                    IdCirculation = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    DateDeReception = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    DateEnvoi = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    Recepteur = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    EmetteurService = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    EntiteId = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Circulations", x => x.IdCirculation);
-                    table.ForeignKey(
-                        name: "FK_Circulations_Entites_EntiteId",
-                        column: x => x.EntiteId,
-                        principalTable: "Entites",
-                        principalColumn: "IdEntite",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "NumerosDossierJuridique",
                 columns: table => new
                 {
@@ -195,9 +191,9 @@ namespace GestionCirculationWeb.Migrations
                 {
                     table.PrimaryKey("PK_NumerosDossierJuridique", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_NumerosDossierJuridique_EntitesDJ_EntiteDJId",
+                        name: "FK_NumerosDossierJuridique_EntitesDJs_EntiteDJId",
                         column: x => x.EntiteDJId,
-                        principalTable: "EntitesDJ",
+                        principalTable: "EntitesDJs",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -219,9 +215,9 @@ namespace GestionCirculationWeb.Migrations
                 {
                     table.PrimaryKey("PK_Retraits", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Retraits_EntitesDJ_EntiteDJId",
+                        name: "FK_Retraits_EntitesDJs_EntiteDJId",
                         column: x => x.EntiteDJId,
-                        principalTable: "EntitesDJ",
+                        principalTable: "EntitesDJs",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -248,10 +244,46 @@ namespace GestionCirculationWeb.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Circulations_EntiteId",
-                table: "Circulations",
-                column: "EntiteId");
+            migrationBuilder.CreateTable(
+                name: "Transactions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    DocumentId = table.Column<int>(type: "int", nullable: false),
+                    DocumentType = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SourceServiceId = table.Column<int>(type: "int", nullable: false),
+                    DestinationServiceId = table.Column<int>(type: "int", nullable: false),
+                    DestinationUserId = table.Column<int>(type: "int", nullable: true),
+                    DoitRevenir = table.Column<bool>(type: "bit", nullable: false),
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Statut = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DateEnvoi = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateReponse = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    MessageReponse = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Transactions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Transactions_Services_DestinationServiceId",
+                        column: x => x.DestinationServiceId,
+                        principalTable: "Services",
+                        principalColumn: "IdService",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Transactions_Services_SourceServiceId",
+                        column: x => x.SourceServiceId,
+                        principalTable: "Services",
+                        principalColumn: "IdService",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Transactions_Utilisateurs_DestinationUserId",
+                        column: x => x.DestinationUserId,
+                        principalTable: "Utilisateurs",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Entites_IdService",
@@ -259,8 +291,8 @@ namespace GestionCirculationWeb.Migrations
                 column: "IdService");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EntitesDJ_IdService",
-                table: "EntitesDJ",
+                name: "IX_EntitesDJs_IdService",
+                table: "EntitesDJs",
                 column: "IdService");
 
             migrationBuilder.CreateIndex(
@@ -290,6 +322,21 @@ namespace GestionCirculationWeb.Migrations
                 column: "EntiteDJId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Transactions_DestinationServiceId",
+                table: "Transactions",
+                column: "DestinationServiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Transactions_DestinationUserId",
+                table: "Transactions",
+                column: "DestinationUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Transactions_SourceServiceId",
+                table: "Transactions",
+                column: "SourceServiceId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Utilisateurs_IdService",
                 table: "Utilisateurs",
                 column: "IdService");
@@ -299,7 +346,7 @@ namespace GestionCirculationWeb.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Circulations");
+                name: "Entites");
 
             migrationBuilder.DropTable(
                 name: "Equipements");
@@ -317,16 +364,16 @@ namespace GestionCirculationWeb.Migrations
                 name: "Retraits");
 
             migrationBuilder.DropTable(
-                name: "Utilisateurs");
-
-            migrationBuilder.DropTable(
-                name: "Entites");
+                name: "Transactions");
 
             migrationBuilder.DropTable(
                 name: "Registres");
 
             migrationBuilder.DropTable(
-                name: "EntitesDJ");
+                name: "EntitesDJs");
+
+            migrationBuilder.DropTable(
+                name: "Utilisateurs");
 
             migrationBuilder.DropTable(
                 name: "Services");
