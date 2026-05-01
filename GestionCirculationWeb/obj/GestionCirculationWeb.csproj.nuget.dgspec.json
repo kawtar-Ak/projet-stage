@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\kawtar\\Desktop\\projet\\Stage-PRojet\\GestionCirculationWeb\\GestionCirculationWeb.csproj": {}
+    "C:\\Users\\kawtar\\Desktop\\Stage-PRojet\\GestionCirculationWeb\\GestionCirculationWeb.csproj": {}
   },
   "projects": {
-    "C:\\Users\\kawtar\\Desktop\\projet\\Stage-PRojet\\GestionCirculationWeb\\GestionCirculationWeb.csproj": {
+    "C:\\Users\\kawtar\\Desktop\\Stage-PRojet\\GestionCirculationWeb\\GestionCirculationWeb.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\kawtar\\Desktop\\projet\\Stage-PRojet\\GestionCirculationWeb\\GestionCirculationWeb.csproj",
+        "projectUniqueName": "C:\\Users\\kawtar\\Desktop\\Stage-PRojet\\GestionCirculationWeb\\GestionCirculationWeb.csproj",
         "projectName": "GestionCirculationWeb",
-        "projectPath": "C:\\Users\\kawtar\\Desktop\\projet\\Stage-PRojet\\GestionCirculationWeb\\GestionCirculationWeb.csproj",
+        "projectPath": "C:\\Users\\kawtar\\Desktop\\Stage-PRojet\\GestionCirculationWeb\\GestionCirculationWeb.csproj",
         "packagesPath": "C:\\Users\\kawtar\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\kawtar\\Desktop\\projet\\Stage-PRojet\\GestionCirculationWeb\\obj\\",
+        "outputPath": "C:\\Users\\kawtar\\Desktop\\Stage-PRojet\\GestionCirculationWeb\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\kawtar\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -46,27 +46,23 @@
           "dependencies": {
             "BCrypt.Net-Next": {
               "target": "Package",
-              "version": "[4.1.0, )"
+              "version": "[4.0.3, )"
             },
             "ClosedXML": {
               "target": "Package",
               "version": "[0.105.0, )"
             },
-            "EPPlus": {
+            "Elsa.Persistence.EntityFramework.SqlServer": {
               "target": "Package",
-              "version": "[8.5.3, )"
+              "version": "[2.13.0, )"
             },
-            "ExcelDataReader": {
+            "Meridian.Workflow": {
               "target": "Package",
-              "version": "[3.8.0, )"
-            },
-            "ExcelDataReader.DataSet": {
-              "target": "Package",
-              "version": "[3.8.0, )"
+              "version": "[1.1.0, )"
             },
             "Microsoft.AspNetCore.Authentication.JwtBearer": {
               "target": "Package",
-              "version": "[8.0.0, )"
+              "version": "[8.0.8, )"
             },
             "Microsoft.EntityFrameworkCore": {
               "target": "Package",
@@ -88,9 +84,17 @@
               "target": "Package",
               "version": "[8.0.8, )"
             },
+            "Stateless": {
+              "target": "Package",
+              "version": "[5.20.1, )"
+            },
             "Swashbuckle.AspNetCore": {
               "target": "Package",
               "version": "[10.1.7, )"
+            },
+            "System.IdentityModel.Tokens.Jwt": {
+              "target": "Package",
+              "version": "[7.1.2, )"
             }
           },
           "imports": [
