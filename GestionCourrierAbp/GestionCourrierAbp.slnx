@@ -1,0 +1,23 @@
+<Solution>
+    <Configurations>
+        <Platform Name="Any CPU" />
+    </Configurations>
+    <Folder Name="/src/">
+        <Project Path="src/GestionCourrierAbp.Domain/GestionCourrierAbp.Domain.csproj" />
+        <Project Path="src/GestionCourrierAbp.Application/GestionCourrierAbp.Application.csproj" />
+        <Project Path="src/GestionCourrierAbp.EntityFrameworkCore/GestionCourrierAbp.EntityFrameworkCore.csproj" />
+        <Project Path="src/GestionCourrierAbp.Domain.Shared/GestionCourrierAbp.Domain.Shared.csproj" />
+        <Project Path="src/GestionCourrierAbp.Application.Contracts/GestionCourrierAbp.Application.Contracts.csproj" />
+        <Project Path="src/GestionCourrierAbp.HttpApi/GestionCourrierAbp.HttpApi.csproj" />
+        <Project Path="src/GestionCourrierAbp.HttpApi.Client/GestionCourrierAbp.HttpApi.Client.csproj" />
+        <Project Path="src/GestionCourrierAbp.DbMigrator/GestionCourrierAbp.DbMigrator.csproj" />
+        <Project Path="src/GestionCourrierAbp.HttpApi.Host/GestionCourrierAbp.HttpApi.Host.csproj" />
+    </Folder>
+    <Folder Name="/test/">
+        <Project Path="test/GestionCourrierAbp.Application.Tests/GestionCourrierAbp.Application.Tests.csproj" />
+        <Project Path="test/GestionCourrierAbp.EntityFrameworkCore.Tests/GestionCourrierAbp.EntityFrameworkCore.Tests.csproj" />
+        <Project Path="test/GestionCourrierAbp.TestBase/GestionCourrierAbp.TestBase.csproj" />
+        <Project Path="test/GestionCourrierAbp.Domain.Tests/GestionCourrierAbp.Domain.Tests.csproj" />
+        <Project Path="test/GestionCourrierAbp.HttpApi.Client.ConsoleTestApp/GestionCourrierAbp.HttpApi.Client.ConsoleTestApp.csproj" />
+    </Folder>
+</Solution>

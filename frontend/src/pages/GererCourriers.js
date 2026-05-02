@@ -12,6 +12,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import GererCourriersJuridiques from "./GererCourriersJuridiques";
 
+const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 
 // ==========================================================
 // BLOC 2 : CONSTANTES
@@ -641,7 +642,7 @@ function GererCourriers() {
   // sous forme d'un fichier Excel.
 
   const exportToExcel = () => {
-    fetch("/api/courriers/export/excel", {
+    fetch(`${LEGACY_API_URL}/api/courriers/export/excel`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then((res) => {

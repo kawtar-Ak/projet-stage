@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
+const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
+
 function GererCourriersJuridiques({ embedded = false }) {
   const [courriers, setCourriers] = useState([]);
   const [services, setServices] = useState([]);
@@ -239,7 +241,7 @@ function GererCourriersJuridiques({ embedded = false }) {
   };
 
   const exportToExcel = () => {
-    fetch("/api/acteursjudiciaires/export/excel", {
+    fetch(`${LEGACY_API_URL}/api/acteursjudiciaires/export/excel`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then((response) => {

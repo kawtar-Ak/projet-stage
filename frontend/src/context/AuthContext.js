@@ -22,8 +22,25 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (login, password) => {
-   const response = await axios.post('http://localhost:5127/api/auth/login', { login, password });
-    const { token, id, login: userLogin, nomComplet, idService, nomService } = response.data;
+    const body = new URLSearchParams({
+      grant_type: 'password',
+      client_id: 'GestionCourrierAbp_App',
+      username: login,
+      password,
+      scope: 'GestionCourrierAbp'
+    });
+
+    const response = await axios.post('/connect/token', body, {
+      baseURL: process.env.REACT_APP_ABP_API_URL || 'http://localhost:44301',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+
+    const token = response.data.access_token;
+    const userLogin = login;
+    const nomComplet = login;
+    const idService = Number(localStorage.getItem('idService') || 1);
+    const nomService = localStorage.getItem('nomService') || 'ABP';
+
     localStorage.setItem('token', token);
     localStorage.setItem('login', userLogin);
     localStorage.setItem('nomService', nomService);
