@@ -3,88 +3,93 @@ using System.Linq;
 using System.Threading.Tasks;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
+using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
 
 namespace GestionCourrierAbp.Equipements;
 
-public class EquipementAppService : GestionCourrierAbpAppService, IEquipementAppService
+public class EquipementAppService :
+    CrudAppService<Equipement, EquipementDto, int, PagedAndSortedResultRequestDto, CreateUpdateEquipementDto>,
+    IEquipementAppService
 {
-    private readonly IRepository<Equipement, int> _repository;
     private readonly IRepository<Services.Service, int> _serviceRepository;
 
     public EquipementAppService(
         IRepository<Equipement, int> repository,
         IRepository<Services.Service, int> serviceRepository)
+        : base(repository)
     {
-        _repository = repository;
         _serviceRepository = serviceRepository;
     }
 
-    public async Task<EquipementDto> GetAsync(int id)
-    {
-        var query = await _repository.WithDetailsAsync(x => x.Service);
-        return ToDto(await AsyncExecuter.FirstAsync(query.Where(x => x.Id == id)));
-    }
-
-    public async Task<PagedResultDto<EquipementDto>> GetListAsync(PagedAndSortedResultRequestDto input)
-    {
-        var query = await _repository.WithDetailsAsync(x => x.Service);
-        var totalCount = await AsyncExecuter.CountAsync(query);
-        var items = await AsyncExecuter.ToListAsync(
-            query.OrderBy(x => x.Id).Skip(input.SkipCount).Take(input.MaxResultCount));
-
-        return new PagedResultDto<EquipementDto>(totalCount, items.Select(ToDto).ToList());
-    }
-
-    public async Task<EquipementDto> CreateAsync(CreateUpdateEquipementDto input)
+    public override async Task<EquipementDto> CreateAsync(CreateUpdateEquipementDto input)
     {
         await EnsureServiceExistsAsync(input.ServiceId);
+        return await base.CreateAsync(input);
+    }
 
-        var equipement = await _repository.InsertAsync(new Equipement
+    public override async Task<EquipementDto> UpdateAsync(int id, CreateUpdateEquipementDto input)
+    {
+        await EnsureServiceExistsAsync(input.ServiceId);
+        return await base.UpdateAsync(id, input);
+    }
+
+    protected override async Task<IQueryable<Equipement>> CreateFilteredQueryAsync(PagedAndSortedResultRequestDto input)
+    {
+        return await Repository.WithDetailsAsync(x => x.Service);
+    }
+
+    protected override async Task<Equipement> GetEntityByIdAsync(int id)
+    {
+        var query = await Repository.WithDetailsAsync(x => x.Service);
+        return await AsyncExecuter.FirstAsync(query.Where(x => x.Id == id));
+    }
+
+    protected override EquipementDto MapToGetOutputDto(Equipement entity)
+    {
+        return ToDto(entity);
+    }
+
+    protected override EquipementDto MapToGetListOutputDto(Equipement entity)
+    {
+        return ToDto(entity);
+    }
+
+    protected override Equipement MapToEntity(CreateUpdateEquipementDto createInput)
+    {
+        return new Equipement
         {
-            Serial = input.Serial,
-            Type = input.Type,
-            Etat = input.Etat,
-            ServiceId = input.ServiceId,
+            Serial = createInput.Serial,
+            Type = createInput.Type,
+            Etat = createInput.Etat,
+            ServiceId = createInput.ServiceId,
             EstCharge = false
-        }, autoSave: true);
-
-        return await GetAsync(equipement.Id);
+        };
     }
 
-    public async Task<EquipementDto> UpdateAsync(int id, CreateUpdateEquipementDto input)
+    protected override void MapToEntity(CreateUpdateEquipementDto updateInput, Equipement entity)
     {
-        await EnsureServiceExistsAsync(input.ServiceId);
-        var equipement = await _repository.GetAsync(id);
-        equipement.Serial = input.Serial;
-        equipement.Type = input.Type;
-        equipement.Etat = input.Etat;
-        equipement.ServiceId = input.ServiceId;
-
-        await _repository.UpdateAsync(equipement, autoSave: true);
-        return await GetAsync(id);
-    }
-
-    public async Task DeleteAsync(int id)
-    {
-        await _repository.DeleteAsync(id, autoSave: true);
+        entity.Serial = updateInput.Serial;
+        entity.Type = updateInput.Type;
+        entity.Etat = updateInput.Etat;
+        entity.ServiceId = updateInput.ServiceId;
     }
 
     public async Task<EquipementDto> ChargerAsync(int id)
     {
-        var equipement = await _repository.GetAsync(id);
+        var equipement = await Repository.GetAsync(id);
         equipement.EstCharge = true;
         equipement.DateDechargement = null;
-        await _repository.UpdateAsync(equipement, autoSave: true);
+        await Repository.UpdateAsync(equipement, autoSave: true);
         return await GetAsync(id);
     }
 
     public async Task<EquipementDto> DechargerAsync(int id)
     {
-        var equipement = await _repository.GetAsync(id);
+        var equipement = await Repository.GetAsync(id);
         equipement.EstCharge = false;
         equipement.DateDechargement = DateTime.Now;
-        await _repository.UpdateAsync(equipement, autoSave: true);
+        await Repository.UpdateAsync(equipement, autoSave: true);
         return await GetAsync(id);
     }
 
