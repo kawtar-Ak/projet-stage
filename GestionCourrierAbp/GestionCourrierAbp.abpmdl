@@ -1,0 +1,104 @@
+{
+  "template": "app",
+  "imports": {
+    "Volo.Abp.LeptonXLiteTheme": {
+      "version": "5.3.0",
+      "isInstalled": true,
+      "creationTime": "05/02/2026 15:46:14 +00:00"
+    },
+    "Volo.Abp.Account": {
+      "version": "10.3.0",
+      "isInstalled": true,
+      "creationTime": "05/02/2026 15:46:14 +00:00"
+    },
+    "Volo.Abp.OpenIddict": {
+      "version": "10.3.0",
+      "isInstalled": true,
+      "creationTime": "05/02/2026 15:46:14 +00:00"
+    },
+    "Volo.Abp.Identity": {
+      "version": "10.3.0",
+      "isInstalled": true,
+      "creationTime": "05/02/2026 15:46:14 +00:00"
+    },
+    "Volo.Abp.SettingManagement": {
+      "version": "10.3.0",
+      "isInstalled": true,
+      "creationTime": "05/02/2026 15:46:14 +00:00"
+    },
+    "Volo.Abp.PermissionManagement": {
+      "version": "10.3.0",
+      "isInstalled": true,
+      "creationTime": "05/02/2026 15:46:14 +00:00"
+    },
+    "Volo.Abp.FeatureManagement": {
+      "version": "10.3.0",
+      "isInstalled": true,
+      "creationTime": "05/02/2026 15:46:14 +00:00"
+    }
+  },
+  "folders": {
+    "items": {
+      "src": {},
+      "test": {}
+    }
+  },
+  "packages": {
+    "GestionCourrierAbp.Application": {
+      "path": "src/GestionCourrierAbp.Application/GestionCourrierAbp.Application.abppkg",
+      "folder": "src"
+    },
+    "GestionCourrierAbp.Application.Tests": {
+      "path": "test/GestionCourrierAbp.Application.Tests/GestionCourrierAbp.Application.Tests.abppkg",
+      "folder": "test"
+    },
+    "GestionCourrierAbp.Domain.Shared": {
+      "path": "src/GestionCourrierAbp.Domain.Shared/GestionCourrierAbp.Domain.Shared.abppkg",
+      "folder": "src"
+    },
+    "GestionCourrierAbp.Application.Contracts": {
+      "path": "src/GestionCourrierAbp.Application.Contracts/GestionCourrierAbp.Application.Contracts.abppkg",
+      "folder": "src"
+    },
+    "GestionCourrierAbp.HttpApi": {
+      "path": "src/GestionCourrierAbp.HttpApi/GestionCourrierAbp.HttpApi.abppkg",
+      "folder": "src"
+    },
+    "GestionCourrierAbp.HttpApi.Client": {
+      "path": "src/GestionCourrierAbp.HttpApi.Client/GestionCourrierAbp.HttpApi.Client.abppkg",
+      "folder": "src"
+    },
+    "GestionCourrierAbp.EntityFrameworkCore.Tests": {
+      "path": "test/GestionCourrierAbp.EntityFrameworkCore.Tests/GestionCourrierAbp.EntityFrameworkCore.Tests.abppkg",
+      "folder": "test"
+    },
+    "GestionCourrierAbp.EntityFrameworkCore": {
+      "path": "src/GestionCourrierAbp.EntityFrameworkCore/GestionCourrierAbp.EntityFrameworkCore.abppkg",
+      "folder": "src"
+    },
+    "GestionCourrierAbp.TestBase": {
+      "path": "test/GestionCourrierAbp.TestBase/GestionCourrierAbp.TestBase.abppkg",
+      "folder": "test"
+    },
+    "GestionCourrierAbp.Domain.Tests": {
+      "path": "test/GestionCourrierAbp.Domain.Tests/GestionCourrierAbp.Domain.Tests.abppkg",
+      "folder": "test"
+    },
+    "GestionCourrierAbp.HttpApi.Client.ConsoleTestApp": {
+      "path": "test/GestionCourrierAbp.HttpApi.Client.ConsoleTestApp/GestionCourrierAbp.HttpApi.Client.ConsoleTestApp.abppkg",
+      "folder": "test"
+    },
+    "GestionCourrierAbp.DbMigrator": {
+      "path": "src/GestionCourrierAbp.DbMigrator/GestionCourrierAbp.DbMigrator.abppkg",
+      "folder": "src"
+    },
+    "GestionCourrierAbp.HttpApi.Host": {
+      "path": "src/GestionCourrierAbp.HttpApi.Host/GestionCourrierAbp.HttpApi.Host.abppkg",
+      "folder": "src"
+    },
+    "GestionCourrierAbp.Domain": {
+      "path": "src/GestionCourrierAbp.Domain/GestionCourrierAbp.Domain.abppkg",
+      "folder": "src"
+    }
+  }
+}

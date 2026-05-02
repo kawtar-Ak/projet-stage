@@ -1,5 +1,7 @@
 using GestionCourrier.Models;
 using GestionCourrier.Services;
+using GestionCourrier.Application.Transactions;
+using GestionCourrier.ApplicationContracts.Transactions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -49,6 +51,7 @@ builder.Services.AddCors(options =>
 
 // Workflow
 builder.Services.AddScoped<ApprovalWorkflowService>();
+builder.Services.AddScoped<ITransactionWorkflowAppService, TransactionWorkflowAppService>();
 
 System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 

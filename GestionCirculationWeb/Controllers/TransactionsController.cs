@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using GestionCourrier.ApplicationContracts.Transactions;
 using GestionCourrier.DTOs;
 using GestionCourrier.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -14,7 +15,15 @@ namespace GestionCourrier.Controllers
     public class TransactionsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        public TransactionsController(ApplicationDbContext context) => _context = context;
+        private readonly ITransactionWorkflowAppService _transactionWorkflowAppService;
+
+        public TransactionsController(
+            ApplicationDbContext context,
+            ITransactionWorkflowAppService transactionWorkflowAppService)
+        {
+            _context = context;
+            _transactionWorkflowAppService = transactionWorkflowAppService;
+        }
 
         private int GetCurrentUserId()
         {
@@ -159,42 +168,8 @@ namespace GestionCourrier.Controllers
         {
             try
             {
-                var transaction = await _context.Transactions.FindAsync(id);
-                if (transaction == null)
-                    return NotFound(new { message = $"Transaction {id} non trouvée." });
-
-                var user = await _context.Utilisateurs.FindAsync(GetCurrentUserId());
-                if (user == null)
-                    return Unauthorized(new { message = "Utilisateur non trouvé." });
-
-                if (user.IdService != transaction.DestinationServiceId)
-                    return BadRequest(new { message = "Vous n'êtes pas autorisé à répondre à cette transaction." });
-
-                if (transaction.Statut != "En attente")
-                    return BadRequest(new { message = $"Transaction déjà {transaction.Statut}." });
-
-                transaction.Statut = dto.Accepte ? "Accepté" : "Refusé";
-                transaction.DateReponse = DateTime.Now;
-                transaction.MessageReponse = dto.Message;
-
-                if (dto.Accepte)
-                {
-                    string sql;
-                    if (transaction.DocumentType == "Administratif")
-                    {
-                        sql = "UPDATE Entites SET IdService = {0} WHERE IdEntite = {1}";
-                    }
-                    else
-                    {
-                        sql = "UPDATE EntitesDJs SET IdService = {0} WHERE Id = {1}";
-                    }
-                    int rowsAffected = await _context.Database.ExecuteSqlRawAsync(sql, transaction.DestinationServiceId, transaction.DocumentId);
-                    if (rowsAffected == 0)
-                        return BadRequest(new { message = "Document non trouvé pour la mise à jour." });
-                }
-
-                await _context.SaveChangesAsync();
-                return Ok(new { message = "Réponse enregistrée", statut = transaction.Statut });
+                await _transactionWorkflowAppService.RespondAsync(id, GetCurrentUserId(), dto);
+                return Ok(new { message = "Reponse enregistree" });
             }
             catch (Exception ex)
             {
