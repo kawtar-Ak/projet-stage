@@ -1,5 +1,6 @@
 bin/
 obj/
+.dotnet/
 build-check/
 frontend/build/
 GestionCirculationWeb/wwwroot/uploads/
