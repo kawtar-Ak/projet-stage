@@ -93,20 +93,24 @@ function GererEquipements() {
         setError('');
     };
 
-    const exportToExcel = () => {
-        fetch('/api/equipements/export/excel', {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        })
-            .then(res => res.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'equipements.xlsx';
-                a.click();
-                window.URL.revokeObjectURL(url);
-            })
-            .catch(console.error);
+    const exportToExcel = async () => {
+        try {
+            const res = await axios.get('/api/equipements/export/excel', { responseType: 'blob' });
+            downloadBlob(res.data, 'equipements.xlsx');
+        } catch (err) {
+            setError(t('erreur_export'));
+        }
+    };
+
+    const downloadBlob = (blob, filename) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
     };
 
     const handleFileSelect = async (e) => {

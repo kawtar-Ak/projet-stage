@@ -176,6 +176,18 @@ function GererCourriers() {
   };
 
 
+  const downloadBlob = (blob, filename) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+
   // ==========================================================
   // BLOC 6 : RÉCUPÉRATION DES WARIDAT
   // ==========================================================
@@ -641,8 +653,16 @@ function GererCourriers() {
   // Cette fonction télécharge les courriers administratifs
   // sous forme d'un fichier Excel.
 
-  const exportToExcel = () => {
-    fetch(`${LEGACY_API_URL}/api/courriers/export/excel`, {
+  const exportToExcel = async () => {
+    try {
+      const response = await axios.get("/api/courriers/export/excel", { responseType: "blob" });
+      downloadBlob(response.data, "courriers-administratifs.xlsx");
+    } catch (err) {
+      setError("Erreur lors de l'export Excel.");
+    }
+    return;
+
+    fetch(`/api/courriers/export/excel`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then((res) => {

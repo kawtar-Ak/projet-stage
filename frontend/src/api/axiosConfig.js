@@ -44,32 +44,46 @@ axios.interceptors.response.use(
 );
 
 function shouldUseAbp(url = '', originalUrl = '') {
-  return url === '/connect/token' || url !== originalUrl || url?.startsWith('/api/app/');
+  return url === '/connect/token' ||
+    url !== originalUrl ||
+    url?.startsWith('/api/app/') ||
+    url?.startsWith('/api/courriers/') ||
+    url?.startsWith('/api/acteursjudiciaires/') ||
+    url?.startsWith('/api/services/') ||
+    url?.startsWith('/api/equipements/') ||
+    url?.startsWith('/api/utilisateurs/') ||
+    url === '/api/transactions/export-selected';
 }
 
 function mapLegacyUrlToAbp(url = '') {
   const serviceId = Number(localStorage.getItem('idService') || 0);
 
   return url
+    .replace(/^\/api\/courriers\/(export\/excel|import\/excel|upload-document)(\?.*)?$/, '/api/courriers/$1$2')
     .replace(/^\/api\/courriers\/search(\?.*)?$/, '/api/app/courrier-administratif/search$1')
     .replace(/^\/api\/courriers\/waridat$/, '/api/app/courrier-administratif/waridat')
     .replace(/^\/api\/courriers\/archiver\/(\d+)$/, '/api/app/courrier-administratif/$1/archiver')
     .replace(/^\/api\/courriers(\/\d+)?$/, match => match.replace('/api/courriers', '/api/app/courrier-administratif'))
+    .replace(/^\/api\/acteursjudiciaires\/(export\/excel|import\/excel|upload-pdf|upload-document)(\?.*)?$/, '/api/acteursjudiciaires/$1$2')
     .replace(/^\/api\/acteursjudiciaires\/search(\?.*)?$/, '/api/app/courrier-judiciaire/search$1')
     .replace(/^\/api\/acteursjudiciaires\/archives(\?.*)?$/, '/api/app/courrier-judiciaire/archives$1')
     .replace(/^\/api\/acteursjudiciaires\/archiver\/(\d+)$/, '/api/app/courrier-judiciaire/$1/archiver')
     .replace(/^\/api\/acteursjudiciaires\/(\d+)\/retraits$/, '/api/app/courrier-judiciaire/$1/retraits')
     .replace(/^\/api\/acteursjudiciaires\/retraits\/(\d+)\/retour$/, '/api/app/courrier-judiciaire/retour/$1')
     .replace(/^\/api\/acteursjudiciaires(\/\d+)?$/, match => match.replace('/api/acteursjudiciaires', '/api/app/courrier-judiciaire'))
+    .replace(/^\/api\/services\/(export\/excel|import\/preview|import\/execute)(\?.*)?$/, '/api/services/$1$2')
     .replace(/^\/api\/services(\/\d+)?$/, match => match.replace('/api/services', '/api/app/service'))
+    .replace(/^\/api\/equipements\/(export\/excel|import\/preview|import\/execute)(\?.*)?$/, '/api/equipements/$1$2')
     .replace(/^\/api\/equipements(\/\d+)?$/, match => match.replace('/api/equipements', '/api/app/equipement'))
     .replace(/^\/api\/equipements\/(\d+)\/charger$/, '/api/app/equipement/$1/charger')
     .replace(/^\/api\/equipements\/(\d+)\/decharger$/, '/api/app/equipement/$1/decharger')
+    .replace(/^\/api\/utilisateurs\/(export\/excel|template|import\/preview|import\/execute)(\?.*)?$/, '/api/utilisateurs/$1$2')
     .replace(/^\/api\/utilisateurs(\/\d+)?$/, match => match.replace('/api/utilisateurs', '/api/app/utilisateur'))
     .replace(/^\/api\/transactions$/, '/api/app/transaction-workflow')
     .replace(/^\/api\/transactions\/incoming$/, `/api/app/transaction-workflow/incoming/${serviceId}`)
     .replace(/^\/api\/transactions\/outgoing$/, `/api/app/transaction-workflow/outgoing/${serviceId}`)
     .replace(/^\/api\/transactions\/pending-returns$/, `/api/app/transaction-workflow/pending-returns/${serviceId}`)
+    .replace(/^\/api\/transactions\/export-selected$/, '/api/transactions/export-selected')
     .replace(/^\/api\/transactions\/(\d+)\/respond$/, '/api/app/transaction-workflow/$1/respond')
     .replace(/^\/api\/transactions\/(\d+)\/cancel$/, `/api/app/transaction-workflow/$1/cancel/${serviceId}`)
     .replace(/^\/api\/transactions\/(\d+)\/mark-returned$/, `/api/app/transaction-workflow/$1/mark-returned/${serviceId}`);

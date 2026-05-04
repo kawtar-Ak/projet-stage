@@ -123,36 +123,33 @@ function GererUtilisateurs() {
         setError('');
     };
 
-    const exportToExcel = () => {
-        fetch('/api/utilisateurs/export/excel', {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        })
-            .then(res => res.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'utilisateurs.xlsx';
-                a.click();
-                window.URL.revokeObjectURL(url);
-            })
-            .catch(console.error);
+    const exportToExcel = async () => {
+        try {
+            const res = await axios.get('/api/utilisateurs/export/excel', { responseType: 'blob' });
+            downloadBlob(res.data, 'utilisateurs.xlsx');
+        } catch (err) {
+            setError(t('erreur_export'));
+        }
     };
 
-    const downloadTemplate = () => {
-        fetch('/api/utilisateurs/template', {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        })
-            .then(res => res.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'modele_utilisateurs.xlsx';
-                a.click();
-                window.URL.revokeObjectURL(url);
-            })
-            .catch(console.error);
+    const downloadTemplate = async () => {
+        try {
+            const res = await axios.get('/api/utilisateurs/template', { responseType: 'blob' });
+            downloadBlob(res.data, 'modele_utilisateurs.xlsx');
+        } catch (err) {
+            setError(t('erreur_export'));
+        }
+    };
+
+    const downloadBlob = (blob, filename) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
     };
 
     const handleFileSelect = async (e) => {

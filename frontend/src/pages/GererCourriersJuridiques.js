@@ -240,8 +240,16 @@ function GererCourriersJuridiques({ embedded = false }) {
     setError("");
   };
 
-  const exportToExcel = () => {
-    fetch(`${LEGACY_API_URL}/api/acteursjudiciaires/export/excel`, {
+  const exportToExcel = async () => {
+    try {
+      const response = await axios.get("/api/acteursjudiciaires/export/excel", { responseType: "blob" });
+      downloadBlob(response.data, "courriers-juridiques.xlsx");
+    } catch (err) {
+      setError("Erreur lors de l'export Excel.");
+    }
+    return;
+
+    fetch(`/api/acteursjudiciaires/export/excel`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then((response) => {
@@ -257,6 +265,17 @@ function GererCourriersJuridiques({ embedded = false }) {
         window.URL.revokeObjectURL(url);
       })
       .catch(() => setError("تعذر تصدير ملف Excel."));
+  };
+
+  const downloadBlob = (blob, filename) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleImportExcel = async (event) => {

@@ -57,18 +57,24 @@ function GererServices() {
         }
     };
 
-    const exportToExcel = () => {
-        fetch('/api/services/export/excel', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
-            .then(res => res.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'services.xlsx';
-                a.click();
-                window.URL.revokeObjectURL(url);
-            })
-            .catch(console.error);
+    const exportToExcel = async () => {
+        try {
+            const res = await axios.get('/api/services/export/excel', { responseType: 'blob' });
+            downloadBlob(res.data, 'services.xlsx');
+        } catch (err) {
+            setError(t('erreur_export'));
+        }
+    };
+
+    const downloadBlob = (blob, filename) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
     };
 
     const handleFileSelect = async (e) => {
