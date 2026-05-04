@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using GestionCourrierAbp.Circulations;
 using GestionCourrierAbp.Courriers;
 using GestionCourrierAbp.Equipements;
+using GestionCourrierAbp.Registres;
 using GestionCourrierAbp.Services;
 using GestionCourrierAbp.Transactions;
 using GestionCourrierAbp.Utilisateurs;
@@ -35,6 +37,9 @@ public class GestionCourrierAbpDbContext :
     public DbSet<CourrierAdministratif> CourriersAdministratifs { get; set; }
     public DbSet<CourrierJudiciaire> CourriersJudiciaires { get; set; }
     public DbSet<RetraitJudiciaire> RetraitsJudiciaires { get; set; }
+    public DbSet<Circulation> Circulations { get; set; }
+    public DbSet<Registre> Registres { get; set; }
+    public DbSet<Reponse> Reponses { get; set; }
 
     #region Entities from the modules
 
@@ -188,6 +193,40 @@ public class GestionCourrierAbpDbContext :
             b.HasOne(x => x.CourrierJudiciaire)
                 .WithMany(x => x.Retraits)
                 .HasForeignKey(x => x.CourrierJudiciaireId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Circulation>(b =>
+        {
+            b.ToTable(GestionCourrierAbpConsts.DbTablePrefix + "Circulations", GestionCourrierAbpConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.DocumentType).IsRequired().HasMaxLength(64);
+            b.Property(x => x.Recepteur).HasMaxLength(256);
+            b.Property(x => x.EmetteurService).HasMaxLength(256);
+            b.Property(x => x.Etat).HasMaxLength(64);
+            b.Property(x => x.Notes).HasMaxLength(2048);
+            b.HasIndex(x => new { x.DocumentId, x.DocumentType });
+        });
+
+        builder.Entity<Registre>(b =>
+        {
+            b.ToTable(GestionCourrierAbpConsts.DbTablePrefix + "Registres", GestionCourrierAbpConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.Description).HasMaxLength(1024);
+            b.HasOne(x => x.Service)
+                .WithMany()
+                .HasForeignKey(x => x.ServiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Reponse>(b =>
+        {
+            b.ToTable(GestionCourrierAbpConsts.DbTablePrefix + "Reponses", GestionCourrierAbpConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.Source).IsRequired().HasMaxLength(256);
+            b.HasOne(x => x.Registre)
+                .WithMany(x => x.Reponses)
+                .HasForeignKey(x => x.RegistreId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
