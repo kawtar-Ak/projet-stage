@@ -184,7 +184,6 @@ public class GestionCourrierAbpHttpApiHostModule : AbpModule
         });
     }
 
-
     private void ConfigureVirtualFileSystem(ServiceConfigurationContext context)
     {
         var hostingEnvironment = context.Services.GetHostingEnvironment();

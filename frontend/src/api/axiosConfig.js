@@ -48,6 +48,8 @@ function shouldUseAbp(url = '', originalUrl = '') {
 }
 
 function mapLegacyUrlToAbp(url = '') {
+  const serviceId = Number(localStorage.getItem('idService') || 0);
+
   return url
     .replace(/^\/api\/courriers\/search(\?.*)?$/, '/api/app/courrier-administratif/search$1')
     .replace(/^\/api\/courriers\/waridat$/, '/api/app/courrier-administratif/waridat')
@@ -65,7 +67,12 @@ function mapLegacyUrlToAbp(url = '') {
     .replace(/^\/api\/equipements\/(\d+)\/decharger$/, '/api/app/equipement/$1/decharger')
     .replace(/^\/api\/utilisateurs(\/\d+)?$/, match => match.replace('/api/utilisateurs', '/api/app/utilisateur'))
     .replace(/^\/api\/transactions$/, '/api/app/transaction-workflow')
-    .replace(/^\/api\/transactions\/(\d+)\/respond$/, '/api/app/transaction-workflow/$1/respond');
+    .replace(/^\/api\/transactions\/incoming$/, `/api/app/transaction-workflow/incoming/${serviceId}`)
+    .replace(/^\/api\/transactions\/outgoing$/, `/api/app/transaction-workflow/outgoing/${serviceId}`)
+    .replace(/^\/api\/transactions\/pending-returns$/, `/api/app/transaction-workflow/pending-returns/${serviceId}`)
+    .replace(/^\/api\/transactions\/(\d+)\/respond$/, '/api/app/transaction-workflow/$1/respond')
+    .replace(/^\/api\/transactions\/(\d+)\/cancel$/, `/api/app/transaction-workflow/$1/cancel/${serviceId}`)
+    .replace(/^\/api\/transactions\/(\d+)\/mark-returned$/, `/api/app/transaction-workflow/$1/mark-returned/${serviceId}`);
 }
 
 function mapLegacyParamsToAbp(url = '', params) {
@@ -178,7 +185,7 @@ function mapLegacyPayloadToAbp(url = '', data) {
 
 function mapAbpResponseToLegacy(url = '', data) {
   if (!data) return data;
-  const items = Array.isArray(data.items) ? data.items : null;
+  const items = Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : null);
 
   if (url?.startsWith('/api/app/service')) {
     return items ? items.map(mapService) : mapService(data);

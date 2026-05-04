@@ -1,0 +1,1 @@
+Client libraries are not used directly because the React frontend lives in the frontend project.
