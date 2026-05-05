@@ -1,4 +1,8 @@
+import { useTranslation } from "react-i18next";
+
 function Equipements() {
-  return <div>Page Gestion des équipements (à implémenter)</div>;
+  const { t } = useTranslation();
+
+  return <div>{t("page_equipements_a_implementer")}</div>;
 }
 export default Equipements;

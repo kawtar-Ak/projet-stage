@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GestionCourrierAbp.Workflows;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
 
@@ -72,7 +73,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
     {
         var entity = await _repository.GetAsync(id);
         entity.EstArchive = true;
-        entity.EtatArchive = "Archive";
+        entity.EtatArchive = WorkflowStatus.Archive.ToStorageValue();
         await _repository.UpdateAsync(entity, autoSave: true);
         return await GetAsync(id);
     }
@@ -133,7 +134,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         entity.Direction = input.Direction?.Trim() ?? "Entrant";
         entity.Destinataire = input.Destinataire?.Trim() ?? string.Empty;
         entity.Description = input.Description?.Trim() ?? string.Empty;
-        entity.EtatArchive = input.EtatArchive?.Trim() ?? "Nouveau";
+        entity.EtatArchive = input.EtatArchive?.Trim() ?? WorkflowStatus.Nouveau.ToStorageValue();
         entity.Emplacement = input.Emplacement?.Trim() ?? string.Empty;
         entity.LienPdf = input.LienPdf?.Trim() ?? string.Empty;
         entity.ServiceId = input.IdService;

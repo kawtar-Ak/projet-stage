@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { useTranslation } from "react-i18next";
 
 function GererArchivesJuridiques() {
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [motCle, setMotCle] = useState("");
@@ -28,7 +30,7 @@ function GererArchivesJuridiques() {
         setSelectedItem(refreshed || null);
       }
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تحميل أرشيف الملفات القضائية."));
+      setError(getErrorMessage(err, t("erreur_chargement_archives_judiciaires")));
     }
   };
 
@@ -49,7 +51,7 @@ function GererArchivesJuridiques() {
     if (!selectedItem) return;
 
     if (!retraitForm.motifDeRetrait.trim()) {
-      setError("سبب السحب إجباري.");
+      setError(t("erreur_motif_retrait_requis"));
       return;
     }
 
@@ -65,10 +67,10 @@ function GererArchivesJuridiques() {
 
       setSelectedItem(response.data);
       setRetraitForm(getInitialRetraitForm());
-      setSuccess("تم تسجيل السحب بنجاح.");
+      setSuccess(t("retrait_enregistre"));
       await fetchArchives();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تسجيل السحب."));
+      setError(getErrorMessage(err, t("erreur_enregistrer_retrait")));
     }
   };
 
@@ -82,33 +84,33 @@ function GererArchivesJuridiques() {
       });
 
       setSelectedItem(response.data);
-      setSuccess("تم تسجيل الإرجاع بنجاح.");
+      setSuccess(t("retour_enregistre"));
       await fetchArchives();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تسجيل الإرجاع."));
+      setError(getErrorMessage(err, t("erreur_enregistrer_retour")));
     }
   };
 
   return (
     <div className="page-container" dir="rtl">
-      <h1 className="page-title">إدارة أرشيف الملفات القضائية</h1>
+      <h1 className="page-title">{t("gestion_archives_judiciaires")}</h1>
 
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">{success}</div>}
 
       <div className="registry-panel">
         <div className="registry-panel-header">
-          <h3>الأرشيف</h3>
+          <h3>{t("archives")}</h3>
         </div>
 
         <div className="filters">
           <input
             value={motCle}
             onChange={(event) => setMotCle(event.target.value)}
-            placeholder="البحث بالرقم الاستئنافي، المحكمة، الموضوع..."
+            placeholder={t("rechercher_archives_judiciaires")}
           />
           <button type="button" className="btn-secondary" onClick={() => setMotCle("")}>
-            إعادة تعيين
+            {t("reinitialiser")}
           </button>
         </div>
 
@@ -116,18 +118,18 @@ function GererArchivesJuridiques() {
           <table className="modern-table">
             <thead>
               <tr>
-                <th>الرقم الاستئنافي للملف</th>
-                <th>التاريخ</th>
-                <th>المحكمة / المصدر</th>
-                <th>الموضوع</th>
-                <th>الموقع</th>
-                <th>السحوبات</th>
-                <th>الإجراءات</th>
+                <th>{t("numero_dossier_appel")}</th>
+                <th>{t("date")}</th>
+                <th>{t("tribunal_source")}</th>
+                <th>{t("objet")}</th>
+                <th>{t("emplacement")}</th>
+                <th>{t("retraits")}</th>
+                <th>{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan="7" style={{ textAlign: "center" }}>لا توجد ملفات مؤرشفة.</td></tr>
+                <tr><td colSpan="7" style={{ textAlign: "center" }}>{t("aucune_archive_judiciaire")}</td></tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
@@ -139,7 +141,7 @@ function GererArchivesJuridiques() {
                     <td>{item.retraitsCount ?? 0}</td>
                     <td className="action-icons">
                       <button type="button" onClick={() => selectItem(item)}>
-                        إدارة السحب
+                        {t("gerer_retrait")}
                       </button>
                     </td>
                   </tr>
@@ -154,18 +156,18 @@ function GererArchivesJuridiques() {
         <div className="form-card archive-service-panel">
           <div className="registry-panel-header">
             <div>
-              <h3>تدبير السحب والإرجاع</h3>
+              <h3>{t("gestion_retrait_retour")}</h3>
               <p>{selectedItem.numeroDossier || "-"} - {selectedItem.sujet || "-"}</p>
             </div>
             <button type="button" className="btn-secondary" onClick={() => setSelectedItem(null)}>
-              إغلاق
+              {t("fermer")}
             </button>
           </div>
 
           <form onSubmit={handleSaveRetrait}>
             <div className="form-grid">
               <div className="form-field">
-                <label>تاريخ السحب</label>
+                <label>{t("date_retrait")}</label>
                 <input
                   type="date"
                   name="dateDeRetrait"
@@ -175,7 +177,7 @@ function GererArchivesJuridiques() {
               </div>
 
               <div className="form-field">
-                <label>سبب السحب *</label>
+                <label>{t("motif_retrait")} *</label>
                 <input
                   name="motifDeRetrait"
                   value={retraitForm.motifDeRetrait}
@@ -185,7 +187,7 @@ function GererArchivesJuridiques() {
               </div>
 
               <div className="form-field">
-                <label>تم بواسطة</label>
+                <label>{t("effectue_par")}</label>
                 <input
                   name="effectuePar"
                   value={retraitForm.effectuePar}
@@ -194,7 +196,7 @@ function GererArchivesJuridiques() {
               </div>
 
               <div className="form-field full-width">
-                <label>ملاحظات</label>
+                <label>{t("note")}</label>
                 <textarea
                   name="notes"
                   value={retraitForm.notes}
@@ -205,26 +207,26 @@ function GererArchivesJuridiques() {
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn-primary">تسجيل السحب</button>
+              <button type="submit" className="btn-primary">{t("enregistrer_retrait")}</button>
             </div>
           </form>
 
           <div className="data-table-wrapper">
-            <h3>سجل السحوبات</h3>
+            <h3>{t("registre_retraits")}</h3>
             <table className="modern-table">
               <thead>
                 <tr>
-                  <th>تاريخ السحب</th>
-                  <th>السبب</th>
-                  <th>تم بواسطة</th>
-                  <th>تاريخ الإرجاع</th>
-                  <th>ملاحظات</th>
-                  <th>الإجراءات</th>
+                  <th>{t("date_retrait")}</th>
+                  <th>{t("motif")}</th>
+                  <th>{t("effectue_par")}</th>
+                  <th>{t("date_retour")}</th>
+                  <th>{t("note")}</th>
+                  <th>{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {(selectedItem.retraits || []).length === 0 ? (
-                  <tr><td colSpan="6" style={{ textAlign: "center" }}>لا توجد سحوبات.</td></tr>
+                  <tr><td colSpan="6" style={{ textAlign: "center" }}>{t("aucun_retrait")}</td></tr>
                 ) : (
                   selectedItem.retraits.map((retrait) => (
                     <tr key={retrait.id}>
@@ -236,10 +238,10 @@ function GererArchivesJuridiques() {
                       <td>
                         {!retrait.dateDeRetour ? (
                           <button type="button" onClick={() => handleSaveRetour(retrait.id)}>
-                            تسجيل الإرجاع
+                            {t("enregistrer_retour")}
                           </button>
                         ) : (
-                          "تم الإرجاع"
+                          t("retour_effectue")
                         )}
                       </td>
                     </tr>

@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using OpenIddict.Validation.AspNetCore;
 using OpenIddict.Server.AspNetCore;
 using GestionCourrierAbp.EntityFrameworkCore;
+using GestionCourrierAbp.Workflows.Transactions;
 using GestionCourrierAbp.MultiTenancy;
 using GestionCourrierAbp.HealthChecks;
 using Microsoft.OpenApi;
@@ -39,6 +40,7 @@ using Volo.Abp.OpenIddict;
 using Volo.Abp.Swashbuckle;
 using Volo.Abp.Studio.Client.AspNetCore;
 using Volo.Abp.Security.Claims;
+using WorkflowCore.Interface;
 
 namespace GestionCourrierAbp;
 
@@ -127,6 +129,7 @@ public class GestionCourrierAbpHttpApiHostModule : AbpModule
         ConfigureSwagger(context, configuration);
         ConfigureVirtualFileSystem(context);
         ConfigureCors(context, configuration);
+        ConfigureWorkflowCore(context);
     }
 
     private void ConfigureStudio(IHostEnvironment hostingEnvironment)
@@ -250,6 +253,11 @@ public class GestionCourrierAbpHttpApiHostModule : AbpModule
         context.Services.AddGestionCourrierAbpHealthChecks();
     }
 
+    private static void ConfigureWorkflowCore(ServiceConfigurationContext context)
+    {
+        context.Services.AddWorkflow();
+    }
+
 
     public override void OnApplicationInitialization(ApplicationInitializationContext context)
     {
@@ -295,6 +303,14 @@ public class GestionCourrierAbpHttpApiHostModule : AbpModule
             var configuration = context.ServiceProvider.GetRequiredService<IConfiguration>();
             options.OAuthClientId(configuration["AuthServer:SwaggerClientId"]);
         });
+
+        var workflowHost = context.ServiceProvider.GetRequiredService<IWorkflowHost>();
+        workflowHost.RegisterWorkflow<TransactionLifecycleWorkflow, TransactionWorkflowData>();
+        workflowHost.Start();
+
+        var applicationLifetime = context.ServiceProvider.GetRequiredService<IHostApplicationLifetime>();
+        applicationLifetime.ApplicationStopping.Register(workflowHost.Stop);
+
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();

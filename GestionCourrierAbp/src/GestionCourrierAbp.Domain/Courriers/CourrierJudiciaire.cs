@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using GestionCourrierAbp.Workflows;
 using GestionCourrierAbp.Services;
 using Volo.Abp.Domain.Entities.Auditing;
 
@@ -14,7 +15,7 @@ public class CourrierJudiciaire : AuditedAggregateRoot<int>
     public string Direction { get; set; } = "Entrant";
     public string Destinataire { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public string EtatArchive { get; set; } = "Nouveau";
+    public string EtatArchive { get; set; } = WorkflowStatus.Nouveau.ToStorageValue();
     public string Emplacement { get; set; } = string.Empty;
     public string LienPdf { get; set; } = string.Empty;
     public bool EstTransmissible { get; set; } = true;

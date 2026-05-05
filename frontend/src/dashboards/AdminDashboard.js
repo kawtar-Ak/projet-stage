@@ -1,19 +1,22 @@
 // frontend/src/dashboards/AdminDashboard.js
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 function AdminDashboard() {
+  const { t } = useTranslation();
+
   return (
     <div>
-      <h1>Dashboard Administrateur</h1>
+      <h1>{t('dashboard_admin')}</h1>
       <ul>
-        <li><Link to="/equipements">Gérer les équipements</Link></li>
-        <li><Link to="/messages-administratifs">Consulter les messages et contenus administratifs</Link></li>
-        <li><Link to="/acteurs-judiciaires">Consulter les acteurs et messageries judiciaires</Link></li>
-        <li><Link to="/transactions">Enregistrer des transactions</Link></li>
-        <li><Link to="/notifications">Notification transaction</Link></li>
-        <li><Link to="/archives">Archiver Entité / OU</Link></li>
-        <li><Link to="/services">Gérer les services</Link></li>          {/* nouveau */}
-        <li><Link to="/utilisateurs">Gérer les utilisateurs</Link></li>  {/* nouveau */}
+        <li><Link to="/equipements">{t('gerer_equipements')}</Link></li>
+        <li><Link to="/messages-administratifs">{t('consulter_messages_admin')}</Link></li>
+        <li><Link to="/acteurs-judiciaires">{t('consulter_acteurs_judiciaires')}</Link></li>
+        <li><Link to="/transactions">{t('enregistrer_transactions')}</Link></li>
+        <li><Link to="/notifications">{t('notification_transaction')}</Link></li>
+        <li><Link to="/archives">{t('archiver_entite_ou')}</Link></li>
+        <li><Link to="/services">{t('gerer_services')}</Link></li>
+        <li><Link to="/utilisateurs">{t('gerer_utilisateurs')}</Link></li>
       </ul>
     </div>
   );

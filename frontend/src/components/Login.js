@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 function Login() {
+  const { t } = useTranslation();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -15,23 +17,23 @@ function Login() {
       await loginUser(login, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Erreur de connexion');
+      setError(err.response?.data?.message || t('erreur_connexion'));
     }
   };
 
   return (
     <div style={{ maxWidth: 400, margin: '50px auto' }}>
-      <h2>Connexion</h2>
+      <h2>{t('connexion')}</h2>
       <form onSubmit={handleSubmit}>
         <div>
-          <label>Login</label>
+          <label>{t('login')}</label>
           <input type="text" value={login} onChange={e => setLogin(e.target.value)} required />
         </div>
         <div>
-          <label>Mot de passe</label>
+          <label>{t('mot_de_passe')}</label>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
         </div>
-        <button type="submit">Se connecter</button>
+        <button type="submit">{t('se_connecter')}</button>
         {error && <p style={{ color: 'red' }}>{error}</p>}
       </form>
     </div>

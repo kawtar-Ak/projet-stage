@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GestionCourrierAbp.Courriers;
-using GestionCourrierAbp.Services;
-using GestionCourrierAbp.Utilisateurs;
+using GestionCourrierAbp.Workflows;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
@@ -16,24 +15,24 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     private readonly IRepository<Transaction, int> _repository;
     private readonly IRepository<CourrierAdministratif, int> _courrierAdministratifRepository;
     private readonly IRepository<CourrierJudiciaire, int> _courrierJudiciaireRepository;
-    private readonly IRepository<Service, int> _serviceRepository;
-    private readonly IRepository<Utilisateur, int> _utilisateurRepository;
     private readonly TransactionWorkflowService _workflowService;
+    private readonly TransactionAffichageService _affichageService;
+    private readonly TransactionWorkflowStarter _workflowStarter;
 
     public TransactionWorkflowAppService(
         IRepository<Transaction, int> repository,
         IRepository<CourrierAdministratif, int> courrierAdministratifRepository,
         IRepository<CourrierJudiciaire, int> courrierJudiciaireRepository,
-        IRepository<Service, int> serviceRepository,
-        IRepository<Utilisateur, int> utilisateurRepository,
-        TransactionWorkflowService workflowService)
+        TransactionWorkflowService workflowService,
+        TransactionAffichageService affichageService,
+        TransactionWorkflowStarter workflowStarter)
     {
         _repository = repository;
         _courrierAdministratifRepository = courrierAdministratifRepository;
         _courrierJudiciaireRepository = courrierJudiciaireRepository;
-        _serviceRepository = serviceRepository;
-        _utilisateurRepository = utilisateurRepository;
         _workflowService = workflowService;
+        _affichageService = affichageService;
+        _workflowStarter = workflowStarter;
     }
 
     public async Task<PagedResultDto<TransactionDto>> GetListAsync(PagedAndSortedResultRequestDto input)
@@ -43,18 +42,19 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         var items = await AsyncExecuter.ToListAsync(
             query.OrderByDescending(x => x.DateEnvoi).Skip(input.SkipCount).Take(input.MaxResultCount));
 
-        return new PagedResultDto<TransactionDto>(totalCount, items.Select(ToDto).ToList());
+        return new PagedResultDto<TransactionDto>(totalCount, items.Select(_affichageService.ToDto).ToList());
     }
 
     public async Task<ListResultDto<TransactionListDto>> GetIncomingAsync(int destinationServiceId)
     {
         var query = await _repository.GetQueryableAsync();
+        var enAttente = WorkflowStatus.EnAttente.ToStorageValue();
         var transactions = await AsyncExecuter.ToListAsync(
             query
-                .Where(x => x.DestinationServiceId == destinationServiceId && x.Statut == "En attente")
+                .Where(x => x.DestinationServiceId == destinationServiceId && x.Statut == enAttente)
                 .OrderByDescending(x => x.DateEnvoi));
 
-        return new ListResultDto<TransactionListDto>(await ToListDtosAsync(transactions));
+        return new ListResultDto<TransactionListDto>(await _affichageService.ToListDtosAsync(transactions));
     }
 
     public async Task<ListResultDto<TransactionListDto>> GetOutgoingAsync(int sourceServiceId)
@@ -65,18 +65,19 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
                 .Where(x => x.SourceServiceId == sourceServiceId)
                 .OrderByDescending(x => x.DateEnvoi));
 
-        return new ListResultDto<TransactionListDto>(await ToListDtosAsync(transactions));
+        return new ListResultDto<TransactionListDto>(await _affichageService.ToListDtosAsync(transactions));
     }
 
     public async Task<ListResultDto<TransactionListDto>> GetPendingReturnsAsync(int sourceServiceId)
     {
         var query = await _repository.GetQueryableAsync();
+        var accepte = WorkflowStatus.Accepte.ToStorageValue();
         var transactions = await AsyncExecuter.ToListAsync(
             query
-                .Where(x => x.SourceServiceId == sourceServiceId && x.DoitRevenir && x.Statut == "Accepté")
+                .Where(x => x.SourceServiceId == sourceServiceId && x.DoitRevenir && x.Statut == accepte)
                 .OrderByDescending(x => x.DateEnvoi));
 
-        return new ListResultDto<TransactionListDto>(await ToListDtosAsync(transactions));
+        return new ListResultDto<TransactionListDto>(await _affichageService.ToListDtosAsync(transactions));
     }
 
     public async Task<TransactionDto> CreateAsync(CreateTransactionDto input)
@@ -95,18 +96,20 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             DestinationUserId = input.DestinationUserId,
             DoitRevenir = input.DoitRevenir,
             Message = input.Message?.Trim() ?? string.Empty,
-            Statut = "En attente",
+            Statut = WorkflowStatus.EnAttente.ToStorageValue(),
             DateEnvoi = DateTime.Now
         }, autoSave: true);
 
-        return ToDto(transaction);
+        await _workflowStarter.StartCreatedTransactionAsync(transaction);
+
+        return _affichageService.ToDto(transaction);
     }
 
     public async Task<TransactionDto> RespondAsync(int id, RespondTransactionDto input)
     {
         var transaction = await _repository.GetAsync(id);
         await _workflowService.RespondAsync(transaction, input.Accepte, input.Message);
-        return ToDto(transaction);
+        return _affichageService.ToDto(transaction);
     }
 
     public async Task<TransactionDto> CancelAsync(int id, int sourceServiceId)
@@ -117,18 +120,18 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             throw new BusinessException("TransactionAnnulationNonAutorisee");
         }
 
-        if (transaction.Statut != "En attente")
+        if (!transaction.Statut.IsSameAs(WorkflowStatus.EnAttente))
         {
             throw new BusinessException("TransactionAnnulationImpossible")
                 .WithData("Statut", transaction.Statut);
         }
 
-        transaction.Statut = "Annulé";
+        transaction.Statut = WorkflowStatus.Annule.ToStorageValue();
         transaction.DateReponse = DateTime.Now;
         transaction.MessageReponse = "Annulée par l'émetteur";
 
         await _repository.UpdateAsync(transaction, autoSave: true);
-        return ToDto(transaction);
+        return _affichageService.ToDto(transaction);
     }
 
     public async Task<TransactionDto> MarkReturnedAsync(int id, int sourceServiceId)
@@ -144,7 +147,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             throw new BusinessException("TransactionSansRetour");
         }
 
-        if (transaction.Statut != "Accepté")
+        if (!transaction.Statut.IsSameAs(WorkflowStatus.Accepte))
         {
             throw new BusinessException("TransactionRetourImpossible")
                 .WithData("Statut", transaction.Statut);
@@ -153,14 +156,15 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         transaction.DoitRevenir = false;
 
         await _repository.UpdateAsync(transaction, autoSave: true);
-        return ToDto(transaction);
+        return _affichageService.ToDto(transaction);
     }
 
     public async Task DeleteAsync(int id, int sourceServiceId, bool isAdmin = false)
     {
         var transaction = await _repository.GetAsync(id);
 
-        if (transaction.Statut != "Accepté" && transaction.Statut != "Refusé")
+        if (!transaction.Statut.IsSameAs(WorkflowStatus.Accepte) &&
+            !transaction.Statut.IsSameAs(WorkflowStatus.Refuse))
         {
             throw new BusinessException("TransactionSuppressionImpossible")
                 .WithData("Statut", transaction.Statut);
@@ -177,11 +181,13 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     private async Task EnsureNoActiveTransactionAsync(int documentId, string documentType)
     {
         var query = await _repository.GetQueryableAsync();
+        var enAttente = WorkflowStatus.EnAttente.ToStorageValue();
+        var accepte = WorkflowStatus.Accepte.ToStorageValue();
         var exists = await AsyncExecuter.AnyAsync(
             query.Where(x =>
                 x.DocumentId == documentId &&
                 x.DocumentType == documentType &&
-                (x.Statut == "En attente" || x.Statut == "Accepté")));
+                (x.Statut == enAttente || x.Statut == accepte)));
 
         if (exists)
         {
@@ -217,85 +223,4 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             .WithData("DocumentType", documentType);
     }
 
-    private async Task<List<TransactionListDto>> ToListDtosAsync(List<Transaction> transactions)
-    {
-        var result = new List<TransactionListDto>();
-        foreach (var transaction in transactions)
-        {
-            result.Add(new TransactionListDto
-            {
-                Id = transaction.Id,
-                DocumentId = transaction.DocumentId,
-                DocumentType = transaction.DocumentType,
-                DocumentSujet = await GetDocumentSujetAsync(transaction.DocumentId, transaction.DocumentType),
-                SourceServiceId = transaction.SourceServiceId,
-                SourceServiceNom = await GetServiceNameAsync(transaction.SourceServiceId),
-                DestinationServiceId = transaction.DestinationServiceId,
-                DestinationServiceNom = await GetServiceNameAsync(transaction.DestinationServiceId),
-                DestinationUserId = transaction.DestinationUserId,
-                DestinationUserName = await GetUserNameAsync(transaction.DestinationUserId),
-                DoitRevenir = transaction.DoitRevenir,
-                DateEnvoi = transaction.DateEnvoi,
-                DateReponse = transaction.DateReponse,
-                Statut = transaction.Statut,
-                Message = transaction.Message,
-                MessageReponse = transaction.MessageReponse
-            });
-        }
-
-        return result;
-    }
-
-    private async Task<string> GetDocumentSujetAsync(int documentId, string documentType)
-    {
-        if (documentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase))
-        {
-            return (await _courrierAdministratifRepository.FindAsync(documentId))?.Sujet ?? string.Empty;
-        }
-
-        if (documentType.Equals("Judiciaire", StringComparison.OrdinalIgnoreCase))
-        {
-            return (await _courrierJudiciaireRepository.FindAsync(documentId))?.Sujet ?? string.Empty;
-        }
-
-        return string.Empty;
-    }
-
-    private async Task<string> GetServiceNameAsync(int serviceId)
-    {
-        return (await _serviceRepository.FindAsync(serviceId))?.NomService ?? string.Empty;
-    }
-
-    private async Task<string?> GetUserNameAsync(int? userId)
-    {
-        if (!userId.HasValue)
-        {
-            return null;
-        }
-
-        return (await _utilisateurRepository.FindAsync(userId.Value))?.NomComplet;
-    }
-
-    private static TransactionDto ToDto(Transaction transaction)
-    {
-        return new TransactionDto
-        {
-            Id = transaction.Id,
-            DocumentId = transaction.DocumentId,
-            DocumentType = transaction.DocumentType,
-            SourceServiceId = transaction.SourceServiceId,
-            DestinationServiceId = transaction.DestinationServiceId,
-            DestinationUserId = transaction.DestinationUserId,
-            DoitRevenir = transaction.DoitRevenir,
-            Message = transaction.Message,
-            Statut = transaction.Statut,
-            DateEnvoi = transaction.DateEnvoi,
-            DateReponse = transaction.DateReponse,
-            MessageReponse = transaction.MessageReponse,
-            CreationTime = transaction.CreationTime,
-            CreatorId = transaction.CreatorId,
-            LastModificationTime = transaction.LastModificationTime,
-            LastModifierId = transaction.LastModifierId
-        };
-    }
 }

@@ -60,7 +60,7 @@ function MessagesAdministratifs() {
               <th>{t('service')}</th>
               <th>{t('etat')}</th>
               <th>{t('observation')}</th>
-              <th>PDF</th>
+              <th>{t('pdf')}</th>
             </tr>
           </thead>
           <tbody>
@@ -80,7 +80,7 @@ function MessagesAdministratifs() {
                   <td>{item.serviceNom || item.idService || '-'}</td>
                   <td>{item.etat || '-'}</td>
                   <td>{item.description || '-'}</td>
-                  <td>{item.lienPdf ? <a href={item.lienPdf} target="_blank" rel="noreferrer">PDF</a> : '-'}</td>
+                  <td>{item.lienPdf ? <a href={item.lienPdf} target="_blank" rel="noreferrer">{t('pdf')}</a> : '-'}</td>
                 </tr>
               ))
             )}

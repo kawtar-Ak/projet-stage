@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { useTranslation } from "react-i18next";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 
 function GererCourriersJuridiques({ embedded = false }) {
+  const { t } = useTranslation();
   const [courriers, setCourriers] = useState([]);
   const [services, setServices] = useState([]);
   const [editingId, setEditingId] = useState(null);
@@ -35,7 +37,7 @@ function GererCourriersJuridiques({ embedded = false }) {
       setCourriers(response.data);
       setError("");
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تحميل المراسلات القضائية."));
+      setError(getErrorMessage(err, t("erreur_chargement_courriers_judiciaires")));
     }
   };
 
@@ -50,7 +52,7 @@ function GererCourriersJuridiques({ embedded = false }) {
         }));
       }
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تحميل المصالح."));
+      setError(getErrorMessage(err, t("erreur_chargement_services")));
     }
   };
 
@@ -82,9 +84,9 @@ function GererCourriersJuridiques({ embedded = false }) {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setForm((prev) => ({ ...prev, lienPdf: response.data.lienPdf || "" }));
-      setSuccess("تم رفع الوثيقة. المرجو حفظ المراسلة للاحتفاظ بالرابط.");
+      setSuccess(t("document_upload_success"));
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر رفع الوثيقة."));
+      setError(getErrorMessage(err, t("erreur_upload_document")));
     } finally {
       setUploading(false);
       event.target.value = "";
@@ -96,7 +98,7 @@ function GererCourriersJuridiques({ embedded = false }) {
     setError("");
     setSuccess("");
 
-    const validationError = validateForm(form);
+    const validationError = validateForm(form, t);
     if (validationError) {
       setError(validationError);
       return;
@@ -121,16 +123,16 @@ function GererCourriersJuridiques({ embedded = false }) {
     try {
       if (editingId) {
         await axios.put(`/api/acteursjudiciaires/${editingId}`, payload);
-        setSuccess("تم تعديل المراسلة القضائية بنجاح.");
+        setSuccess(t("courrier_judiciaire_modifie"));
       } else {
         await axios.post("/api/acteursjudiciaires", payload);
-        setSuccess("تمت إضافة المراسلة القضائية بنجاح.");
+        setSuccess(t("courrier_judiciaire_ajoute"));
       }
 
       resetForm();
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر حفظ المراسلة القضائية."));
+      setError(getErrorMessage(err, t("erreur_enregistrer_courrier_judiciaire")));
     }
   };
 
@@ -155,26 +157,26 @@ function GererCourriersJuridiques({ embedded = false }) {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("هل تريد حذف هذه المراسلة القضائية؟")) return;
+    if (!window.confirm(t("confirmation_supprimer_courrier_judiciaire"))) return;
 
     try {
       await axios.delete(`/api/acteursjudiciaires/${id}`);
-      setSuccess("تم حذف المراسلة القضائية بنجاح.");
+      setSuccess(t("courrier_judiciaire_supprime"));
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر حذف المراسلة القضائية."));
+      setError(getErrorMessage(err, t("erreur_supprimer_courrier_judiciaire")));
     }
   };
 
   const handleArchive = async (id) => {
-    if (!window.confirm("هل تريد أرشفة هذه المراسلة القضائية؟")) return;
+    if (!window.confirm(t("confirmation_archiver_courrier_judiciaire"))) return;
 
     try {
       await axios.put(`/api/acteursjudiciaires/archiver/${id}`);
-      setSuccess("تمت أرشفة المراسلة القضائية بنجاح.");
+      setSuccess(t("courrier_judiciaire_archive"));
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر أرشفة المراسلة القضائية."));
+      setError(getErrorMessage(err, t("erreur_archiver_courrier_judiciaire")));
     }
   };
 
@@ -196,7 +198,7 @@ function GererCourriersJuridiques({ embedded = false }) {
     if (!selectedArchiveItem) return;
 
     if (!retraitForm.motifDeRetrait.trim()) {
-      setError("سبب السحب إجباري.");
+      setError(t("erreur_motif_retrait_requis"));
       return;
     }
 
@@ -213,10 +215,10 @@ function GererCourriersJuridiques({ embedded = false }) {
       const response = await axios.post(`/api/acteursjudiciaires/${selectedArchiveItem.id}/retraits`, payload);
       setSelectedArchiveItem(response.data);
       setRetraitForm(getInitialRetraitForm());
-      setSuccess("تم تسجيل السحب بنجاح.");
+      setSuccess(t("retrait_enregistre"));
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تسجيل السحب."));
+      setError(getErrorMessage(err, t("erreur_enregistrer_retrait")));
     }
   };
 
@@ -227,10 +229,10 @@ function GererCourriersJuridiques({ embedded = false }) {
         notes: retraitForm.notes.trim(),
       });
       setSelectedArchiveItem(response.data);
-      setSuccess("تم تسجيل الإرجاع بنجاح.");
+      setSuccess(t("retour_enregistre"));
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تسجيل الإرجاع."));
+      setError(getErrorMessage(err, t("erreur_enregistrer_retour")));
     }
   };
 
@@ -245,7 +247,7 @@ function GererCourriersJuridiques({ embedded = false }) {
       const response = await axios.get("/api/acteursjudiciaires/export/excel", { responseType: "blob" });
       downloadBlob(response.data, "courriers-juridiques.xlsx");
     } catch (err) {
-      setError("Erreur lors de l'export Excel.");
+      setError(t("erreur_export"));
     }
     return;
 
@@ -253,7 +255,7 @@ function GererCourriersJuridiques({ embedded = false }) {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then((response) => {
-        if (!response.ok) throw new Error("تعذر التصدير.");
+        if (!response.ok) throw new Error(t("erreur_export"));
         return response.blob();
       })
       .then((blob) => {
@@ -264,7 +266,7 @@ function GererCourriersJuridiques({ embedded = false }) {
         a.click();
         window.URL.revokeObjectURL(url);
       })
-      .catch(() => setError("تعذر تصدير ملف Excel."));
+      .catch(() => setError(t("erreur_export")));
   };
 
   const downloadBlob = (blob, filename) => {
@@ -292,11 +294,11 @@ function GererCourriersJuridiques({ embedded = false }) {
       const response = await axios.post("/api/acteursjudiciaires/import/excel", formData);
       const imported = response.data?.imported || 0;
       const errors = response.data?.errors || [];
-      setSuccess(`تم الاستيراد: ${imported} سطر مضاف.`);
+      setSuccess(t("import_lignes_ajoutees", { count: imported }));
       if (errors.length > 0) setError(errors.join(" | "));
       await fetchCourriers();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر استيراد ملف Excel."));
+      setError(getErrorMessage(err, t("erreur_import")));
     } finally {
       setImporting(false);
       event.target.value = "";
@@ -305,59 +307,50 @@ function GererCourriersJuridiques({ embedded = false }) {
 
   return (
     <div className={embedded ? "courriers-juridiques-content" : "page-container"} dir="rtl">
-      {!embedded && <h1 className="page-title">تدبير المراسلات القضائية</h1>}
+      {!embedded && <h1 className="page-title">{t("gestion_courriers_judiciaires")}</h1>}
 
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">{success}</div>}
 
       <div className="form-card">
-        <h3>{editingId ? "تعديل" : "إضافة"} مراسلة قضائية</h3>
+        <h3>{editingId ? t("modifier") : t("ajouter")} {t("courrier_judiciaire")}</h3>
 
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
             <div className="form-field">
-              <label>الرقم الاستئنافي للملف *</label>
+              <label>{t("numero_dossier_appel")} *</label>
               <input name="numeroDossier" value={form.numeroDossier} onChange={handleChange} placeholder="2026/15/3" required />
             </div>
 
             <div className="form-field">
-              <label>التاريخ *</label>
+              <label>{t("date")} *</label>
               <input type="date" name="date" value={form.date} onChange={handleChange} required />
             </div>
 
             <div className="form-field">
-              <label>المحكمة / المصدر *</label>
+              <label>{t("tribunal_source")} *</label>
               <input name="tribunalSource" value={form.tribunalSource} onChange={handleChange} required />
             </div>
 
             <div className="form-field">
-              <label>رقم مكتب الضبط</label>
+              <label>{t("numero_bureau_ordre")}</label>
               <input name="idBureauOrdre" value={form.idBureauOrdre} onChange={handleChange} />
             </div>
 
             <div className="form-field">
-              <label>الموضوع *</label>
+              <label>{t("objet")} *</label>
               <input name="sujet" value={form.sujet} onChange={handleChange} required />
             </div>
 
             <div className="form-field">
-              <label>نوع المراسلة</label>
-              <select name="direction" value={form.direction} onChange={handleChange}>
-                <option value="Entrant">واردة</option>
-                <option value="Sortant">صادرة</option>
-                <option value="Interne">داخلية</option>
-              </select>
-            </div>
-
-            <div className="form-field">
-              <label>المرسل إليه</label>
+              <label>{t("destinataire")}</label>
               <input name="destinataire" value={form.destinataire} onChange={handleChange} />
             </div>
 
             <div className="form-field">
-              <label>المصلحة *</label>
-              <select name="idService" value={form.idService} onChange={handleChange} required>
-                <option value="">-- اختيار المصلحة --</option>
+              <label>{t("service")} *</label>
+              <select name="idService" value={form.idService} onChange={handleChange} >
+                <option value="">-- {t("selectionner_service")} --</option>
                 {services.map((service) => (
                   <option key={service.idService} value={service.idService}>
                     {service.nomService}
@@ -367,17 +360,17 @@ function GererCourriersJuridiques({ embedded = false }) {
             </div>
 
             <div className="form-field">
-              <label>الحالة</label>
+              <label>{t("etat")}</label>
               <select name="etatArchive" value={form.etatArchive} onChange={handleChange}>
-                <option value="Nouveau">جديد</option>
-                <option value="En cours">قيد المعالجة</option>
-                <option value="Traite">تمت المعالجة</option>
-                <option value="Archive">مؤرشف</option>
+                <option value="Nouveau">{t("etat_nouveau")}</option>
+                <option value="En cours">{t("etat_en_cours")}</option>
+                <option value="Traite">{t("etat_traite")}</option>
+                <option value="Archive">{t("etat_archive")}</option>
               </select>
             </div>
 
             <div className="form-field">
-              <label>قابل للإحالة</label>
+              <label>{t("transmissible")}</label>
               <label className="checkbox-field">
                 <input
                   type="checkbox"
@@ -385,27 +378,27 @@ function GererCourriersJuridiques({ embedded = false }) {
                   checked={form.estTransmissible}
                   onChange={handleChange}
                 />
-                نعم
+                {t("oui")}
               </label>
             </div>
 
             <div className="form-field">
-              <label>الموقع</label>
+              <label>{t("emplacement")}</label>
               <input name="emplacement" value={form.emplacement} onChange={handleChange} />
             </div>
 
             <div className="form-field full-width">
-              <label>الوثيقة PDF / Word</label>
+              <label>{t("document_pdf_word")}</label>
               <div className="document-control">
                 <label className="document-upload-button">
-                  {uploading ? "جاري رفع الملف..." : "اختيار ملف"}
+                  {uploading ? t("upload_en_cours") : t("choisir_fichier")}
                   <input type="file" accept=".pdf,.doc,.docx" onChange={handleDocumentSelect} />
                 </label>
                 <div className={form.lienPdf ? "document-link-preview filled" : "document-link-preview"}>
-                  <span title={form.lienPdf || ""}>{form.lienPdf ? getDocumentName(form.lienPdf) : "لم يتم اختيار ملف"}</span>
+                  <span title={form.lienPdf || ""}>{form.lienPdf ? getDocumentName(form.lienPdf) : t("aucun_fichier_selectionne")}</span>
                   {form.lienPdf && (
                     <a href={getDocumentHref(form.lienPdf)} target="_blank" rel="noreferrer">
-                      فتح
+                      {t("ouvrir")}
                     </a>
                   )}
                 </div>
@@ -413,7 +406,7 @@ function GererCourriersJuridiques({ embedded = false }) {
                   <input name="lienPdf" value={form.lienPdf} onChange={handleChange} placeholder="/uploads/documents/..." />
                   {form.lienPdf && (
                     <a href={getDocumentHref(form.lienPdf)} target="_blank" rel="noreferrer">
-                      فتح
+                      {t("ouvrir")}
                     </a>
                   )}
                 </div>
@@ -421,14 +414,14 @@ function GererCourriersJuridiques({ embedded = false }) {
             </div>
 
             <div className="form-field full-width">
-              <label>الملاحظات</label>
+              <label>{t("note")}</label>
               <textarea name="description" value={form.description} onChange={handleChange} rows="3" />
             </div>
           </div>
 
           <div className="form-actions">
-            <button type="submit" className="btn-primary">{editingId ? "تعديل" : "إضافة"}</button>
-            {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>إلغاء</button>}
+            <button type="submit" className="btn-primary">{editingId ? t("modifier") : t("ajouter")}</button>
+            {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>{t("annuler")}</button>}
           </div>
         </form>
       </div>
@@ -437,20 +430,20 @@ function GererCourriersJuridiques({ embedded = false }) {
         <div className="form-card archive-service-panel">
           <div className="registry-panel-header">
             <div>
-              <h3>خدمة الأرشيف: السحب والإرجاع</h3>
+              <h3>{t("service_archive_retrait_retour")}</h3>
               <p>
                 {selectedArchiveItem.numeroDossier || "-"} - {selectedArchiveItem.sujet || "-"}
               </p>
             </div>
             <button type="button" className="btn-secondary" onClick={closeArchiveService}>
-              إغلاق
+              {t("fermer")}
             </button>
           </div>
 
           <form onSubmit={handleSaveRetrait}>
             <div className="form-grid">
               <div className="form-field">
-                <label>تاريخ السحب</label>
+                <label>{t("date_retrait")}</label>
                 <input
                   type="date"
                   name="dateDeRetrait"
@@ -460,7 +453,7 @@ function GererCourriersJuridiques({ embedded = false }) {
               </div>
 
               <div className="form-field">
-                <label>سبب السحب *</label>
+                <label>{t("motif_retrait")} *</label>
                 <input
                   name="motifDeRetrait"
                   value={retraitForm.motifDeRetrait}
@@ -470,7 +463,7 @@ function GererCourriersJuridiques({ embedded = false }) {
               </div>
 
               <div className="form-field">
-                <label>تم بواسطة</label>
+                <label>{t("effectue_par")}</label>
                 <input
                   name="effectuePar"
                   value={retraitForm.effectuePar}
@@ -479,7 +472,7 @@ function GererCourriersJuridiques({ embedded = false }) {
               </div>
 
               <div className="form-field full-width">
-                <label>ملاحظات</label>
+                <label>{t("note")}</label>
                 <textarea
                   name="notes"
                   value={retraitForm.notes}
@@ -490,26 +483,26 @@ function GererCourriersJuridiques({ embedded = false }) {
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn-primary">تسجيل السحب</button>
+              <button type="submit" className="btn-primary">{t("enregistrer_retrait")}</button>
             </div>
           </form>
 
           <div className="data-table-wrapper">
-            <h3>سجل السحوبات</h3>
+            <h3>{t("registre_retraits")}</h3>
             <table className="modern-table">
               <thead>
                 <tr>
-                  <th>تاريخ السحب</th>
-                  <th>السبب</th>
-                  <th>تم بواسطة</th>
-                  <th>تاريخ الإرجاع</th>
-                  <th>ملاحظات</th>
-                  <th>الإجراءات</th>
+                  <th>{t("date_retrait")}</th>
+                  <th>{t("motif")}</th>
+                  <th>{t("effectue_par")}</th>
+                  <th>{t("date_retour")}</th>
+                  <th>{t("note")}</th>
+                  <th>{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {(selectedArchiveItem.retraits || []).length === 0 ? (
-                  <tr><td colSpan="6" style={{ textAlign: "center" }}>لا توجد سحوبات.</td></tr>
+                  <tr><td colSpan="6" style={{ textAlign: "center" }}>{t("aucun_retrait")}</td></tr>
                 ) : (
                   selectedArchiveItem.retraits.map((retrait) => (
                     <tr key={retrait.id}>
@@ -521,10 +514,10 @@ function GererCourriersJuridiques({ embedded = false }) {
                       <td>
                         {!retrait.dateDeRetour ? (
                           <button type="button" onClick={() => handleSaveRetour(retrait.id)}>
-                            تسجيل الإرجاع
+                            {t("enregistrer_retour")}
                           </button>
                         ) : (
-                          "تم الإرجاع"
+                          t("retour_effectue")
                         )}
                       </td>
                     </tr>
@@ -538,42 +531,41 @@ function GererCourriersJuridiques({ embedded = false }) {
 
       <div className="registry-panel">
         <div className="registry-panel-header">
-          <h3>البحث والسجل</h3>
+          <h3>{t("recherche_registre")}</h3>
           <div className="registry-tools">
-            <button type="button" className="btn-primary" onClick={exportToExcel}>تصدير Excel</button>
+            <button type="button" className="btn-primary" onClick={exportToExcel}>{t("exporter_excel")}</button>
             <label className="btn-secondary import-label">
-              {importing ? "جاري الاستيراد..." : "استيراد Excel"}
+              {importing ? t("import_en_cours") : t("importer_excel")}
               <input type="file" accept=".xlsx" onChange={handleImportExcel} />
             </label>
           </div>
         </div>
 
         <div className="filters">
-          <input value={motCle} onChange={(e) => setMotCle(e.target.value)} placeholder="البحث بالمحكمة، الرقم الاستئنافي للملف، الموضوع..." />
-          <button type="button" className="btn-secondary" onClick={() => setMotCle("")}>إعادة تعيين</button>
+          <input value={motCle} onChange={(e) => setMotCle(e.target.value)} placeholder={t("rechercher_courriers_judiciaires")} />
+          <button type="button" className="btn-secondary" onClick={() => setMotCle("")}>{t("reinitialiser")}</button>
         </div>
 
         <div className="data-table-wrapper">
           <table className="modern-table">
             <thead>
               <tr>
-                <th>التاريخ</th>
-                <th>المحكمة / المصدر</th>
-                <th>الرقم الاستئنافي للملف</th>
-                <th>الموضوع</th>
-                <th>نوع المراسلة</th>
-                <th>المرسل إليه</th>
-                <th>المصلحة</th>
-                <th>الحالة</th>
-                <th>الموقع</th>
-                <th>السحوبات</th>
-                <th>PDF</th>
-                <th>الإجراءات</th>
+                <th>{t("date")}</th>
+                <th>{t("tribunal_source")}</th>
+                <th>{t("numero_dossier_appel")}</th>
+                <th>{t("objet")}</th>
+                <th>{t("destinataire")}</th>
+                <th>{t("service")}</th>
+                <th>{t("etat")}</th>
+                <th>{t("emplacement")}</th>
+                <th>{t("retraits")}</th>
+                <th>{t("pdf")}</th>
+                <th>{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
               {courriers.length === 0 ? (
-                <tr><td colSpan="12" style={{ textAlign: "center" }}>لا توجد مراسلات قضائية.</td></tr>
+                <tr><td colSpan="11" style={{ textAlign: "center" }}>{t("aucun_courrier_judiciaire")}</td></tr>
               ) : (
                 courriers.map((courrier) => (
                   <tr key={courrier.id}>
@@ -581,18 +573,17 @@ function GererCourriersJuridiques({ embedded = false }) {
                     <td>{courrier.tribunalSource || "-"}</td>
                     <td>{courrier.numeroDossier || "-"}</td>
                     <td>{courrier.sujet || "-"}</td>
-                    <td>{formatDirection(courrier.direction)}</td>
                     <td>{courrier.destinataire || "-"}</td>
                     <td>{courrier.serviceNom || courrier.idService || "-"}</td>
-                    <td>{formatEtat(courrier.etatArchive)}</td>
+                    <td>{formatEtat(courrier.etatArchive, t)}</td>
                     <td>{courrier.emplacement || "-"}</td>
                     <td>{courrier.retraitsCount ?? 0}</td>
-                    <td>{courrier.lienPdf ? <a href={getDocumentHref(courrier.lienPdf)} target="_blank" rel="noreferrer">فتح</a> : "-"}</td>
+                    <td>{courrier.lienPdf ? <a href={getDocumentHref(courrier.lienPdf)} target="_blank" rel="noreferrer">{t("ouvrir")}</a> : "-"}</td>
                     <td className="action-icons">
-                      <button type="button" onClick={() => handleEdit(courrier)}>تعديل</button>
-                      <button type="button" onClick={() => openArchiveService(courrier)}>خدمة الأرشيف</button>
-                      <button type="button" onClick={() => handleArchive(courrier.id)}>أرشفة</button>
-                      <button type="button" onClick={() => handleDelete(courrier.id)}>حذف</button>
+                      <button type="button" onClick={() => handleEdit(courrier)}>{t("modifier")}</button>
+                      <button type="button" onClick={() => openArchiveService(courrier)}>{t("service_archive")}</button>
+                      <button type="button" onClick={() => handleArchive(courrier.id)}>{t("archiver")}</button>
+                      <button type="button" onClick={() => handleDelete(courrier.id)}>{t("supprimer")}</button>
                     </td>
                   </tr>
                 ))
@@ -636,15 +627,15 @@ function getDefaultServiceId(services) {
   return services.length > 0 ? services[0].idService : "";
 }
 
-function validateForm(form) {
-  if (!form.date) return "التاريخ إجباري.";
-  if (!form.tribunalSource.trim()) return "المحكمة / المصدر إجباري.";
-  if (!form.numeroDossier.trim()) return "الرقم الاستئنافي للملف إجباري.";
+function validateForm(form, t) {
+  if (!form.date) return t("erreur_date_requise");
+  if (!form.tribunalSource.trim()) return t("erreur_tribunal_requis");
+  if (!form.numeroDossier.trim()) return t("erreur_numero_dossier_requis");
   if (!/^\d+(\/\d+){0,2}$/.test(form.numeroDossier.trim())) {
-    return "الرقم الاستئنافي للملف غير صحيح. مثال: 2026/15/3.";
+    return t("erreur_numero_dossier_format");
   }
-  if (!form.sujet.trim()) return "الموضوع إجباري.";
-  if (!form.idService) return "المصلحة إجبارية.";
+  if (!form.sujet.trim()) return t("erreur_objet_requis");
+  if (!form.idService) return t("erreur_service_requis");
   return "";
 }
 
@@ -669,17 +660,11 @@ function getDocumentName(value) {
   return decodeURIComponent(cleanValue.split("/").filter(Boolean).pop() || cleanValue);
 }
 
-function formatDirection(value) {
-  if (value === "Sortant") return "صادرة";
-  if (value === "Interne") return "داخلية";
-  return "واردة";
-}
-
-function formatEtat(value) {
-  if (value === "En cours") return "قيد المعالجة";
-  if (value === "Traite") return "تمت المعالجة";
-  if (value === "Archive") return "مؤرشف";
-  return "جديد";
+function formatEtat(value, t) {
+  if (value === "En cours") return t("etat_en_cours");
+  if (value === "Traite") return t("etat_traite");
+  if (value === "Archive") return t("etat_archive");
+  return t("etat_nouveau");
 }
 
 function getErrorMessage(error, fallback) {

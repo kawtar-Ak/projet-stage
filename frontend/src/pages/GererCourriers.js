@@ -10,6 +10,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useTranslation } from "react-i18next";
 import GererCourriersJuridiques from "./GererCourriersJuridiques";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
@@ -41,6 +42,7 @@ const CORRESPONDANCE_ENTRANTE = "Entrante";     // مراسلة واردة
 // - le passage entre administratif et juridique.
 
 function GererCourriers() {
+  const { t } = useTranslation();
 
   // ==========================================================
   // BLOC 3.1 : STATES PRINCIPAUX
@@ -171,7 +173,7 @@ function GererCourriers() {
       setCourriers(response.data);
       setError("");
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تحميل المراسلات."));
+      setError(getErrorMessage(err, t("erreur_chargement_courriers")));
     }
   };
 
@@ -199,7 +201,7 @@ function GererCourriers() {
       const response = await axios.get("/api/courriers/waridat");
       setWaridat(response.data);
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تحميل الواردات."));
+      setError(getErrorMessage(err, t("erreur_chargement_waridat")));
     }
   };
 
@@ -223,7 +225,7 @@ function GererCourriers() {
         }));
       }
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر تحميل المصالح."));
+      setError(getErrorMessage(err, t("erreur_chargement_services")));
     }
   };
 
@@ -348,14 +350,14 @@ function GererCourriers() {
       await saveCurrentCourrier();
 
       setSuccess(
-        editingId ? "تم تعديل المعطيات بنجاح." : "تمت الإضافة بنجاح."
+        editingId ? t("enregistrement_modifie") : t("enregistrement_ajoute")
       );
 
       resetForm();
       await fetchCourriers();
       await fetchWaridat();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر حفظ المعطيات."));
+      setError(getErrorMessage(err, t("erreur_enregistrer_donnees")));
     }
   };
 
@@ -368,7 +370,7 @@ function GererCourriers() {
   // Sinon, on fait un ajout avec POST.
 
   const saveCurrentCourrier = async () => {
-    const validationError = validateForm(form, isLinkedMorasalat);
+    const validationError = validateForm(form, isLinkedMorasalat, t);
 
     if (validationError) {
       throw new Error(validationError);
@@ -450,11 +452,11 @@ function GererCourriers() {
 
       setSuccess(
         existingWarida
-          ? "تم فتح نموذج مراسلة مرتبطة بالواردة الموجودة."
-          : "تم حفظ الواردة. يمكن الآن إضافة مراسلة مرتبطة بها."
+          ? t("warida_existante_formulaire_ouvert")
+          : t("warida_enregistree_ajouter_morasalat")
       );
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر حفظ الواردة."));
+      setError(getErrorMessage(err, t("erreur_enregistrer_warida")));
     } finally {
       setSavingLinked(false);
     }
@@ -516,7 +518,7 @@ function GererCourriers() {
     const parentId = warida.id || warida.idEntite;
 
     if (!parentId) {
-      setError("تعذر تحديد الواردة المرتبطة.");
+      setError(t("erreur_warida_liee_introuvable"));
       return;
     }
 
@@ -547,15 +549,15 @@ function GererCourriers() {
   // Cette fonction supprime un courrier après confirmation.
 
   const handleDelete = async (id) => {
-    if (!window.confirm("هل تريد حذف هذا السجل؟")) return;
+    if (!window.confirm(t("confirmation_supprimer_registre"))) return;
 
     try {
       await axios.delete(`/api/courriers/${id}`);
-      setSuccess("تم الحذف بنجاح.");
+      setSuccess(t("registre_supprime"));
       await fetchCourriers();
       await fetchWaridat();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر الحذف."));
+      setError(getErrorMessage(err, t("erreur_supprimer")));
     }
   };
 
@@ -566,15 +568,15 @@ function GererCourriers() {
   // Cette fonction archive un courrier sans le supprimer définitivement.
 
   const handleArchive = async (id) => {
-    if (!window.confirm("هل تريد أرشفة هذا السجل؟")) return;
+    if (!window.confirm(t("confirmation_archiver_registre"))) return;
 
     try {
       await axios.put(`/api/courriers/archiver/${id}`);
-      setSuccess("تمت الأرشفة بنجاح.");
+      setSuccess(t("registre_archive"));
       await fetchCourriers();
       await fetchWaridat();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر الأرشفة."));
+      setError(getErrorMessage(err, t("erreur_archiver")));
     }
   };
 
@@ -626,7 +628,7 @@ function GererCourriers() {
 
       setCourriers(response.data);
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر البحث."));
+      setError(getErrorMessage(err, t("erreur_recherche")));
     }
   };
 
@@ -658,7 +660,7 @@ function GererCourriers() {
       const response = await axios.get("/api/courriers/export/excel", { responseType: "blob" });
       downloadBlob(response.data, "courriers-administratifs.xlsx");
     } catch (err) {
-      setError("Erreur lors de l'export Excel.");
+      setError(t("erreur_export"));
     }
     return;
 
@@ -666,7 +668,7 @@ function GererCourriers() {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     })
       .then((res) => {
-        if (!res.ok) throw new Error("تعذر التصدير.");
+        if (!res.ok) throw new Error(t("erreur_export"));
         return res.blob();
       })
       .then((blob) => {
@@ -679,7 +681,7 @@ function GererCourriers() {
 
         window.URL.revokeObjectURL(url);
       })
-      .catch(() => setError("تعذر تصدير ملف Excel."));
+      .catch(() => setError(t("erreur_export")));
   };
 
 
@@ -707,16 +709,16 @@ function GererCourriers() {
       const imported = response.data?.imported || 0;
       const errors = response.data?.errors || [];
 
-      setSuccess(`تم استيراد ${imported} سجل.`);
+      setSuccess(t("import_registres", { count: imported }));
 
       if (errors.length > 0) {
-        setError(`اكتمل الاستيراد مع أخطاء: ${errors.join(" | ")}`);
+        setError(t("import_termine_avec_erreurs", { errors: errors.join(" | ") }));
       }
 
       await fetchCourriers();
       await fetchWaridat();
     } catch (err) {
-      setError(getErrorMessage(err, "تعذر استيراد ملف Excel."));
+      setError(getErrorMessage(err, t("erreur_import")));
     } finally {
       setImporting(false);
 
@@ -759,9 +761,9 @@ function GererCourriers() {
         lienPdf: response.data?.lienPdf || "",
       }));
 
-      setSuccess("Document ajoute. Enregistrez le courrier pour conserver le lien.");
+      setSuccess(t("document_upload_success"));
     } catch (err) {
-      setError(getErrorMessage(err, "Erreur lors de l'upload du document."));
+      setError(getErrorMessage(err, t("erreur_upload_document")));
     } finally {
       setUploadingDocument(false);
       e.target.value = "";
@@ -783,25 +785,25 @@ function GererCourriers() {
     <div className="data-table-wrapper search-results-table">
       <h3>
         {hasActiveSearch
-          ? `نتائج البحث (${courriers.length})`
-          : `السجل (${courriers.length})`}
+          ? t("resultats_recherche", { count: courriers.length })
+          : t("registre_count", { count: courriers.length })}
       </h3>
 
       <table className="modern-table">
         <thead>
           <tr>
-            <th>رقم مكتب الضبط</th>
-            <th>نوع السجل</th>
-            <th>الارتباط</th>
-            <th>التاريخ</th>
-            <th>المصدر</th>
-            <th>الموضوع</th>
-            <th>المرسل إليه</th>
-            <th>المصلحة</th>
-            <th>الحالة</th>
-            <th>Transmissible</th>
-            <th>PDF</th>
-            <th>الإجراءات</th>
+            <th>{t("numero_bureau_ordre")}</th>
+            <th>{t("type_registre")}</th>
+            <th>{t("liaison")}</th>
+            <th>{t("date")}</th>
+            <th>{t("source")}</th>
+            <th>{t("objet")}</th>
+            <th>{t("destinataire")}</th>
+            <th>{t("service")}</th>
+            <th>{t("etat")}</th>
+            <th>{t("transmissible")}</th>
+            <th>{t("pdf")}</th>
+            <th>{t("actions")}</th>
           </tr>
         </thead>
 
@@ -809,15 +811,15 @@ function GererCourriers() {
           {courriers.length === 0 ? (
             <tr>
               <td colSpan="12" style={{ textAlign: "center" }}>
-                لا توجد سجلات.
+                {t("aucun_registre")}
               </td>
             </tr>
           ) : (
             courriers.map((courrier) => (
               <tr key={courrier.id}>
                 <td>{courrier.idBureauOrdre || "-"}</td>
-                <td>{formatRegistre(courrier)}</td>
-                <td>{courrier.parentId ? "تفصيل مرتبط" : "سطر رئيسي"}</td>
+                <td>{formatRegistre(courrier, t)}</td>
+                <td>{courrier.parentId ? t("detail_lie") : t("ligne_principale")}</td>
                 <td>
                   {courrier.date
                     ? new Date(courrier.date).toLocaleDateString()
@@ -827,10 +829,10 @@ function GererCourriers() {
                 <td>{courrier.sujet || "-"}</td>
                 <td>{courrier.destinataire || "-"}</td>
                 <td>{courrier.serviceNom || courrier.idService}</td>
-                <td>{formatEtat(courrier.etat)}</td>
+                <td>{formatEtat(courrier.etat, t)}</td>
 
                 {/* Affiche Oui si le courrier est transmissible, sinon Non. */}
-                <td>{courrier.estTransmissible ? "Oui" : "Non"}</td>
+                <td>{courrier.estTransmissible ? t("oui") : t("non")}</td>
 
                 <td>
                   {courrier.lienPdf ? (
@@ -839,7 +841,7 @@ function GererCourriers() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      عرض
+                      {t("voir")}
                     </a>
                   ) : (
                     "-"
@@ -851,34 +853,34 @@ function GererCourriers() {
                     <button
                       type="button"
                       onClick={() => handleAddMorasalat(courrier)}
-                      title="إضافة مراسلة"
+                      title={t("ajouter_morasalat")}
                     >
-                      إضافة مراسلة
+                      {t("ajouter_morasalat")}
                     </button>
                   )}
 
                   <button
                     type="button"
                     onClick={() => handleEdit(courrier)}
-                    title="تعديل"
+                    title={t("modifier")}
                   >
-                    تعديل
+                    {t("modifier")}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleArchive(courrier.id)}
-                    title="أرشفة"
+                    title={t("archiver")}
                   >
-                    أرشفة
+                    {t("archiver")}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleDelete(courrier.id)}
-                    title="حذف"
+                    title={t("supprimer")}
                   >
-                    حذف
+                    {t("supprimer")}
                   </button>
                 </td>
               </tr>
@@ -899,7 +901,7 @@ function GererCourriers() {
   if (activeRegistre === "juridique") {
     return (
       <div className="page-container" dir="rtl">
-        <h1 className="page-title">تدبير المراسلات</h1>
+        <h1 className="page-title">{t("gestion_courriers")}</h1>
 
         <div className="registry-choice">
           <button
@@ -907,7 +909,7 @@ function GererCourriers() {
             className="choice-pill"
             onClick={() => setActiveRegistre("administratif")}
           >
-            تدبير المراسلات الإدارية
+            {t("gestion_courriers_admin")}
           </button>
 
           <button
@@ -915,7 +917,7 @@ function GererCourriers() {
             className="choice-pill active"
             onClick={() => setActiveRegistre("juridique")}
           >
-            المراسلات القضائية
+            {t("courriers_judiciaires")}
           </button>
         </div>
 
@@ -937,7 +939,7 @@ function GererCourriers() {
 
   return (
     <div className="page-container" dir="rtl">
-      <h1 className="page-title">تدبير المراسلات</h1>
+      <h1 className="page-title">{t("gestion_courriers")}</h1>
 
       <div className="registry-choice">
         <button
@@ -945,7 +947,7 @@ function GererCourriers() {
           className="choice-pill active"
           onClick={() => setActiveRegistre("administratif")}
         >
-          تدبير المراسلات الإدارية
+          {t("gestion_courriers_admin")}
         </button>
 
         <button
@@ -953,11 +955,11 @@ function GererCourriers() {
           className="choice-pill"
           onClick={() => setActiveRegistre("juridique")}
         >
-          المراسلات القضائية
+          {t("courriers_judiciaires")}
         </button>
       </div>
 
-      <h2 className="page-title">تدبير المراسلات الإدارية</h2>
+      <h2 className="page-title">{t("gestion_courriers_admin")}</h2>
 
       {/* Affichage des messages d'erreur et de succès */}
       {error && <div className="error-message">{error}</div>}
@@ -974,7 +976,7 @@ function GererCourriers() {
           }
           onClick={selectWaridat}
         >
-          الواردات
+          {t("waridat")}
         </button>
 
         <button
@@ -986,7 +988,7 @@ function GererCourriers() {
           }
           onClick={selectMorasalat}
         >
-          المراسلات
+          {t("morasalat")}
         </button>
       </div>
 
@@ -1002,7 +1004,7 @@ function GererCourriers() {
             }
             onClick={() => selectCorrespondance(CORRESPONDANCE_SORTANTE)}
           >
-            المراسلات الصادرة
+            {t("morasalat_sortantes")}
           </button>
 
           <button
@@ -1014,7 +1016,7 @@ function GererCourriers() {
             }
             onClick={() => selectCorrespondance(CORRESPONDANCE_ENTRANTE)}
           >
-            المراسلات الواردة
+            {t("morasalat_entrantes")}
           </button>
         </div>
       )}
@@ -1024,7 +1026,7 @@ function GererCourriers() {
       ====================================================== */}
       <div className="form-card">
         <h3>
-          {editingId ? "تعديل" : "إضافة"} {formatFormTitle(form)}
+          {editingId ? t("modifier") : t("ajouter")} {formatFormTitle(form, t)}
         </h3>
 
         <form onSubmit={handleSubmit}>
@@ -1032,23 +1034,23 @@ function GererCourriers() {
             {/* Numéro de bureau d'ordre */}
             {showIdBureauOrdreInput ? (
               <div className="form-field">
-                <label>رقم مكتب الضبط *</label>
+                <label>{t("numero_bureau_ordre")} *</label>
                 <input
                   type="text"
                   name="idBureauOrdre"
                   value={form.idBureauOrdre}
                   onChange={handleChange}
-                  placeholder="مثال: 12/2026"
+                  placeholder={t("placeholder_numero_bureau_exemple")}
                   required
                 />
               </div>
             ) : (
               <div className="form-field">
-                <label>رقم مكتب الضبط</label>
+                <label>{t("numero_bureau_ordre")}</label>
                 <input
                   type="text"
                   value={
-                    displayedIdBureauOrdre || "سيؤخذ الرقم من الواردة المرتبطة"
+                    displayedIdBureauOrdre || t("numero_pris_depuis_warida")
                   }
                   readOnly
                 />
@@ -1057,7 +1059,7 @@ function GererCourriers() {
 
             {/* Date */}
             <div className="form-field">
-              <label>التاريخ *</label>
+              <label>{t("date")} *</label>
               <input
                 type="date"
                 name="date"
@@ -1072,8 +1074,8 @@ function GererCourriers() {
               <label>
                 {isMorasalat &&
                 form.typeCorrespondance === CORRESPONDANCE_SORTANTE
-                  ? "المرسل"
-                  : "المصدر"}{" "}
+                  ? t("expediteur")
+                  : t("source")}{" "}
                 *
               </label>
               <input
@@ -1081,7 +1083,7 @@ function GererCourriers() {
                 name="source"
                 value={form.source}
                 onChange={handleChange}
-                placeholder="مثال: وزارة، محكمة، مصلحة..."
+                placeholder={t("placeholder_source")}
                 required
               />
             </div>
@@ -1091,8 +1093,8 @@ function GererCourriers() {
               <label>
                 {isMorasalat &&
                 form.typeCorrespondance === CORRESPONDANCE_ENTRANTE
-                  ? "الجواب / الموضوع"
-                  : "الموضوع"}{" "}
+                  ? t("reponse_objet")
+                  : t("objet")}{" "}
                 *
               </label>
               <input
@@ -1100,33 +1102,33 @@ function GererCourriers() {
                 name="sujet"
                 value={form.sujet}
                 onChange={handleChange}
-                placeholder="موضوع المراسلة"
+                placeholder={t("placeholder_objet")}
                 required
               />
             </div>
 
             {/* Destinataire */}
             <div className="form-field">
-              <label>المرسل إليه</label>
+              <label>{t("destinataire")}</label>
               <input
                 type="text"
                 name="destinataire"
                 value={form.destinataire}
                 onChange={handleChange}
-                placeholder="المصلحة أو الشخص المرسل إليه"
+                placeholder={t("placeholder_destinataire")}
               />
             </div>
 
             {/* Service */}
             <div className="form-field">
-              <label>المصلحة المعنية *</label>
+              <label>{t("service_concerne")} *</label>
               <select
                 name="idService"
                 value={form.idService}
                 onChange={handleChange}
                 required
               >
-                <option value="">-- اختيار المصلحة --</option>
+                <option value="">{t("selectionner_service")}</option>
 
                 {services.map((service) => (
                   <option key={service.idService} value={service.idService}>
@@ -1138,18 +1140,18 @@ function GererCourriers() {
 
             {/* État */}
             <div className="form-field">
-              <label>الحالة</label>
+              <label>{t("etat")}</label>
               <select name="etat" value={form.etat} onChange={handleChange}>
-                <option value="Nouveau">جديد</option>
-                <option value="En cours">قيد المعالجة</option>
-                <option value="Traite">تمت المعالجة</option>
-                <option value="Archive">مؤرشف</option>
+                <option value="Nouveau">{t("etat_nouveau")}</option>
+                <option value="En cours">{t("etat_en_cours")}</option>
+                <option value="Traite">{t("etat_traite")}</option>
+                <option value="Archive">{t("etat_archive")}</option>
               </select>
             </div>
 
             {/* Numéro interne */}
             <div className="form-field">
-              <label>الرقم الداخلي</label>
+              <label>{t("numero_interne")}</label>
               <input
                 type="text"
                 name="numeroDeCourrier"
@@ -1160,11 +1162,11 @@ function GererCourriers() {
 
             {/* Document PDF / Word */}
             <div className="form-field full-width">
-              <label>الوثيقة PDF / Word</label>
+              <label>{t("document_pdf_word")}</label>
 
               <div className="document-control">
                 <label className="document-upload-button">
-                  {uploadingDocument ? "جاري رفع الملف..." : "اختيار ملف"}
+                  {uploadingDocument ? t("upload_en_cours") : t("choisir_fichier")}
 
                   <input
                     type="file"
@@ -1183,7 +1185,7 @@ function GererCourriers() {
                   <span title={form.lienPdf || ""}>
                     {form.lienPdf
                       ? getDocumentName(form.lienPdf)
-                      : "لم يتم اختيار ملف"}
+                      : t("aucun_fichier_selectionne")}
                   </span>
 
                   {form.lienPdf && (
@@ -1192,7 +1194,7 @@ function GererCourriers() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      فتح
+                      {t("ouvrir")}
                     </a>
                   )}
                 </div>
@@ -1203,7 +1205,7 @@ function GererCourriers() {
                     name="lienPdf"
                     value={form.lienPdf}
                     onChange={handleChange}
-                    placeholder="رابط أو اسم ملف PDF"
+                    placeholder={t("placeholder_lien_pdf")}
                   />
 
                   {form.lienPdf && (
@@ -1212,7 +1214,7 @@ function GererCourriers() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      فتح
+                      {t("ouvrir")}
                     </a>
                   )}
                 </div>
@@ -1221,7 +1223,7 @@ function GererCourriers() {
 
             {/* Transmissible */}
             <div className="form-field">
-              <label>Transmissible</label>
+              <label>{t("transmissible")}</label>
 
               <label className="checkbox-field">
                 <input
@@ -1230,20 +1232,20 @@ function GererCourriers() {
                   checked={form.estTransmissible}
                   onChange={handleChange}
                 />
-                Transmissible
+                {t("transmissible")}
               </label>
             </div>
 
             {/* Description */}
             <div className="form-field full-width">
-              <label>الملاحظات</label>
+              <label>{t("note")}</label>
 
               <textarea
                 name="description"
                 value={form.description}
                 onChange={handleChange}
                 rows="3"
-                placeholder="ملاحظات..."
+                placeholder={t("placeholder_notes")}
               />
             </div>
           </div>
@@ -1251,7 +1253,7 @@ function GererCourriers() {
           {/* Boutons du formulaire */}
           <div className="form-actions">
             <button type="submit" className="btn-primary">
-              {editingId ? "تعديل" : "إضافة"}
+              {editingId ? t("modifier") : t("ajouter")}
             </button>
 
             {form.typeRegistre === TYPE_WARIDAT && (
@@ -1261,7 +1263,7 @@ function GererCourriers() {
                 onClick={handleSaveWaridatAndAddMorasalat}
                 disabled={savingLinked}
               >
-                {savingLinked ? "جاري الحفظ..." : "إضافة مراسلة مرتبطة"}
+                {savingLinked ? t("sauvegarde_en_cours") : t("ajouter_morasalat_liee")}
               </button>
             )}
 
@@ -1271,7 +1273,7 @@ function GererCourriers() {
                 className="btn-secondary"
                 onClick={resetForm}
               >
-                إلغاء
+                {t("annuler")}
               </button>
             )}
           </div>
@@ -1283,7 +1285,7 @@ function GererCourriers() {
       ====================================================== */}
       <div className="registry-panel">
         <div className="registry-panel-header">
-          <h3>البحث والسجل</h3>
+          <h3>{t("recherche_registre")}</h3>
 
           <div className="registry-tools">
             <button
@@ -1291,11 +1293,11 @@ function GererCourriers() {
               className="btn-primary"
               onClick={exportToExcel}
             >
-              تصدير Excel
+              {t("exporter_excel")}
             </button>
 
             <label className="btn-secondary import-label">
-              {importing ? "جاري الاستيراد..." : "استيراد Excel"}
+              {importing ? t("import_en_cours") : t("importer_excel")}
 
               <input
                 type="file"
@@ -1312,14 +1314,14 @@ function GererCourriers() {
               type="text"
               value={motCle}
               onChange={(e) => setMotCle(e.target.value)}
-              placeholder="كلمة البحث: المصدر، الموضوع، الحالة..."
+              placeholder={t("placeholder_recherche_courriers")}
             />
 
             <input
               type="text"
               value={numeroRecherche}
               onChange={(e) => setNumeroRecherche(e.target.value)}
-              placeholder="رقم مكتب الضبط"
+              placeholder={t("numero_bureau_ordre")}
             />
 
             <input
@@ -1338,7 +1340,7 @@ function GererCourriers() {
                 fetchCourriers();
               }}
             >
-              إعادة تعيين
+              {t("reinitialiser")}
             </button>
           </form>
         </div>
@@ -1408,19 +1410,19 @@ function getDefaultServiceId(services) {
 // Vérifie que les champs obligatoires sont remplis
 // avant d'envoyer les données au backend.
 
-function validateForm(form, isLinkedMorasalat) {
+function validateForm(form, isLinkedMorasalat, t) {
   if (!isLinkedMorasalat && !form.idBureauOrdre.trim()) {
-    return "رقم مكتب الضبط إجباري بالنسبة للسطر الرئيسي.";
+    return t("erreur_numero_bureau_requis_ligne");
   }
 
   if (isLinkedMorasalat && !form.parentId) {
-    return "المرجو اختيار الواردة المرتبطة.";
+    return t("erreur_warida_liee_requise");
   }
 
-  if (!form.date) return "التاريخ إجباري.";
-  if (!form.source.trim()) return "المصدر إجباري.";
-  if (!form.sujet.trim()) return "الموضوع إجباري.";
-  if (!form.idService) return "المصلحة المعنية إجبارية.";
+  if (!form.date) return t("erreur_date_requise");
+  if (!form.source.trim()) return t("erreur_source_requise");
+  if (!form.sujet.trim()) return t("erreur_objet_requis");
+  if (!form.idService) return t("erreur_service_concerne_requis");
 
   return "";
 }
@@ -1448,12 +1450,12 @@ function getDirection(form) {
 // ==========================================================
 // Retourne le titre affiché dans le formulaire.
 
-function formatFormTitle(form) {
-  if (form.typeRegistre === TYPE_WARIDAT) return "الواردات";
+function formatFormTitle(form, t) {
+  if (form.typeRegistre === TYPE_WARIDAT) return t("waridat");
 
   return form.typeCorrespondance === CORRESPONDANCE_ENTRANTE
-    ? "المراسلات الواردة"
-    : "المراسلات الصادرة";
+    ? t("morasalat_entrantes")
+    : t("morasalat_sortantes");
 }
 
 
@@ -1462,14 +1464,14 @@ function formatFormTitle(form) {
 // ==========================================================
 // Convertit les valeurs techniques en texte arabe affichable.
 
-function formatRegistre(courrier) {
+function formatRegistre(courrier, t) {
   if (courrier.typeRegistre === TYPE_MORASALAT) {
     return courrier.typeCorrespondance === CORRESPONDANCE_ENTRANTE
-      ? "المراسلات الواردة"
-      : "المراسلات الصادرة";
+      ? t("morasalat_entrantes")
+      : t("morasalat_sortantes");
   }
 
-  return "الواردات";
+  return t("waridat");
 }
 
 
@@ -1478,12 +1480,12 @@ function formatRegistre(courrier) {
 // ==========================================================
 // Convertit l'état stocké dans la base en texte arabe.
 
-function formatEtat(etat) {
-  if (etat === "En cours") return "قيد المعالجة";
-  if (etat === "Traite" || etat === "Traité") return "تمت المعالجة";
-  if (etat === "Archive" || etat === "Archivé") return "مؤرشف";
+function formatEtat(etat, t) {
+  if (etat === "En cours") return t("etat_en_cours");
+  if (etat === "Traite" || etat === "Traité") return t("etat_traite");
+  if (etat === "Archive" || etat === "Archivé") return t("etat_archive");
 
-  return "جديد";
+  return t("etat_nouveau");
 }
 
 

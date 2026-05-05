@@ -1,4 +1,5 @@
 using System;
+using GestionCourrierAbp.Workflows;
 using GestionCourrierAbp.Services;
 using Volo.Abp.Domain.Entities.Auditing;
 
@@ -12,7 +13,7 @@ public class CourrierAdministratif : AuditedAggregateRoot<int>
     public string Sujet { get; set; } = string.Empty;
     public string Destinataire { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public string Etat { get; set; } = "Nouveau";
+    public string Etat { get; set; } = WorkflowStatus.Nouveau.ToStorageValue();
     public string LienPdf { get; set; } = string.Empty;
     public string Direction { get; set; } = "Entrant";
     public string TypeDocument { get; set; } = "Administratif";

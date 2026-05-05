@@ -1,4 +1,5 @@
 using System;
+using GestionCourrierAbp.Workflows;
 using GestionCourrierAbp.Services;
 using GestionCourrierAbp.Utilisateurs;
 using Volo.Abp.Domain.Entities.Auditing;
@@ -14,7 +15,7 @@ public class Transaction : AuditedAggregateRoot<int>
     public int? DestinationUserId { get; set; }
     public bool DoitRevenir { get; set; }
     public string Message { get; set; } = string.Empty;
-    public string Statut { get; set; } = "En attente";
+    public string Statut { get; set; } = WorkflowStatus.EnAttente.ToStorageValue();
     public DateTime DateEnvoi { get; set; }
     public DateTime? DateReponse { get; set; }
     public string? MessageReponse { get; set; }

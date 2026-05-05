@@ -49,6 +49,7 @@ function shouldUseAbp(url = '', originalUrl = '') {
     url?.startsWith('/api/app/') ||
     url?.startsWith('/api/courriers/') ||
     url?.startsWith('/api/acteursjudiciaires/') ||
+    url?.startsWith('/api/documents') ||
     url?.startsWith('/api/services/') ||
     url?.startsWith('/api/equipements/') ||
     url?.startsWith('/api/utilisateurs/') ||
@@ -59,6 +60,7 @@ function mapLegacyUrlToAbp(url = '') {
   const serviceId = Number(localStorage.getItem('idService') || 0);
 
   return url
+    .replace(/^\/api\/documents$/, `/api/documents?serviceId=${serviceId}`)
     .replace(/^\/api\/courriers\/(export\/excel|import\/excel|upload-document)(\?.*)?$/, '/api/courriers/$1$2')
     .replace(/^\/api\/courriers\/search(\?.*)?$/, '/api/app/courrier-administratif/search$1')
     .replace(/^\/api\/courriers\/waridat$/, '/api/app/courrier-administratif/waridat')

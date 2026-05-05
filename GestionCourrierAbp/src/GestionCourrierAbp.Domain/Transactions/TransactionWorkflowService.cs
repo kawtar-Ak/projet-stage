@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using GestionCourrierAbp.Courriers;
+using GestionCourrierAbp.Workflows;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Domain.Services;
@@ -25,13 +26,15 @@ public class TransactionWorkflowService : DomainService
 
     public async Task RespondAsync(Transaction transaction, bool accepted, string? message)
     {
-        if (transaction.Statut != "En attente")
+        if (!transaction.Statut.IsSameAs(WorkflowStatus.EnAttente))
         {
             throw new BusinessException("TransactionDejaTraitee")
                 .WithData("Statut", transaction.Statut);
         }
 
-        transaction.Statut = accepted ? "Accepté" : "Refusé";
+        transaction.Statut = accepted
+            ? WorkflowStatus.Accepte.ToStorageValue()
+            : WorkflowStatus.Refuse.ToStorageValue();
         transaction.DateReponse = DateTime.Now;
         transaction.MessageReponse = message;
 

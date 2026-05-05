@@ -62,7 +62,7 @@ function ActeursJudiciaires() {
               <th>{t('etat')}</th>
               <th>{t('emplacement')}</th>
               <th>{t('retraits')}</th>
-              <th>PDF</th>
+              <th>{t('pdf')}</th>
             </tr>
           </thead>
           <tbody>
@@ -84,7 +84,7 @@ function ActeursJudiciaires() {
                   <td>{item.etatArchive || '-'}</td>
                   <td>{item.emplacement || '-'}</td>
                   <td>{item.retraitsCount ?? 0}</td>
-                  <td>{item.lienPdf ? <a href={item.lienPdf} target="_blank" rel="noreferrer">PDF</a> : '-'}</td>
+                  <td>{item.lienPdf ? <a href={item.lienPdf} target="_blank" rel="noreferrer">{t('pdf')}</a> : '-'}</td>
                 </tr>
               ))
             )}
