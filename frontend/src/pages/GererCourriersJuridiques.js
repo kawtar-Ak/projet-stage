@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
+import { DEFAULT_SERVICES } from "../constants/defaultServices";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 
@@ -17,6 +18,8 @@ function GererCourriersJuridiques({ embedded = false }) {
   const [form, setForm] = useState(getInitialForm());
   const [selectedArchiveItem, setSelectedArchiveItem] = useState(null);
   const [retraitForm, setRetraitForm] = useState(getInitialRetraitForm());
+  const [selectedTransferItem, setSelectedTransferItem] = useState(null);
+  const [transferForm, setTransferForm] = useState(getInitialTransferForm());
 
   useEffect(() => {
     fetchCourriers();
@@ -44,15 +47,20 @@ function GererCourriersJuridiques({ embedded = false }) {
   const fetchServices = async () => {
     try {
       const response = await axios.get("/api/services");
-      setServices(response.data);
-      if (response.data.length > 0) {
+      const serviceList = response.data?.length > 0 ? response.data : DEFAULT_SERVICES;
+      setServices(serviceList);
+      if (serviceList.length > 0) {
         setForm((prev) => ({
           ...prev,
-          idService: prev.idService || response.data[0].idService,
+          idService: prev.idService || serviceList[0].idService,
         }));
       }
     } catch (err) {
-      setError(getErrorMessage(err, t("erreur_chargement_services")));
+      setServices(DEFAULT_SERVICES);
+      setForm((prev) => ({
+        ...prev,
+        idService: prev.idService || DEFAULT_SERVICES[0].idService,
+      }));
     }
   };
 
@@ -67,6 +75,19 @@ function GererCourriersJuridiques({ embedded = false }) {
   const handleRetraitChange = (event) => {
     const { name, value } = event.target;
     setRetraitForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleTransferChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setTransferForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleTransferServiceChange = (event) => {
+    const serviceId = event.target.value;
+    setTransferForm((prev) => ({ ...prev, serviceId }));
   };
 
   const handleDocumentSelect = async (event) => {
@@ -191,6 +212,44 @@ function GererCourriersJuridiques({ embedded = false }) {
   const closeArchiveService = () => {
     setSelectedArchiveItem(null);
     setRetraitForm(getInitialRetraitForm());
+  };
+
+  const openTransferModal = (courrier) => {
+    setSelectedTransferItem(courrier);
+    setTransferForm(getInitialTransferForm());
+    setError("");
+    setSuccess("");
+  };
+
+  const closeTransferModal = () => {
+    setSelectedTransferItem(null);
+    setTransferForm(getInitialTransferForm());
+  };
+
+  const handleTransferSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedTransferItem || !transferForm.serviceId) {
+      setError(t("service_destinataire_requis"));
+      return;
+    }
+
+    try {
+      await axios.post("/api/transactions", {
+        documentId: selectedTransferItem.id,
+        documentType: "Judiciaire",
+        sourceServiceId: selectedTransferItem.idService,
+        destinationServiceId: Number(transferForm.serviceId),
+        destinationUserId: null,
+        doitRevenir: transferForm.doitRevenir,
+        message: transferForm.message.trim(),
+      });
+
+      setSuccess(t("transaction_envoyee"));
+      closeTransferModal();
+      await fetchCourriers();
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_transaction")));
+    }
   };
 
   const handleSaveRetrait = async (event) => {
@@ -529,6 +588,62 @@ function GererCourriersJuridiques({ embedded = false }) {
         </div>
       )}
 
+      {selectedTransferItem && (
+        <div className="form-card">
+          <div className="registry-panel-header">
+            <div>
+              <h3>{t("transferer_dossier")}</h3>
+              <p>
+                {selectedTransferItem.numeroDossier || "-"} - {selectedTransferItem.sujet || "-"}
+              </p>
+            </div>
+            <button type="button" className="btn-secondary" onClick={closeTransferModal}>
+              {t("fermer")}
+            </button>
+          </div>
+
+          <form onSubmit={handleTransferSubmit}>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>{t("service_destinataire")} *</label>
+                <select name="serviceId" value={transferForm.serviceId} onChange={handleTransferServiceChange} required>
+                  <option value="">-- {t("selectionner_service")} --</option>
+                  {services
+                    .filter((service) => Number(service.idService) !== Number(selectedTransferItem.idService))
+                    .map((service) => (
+                      <option key={service.idService} value={service.idService}>
+                        {service.nomService}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    name="doitRevenir"
+                    checked={transferForm.doitRevenir}
+                    onChange={handleTransferChange}
+                  />
+                  {t("doit_revenir")}
+                </label>
+              </div>
+
+              <div className="form-field full-width">
+                <label>{t("message")}</label>
+                <textarea name="message" value={transferForm.message} onChange={handleTransferChange} rows="3" />
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">{t("envoyer")}</button>
+              <button type="button" className="btn-secondary" onClick={closeTransferModal}>{t("annuler")}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div className="registry-panel">
         <div className="registry-panel-header">
           <h3>{t("recherche_registre")}</h3>
@@ -581,6 +696,9 @@ function GererCourriersJuridiques({ embedded = false }) {
                     <td>{courrier.lienPdf ? <a href={getDocumentHref(courrier.lienPdf)} target="_blank" rel="noreferrer">{t("ouvrir")}</a> : "-"}</td>
                     <td className="action-icons">
                       <button type="button" onClick={() => handleEdit(courrier)}>{t("modifier")}</button>
+                      <button type="button" onClick={() => openTransferModal(courrier)} disabled={!courrier.estTransmissible}>
+                        {t("transferer")}
+                      </button>
                       <button type="button" onClick={() => openArchiveService(courrier)}>{t("service_archive")}</button>
                       <button type="button" onClick={() => handleArchive(courrier.id)}>{t("archiver")}</button>
                       <button type="button" onClick={() => handleDelete(courrier.id)}>{t("supprimer")}</button>
@@ -620,6 +738,14 @@ function getInitialRetraitForm() {
     motifDeRetrait: "",
     effectuePar: "",
     notes: "",
+  };
+}
+
+function getInitialTransferForm() {
+  return {
+    serviceId: "",
+    doitRevenir: false,
+    message: "",
   };
 }
 

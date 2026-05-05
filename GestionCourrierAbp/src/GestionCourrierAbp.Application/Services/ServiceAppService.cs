@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Volo.Abp.Application.Dtos;
@@ -21,6 +22,8 @@ public class ServiceAppService : GestionCourrierAbpAppService, IServiceAppServic
 
     public async Task<PagedResultDto<ServiceDto>> GetListAsync(PagedAndSortedResultRequestDto input)
     {
+        await EnsureDefaultServicesAsync();
+
         var query = await _repository.GetQueryableAsync();
         var totalCount = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(
@@ -70,4 +73,55 @@ public class ServiceAppService : GestionCourrierAbpAppService, IServiceAppServic
             LastModifierId = service.LastModifierId
         };
     }
+
+    private async Task EnsureDefaultServicesAsync()
+    {
+        foreach (var service in GetDefaultServices())
+        {
+            var existing = await _repository.FindAsync(service.Id);
+            if (existing != null)
+            {
+                existing.NomService = service.NomService;
+                existing.Description = service.Description;
+                existing.Etage = service.Etage;
+                await _repository.UpdateAsync(existing, autoSave: true);
+                continue;
+            }
+
+            await _repository.InsertAsync(new Service
+            {
+                NomService = service.NomService,
+                Description = service.Description,
+                Etage = service.Etage
+            }, autoSave: true);
+        }
+    }
+
+    private static List<DefaultServiceItem> GetDefaultServices()
+    {
+        return new List<DefaultServiceItem>
+        {
+            new(1, "خلية المعلوميات", "Cellule informatique", "2ème"),
+            new(2, "مكتب الضبط", "Greffe", "1er"),
+            new(3, "فتح الملفات", "Caisse", "RDC"),
+            new(4, "التوزيع", "Distribution", "2ème"),
+            new(5, "رئيس المصلحة", "Chef de service", "2ème"),
+            new(6, "مدير النظام", "Admin système", "2ème"),
+            new(7, "التبليغ", "Notification", "1er"),
+            new(8, "خبرة", "Expertise", "1er"),
+            new(9, "النقض", "Cassation", "2ème"),
+            new(10, "تسليم النسخ", "Remise des copies", "RDC"),
+            new(11, "الكتابة الخاصة", "Secrétariat particulier", "2ème"),
+            new(12, "الجلسات", "Audiences", "1er"),
+            new(13, "الحفظ", "Archivage", "Sous-sol"),
+            new(14, "الإجراءات", "Procédures", "1er"),
+            new(15, "المستشار المقرر", "Conseiller rapporteur", "2ème"),
+            new(16, "الاستعجالي", "Référé", "1er"),
+            new(17, "قضاء الموضوع", "Jugement au fond", "2ème"),
+            new(18, "المفوض الملكي", "Commissaire royal", "2ème"),
+            new(19, "الرئيس الأول", "Premier président", "3ème")
+        };
+    }
+
+    private sealed record DefaultServiceItem(int Id, string NomService, string Description, string? Etage);
 }

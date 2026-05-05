@@ -2,15 +2,15 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
+import { DEFAULT_SERVICES } from '../constants/defaultServices';
 
 function MesEntites() {
     const { t } = useTranslation();
     const [documents, setDocuments] = useState([]);
     const [services, setServices] = useState([]);
-    const [users, setUsers] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [selectedDoc, setSelectedDoc] = useState(null);
-    const [transferForm, setTransferForm] = useState({ serviceId: '', userId: '', doitRevenir: false, message: '' });
+    const [transferForm, setTransferForm] = useState({ serviceId: '', doitRevenir: false, message: '' });
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,34 +34,23 @@ function MesEntites() {
     const fetchServices = async () => {
         try {
             const res = await axios.get('/api/services');
-            setServices(res.data);
+            setServices(res.data?.length > 0 ? res.data : DEFAULT_SERVICES);
         } catch (err) {
-            setError(t('erreur_chargement'));
+            setServices(DEFAULT_SERVICES);
         }
     };
 
     const openTransferModal = (doc) => {
         setSelectedDoc(doc);
-        setUsers([]);
-        setTransferForm({ serviceId: '', userId: '', doitRevenir: false, message: '' });
+        setTransferForm({ serviceId: '', doitRevenir: false, message: '' });
         setShowModal(true);
         setError('');
         setSuccess('');
     };
 
-    const handleServiceChange = async (serviceId) => {
+    const handleServiceChange = (serviceId) => {
         const nextServiceId = serviceId || '';
-        setTransferForm({ ...transferForm, serviceId: nextServiceId, userId: '' });
-        setUsers([]);
-
-        if (!nextServiceId) return;
-
-        try {
-            const res = await axios.get(`/api/utilisateurs?serviceId=${nextServiceId}`);
-            setUsers(res.data);
-        } catch (err) {
-            setError(t('erreur_chargement'));
-        }
+        setTransferForm({ ...transferForm, serviceId: nextServiceId });
     };
 
     const handleTransfer = async () => {
@@ -75,7 +64,7 @@ function MesEntites() {
                 documentId: selectedDoc.idEntite,
                 documentType: selectedDoc.type,
                 destinationServiceId: Number(transferForm.serviceId),
-                destinationUserId: transferForm.userId ? Number(transferForm.userId) : null,
+                destinationUserId: null,
                 doitRevenir: transferForm.doitRevenir,
                 message: transferForm.message
             });
@@ -160,13 +149,6 @@ function MesEntites() {
                                     {services.filter(s => s.idService !== selectedDoc.idService).map(s => (
                                         <option key={s.idService} value={s.idService}>{s.nomService}</option>
                                     ))}
-                                </select>
-                            </div>
-                            <div className="form-field">
-                                <label>{t('personne')}</label>
-                                <select value={transferForm.userId} onChange={e => setTransferForm({ ...transferForm, userId: e.target.value })}>
-                                    <option value="">--</option>
-                                    {users.map(u => <option key={u.id} value={u.id}>{u.nomComplet}</option>)}
                                 </select>
                             </div>
                             <div className="form-field">

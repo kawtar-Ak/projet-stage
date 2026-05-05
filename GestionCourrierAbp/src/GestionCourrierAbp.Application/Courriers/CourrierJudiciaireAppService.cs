@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GestionCourrierAbp.Workflows;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
 
@@ -37,6 +38,8 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<CourrierJudiciaireDto> CreateAsync(CreateUpdateCourrierJudiciaireDto input)
     {
+        // Verifie avant la creation que le numero d'ordre et le numero juridique ne sont pas deja utilises.
+        await ValidateUniqueNumbersAsync(input);
         var entity = await _repository.InsertAsync(Map(new CourrierJudiciaire(), input), autoSave: true);
         return await GetAsync(entity.Id);
     }
@@ -44,6 +47,8 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
     public async Task<CourrierJudiciaireDto> UpdateAsync(int id, CreateUpdateCourrierJudiciaireDto input)
     {
         var entity = await _repository.GetAsync(id);
+        // Verifie les doublons en ignorant le dossier en cours de modification.
+        await ValidateUniqueNumbersAsync(input, id);
         await _repository.UpdateAsync(Map(entity, input), autoSave: true);
         return await GetAsync(id);
     }
@@ -127,7 +132,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     private static CourrierJudiciaire Map(CourrierJudiciaire entity, CreateUpdateCourrierJudiciaireDto input)
     {
-        entity.IdBureauOrdre = input.IdBureauOrdre;
+        entity.IdBureauOrdre = NormalizeNumber(input.IdBureauOrdre);
         entity.Date = input.Date == default ? DateTime.Now : input.Date;
         entity.TribunalSource = input.TribunalSource.Trim();
         entity.Sujet = input.Sujet.Trim();
@@ -146,6 +151,48 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         return entity;
     }
 
+    private async Task ValidateUniqueNumbersAsync(CreateUpdateCourrierJudiciaireDto input, int? currentId = null)
+    {
+        // Controle l'unicite du numero d'ordre.
+        var idBureauOrdre = NormalizeNumber(input.IdBureauOrdre);
+        if (!string.IsNullOrWhiteSpace(idBureauOrdre))
+        {
+            var query = (await _repository.GetQueryableAsync())
+                .Where(x => x.IdBureauOrdre == idBureauOrdre);
+
+            if (currentId.HasValue)
+            {
+                query = query.Where(x => x.Id != currentId.Value);
+            }
+
+            if (await AsyncExecuter.AnyAsync(query))
+            {
+                throw new UserFriendlyException("Le numéro d'ordre existe déjà. Veuillez saisir un numéro unique.");
+            }
+        }
+
+        // Controle l'unicite du numero juridique compose de annee/nombre/sujet.
+        var parsed = ParseNumeroDossier(input);
+        if (parsed.annee.HasValue && parsed.nombre.HasValue && parsed.sujet.HasValue)
+        {
+            var query = (await _repository.GetQueryableAsync())
+                .Where(x =>
+                    x.NumeroDossierAnnee == parsed.annee &&
+                    x.NumeroDossierNombre == parsed.nombre &&
+                    x.NumeroDossierSujet == parsed.sujet);
+
+            if (currentId.HasValue)
+            {
+                query = query.Where(x => x.Id != currentId.Value);
+            }
+
+            if (await AsyncExecuter.AnyAsync(query))
+            {
+                throw new UserFriendlyException("Le numéro juridique existe déjà. Veuillez saisir un numéro unique.");
+            }
+        }
+    }
+
     private static (int? annee, int? nombre, int? sujet) ParseNumeroDossier(CreateUpdateCourrierJudiciaireDto input)
     {
         if (input.NumeroDossierAnnee.HasValue || input.NumeroDossierNombre.HasValue || input.NumeroDossierSujet.HasValue)
@@ -159,6 +206,12 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             return (annee, nombre, sujet);
 
         return (null, null, null);
+    }
+
+    private static string? NormalizeNumber(string? value)
+    {
+        // Nettoie le numero pour eviter les faux doublons avec des espaces.
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static CourrierJudiciaireDto ToDto(CourrierJudiciaire entity)

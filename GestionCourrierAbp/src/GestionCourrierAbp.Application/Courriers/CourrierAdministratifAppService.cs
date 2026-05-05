@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GestionCourrierAbp.Workflows;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
 
@@ -33,6 +34,8 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     public async Task<CourrierAdministratifDto> CreateAsync(CreateUpdateCourrierAdministratifDto input)
     {
+        // Verifie avant la creation que le numero d'ordre et le numero de courrier ne sont pas deja utilises.
+        await ValidateUniqueNumbersAsync(input);
         var entity = await _repository.InsertAsync(Map(new CourrierAdministratif(), input), autoSave: true);
         return await GetAsync(entity.Id);
     }
@@ -40,6 +43,8 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
     public async Task<CourrierAdministratifDto> UpdateAsync(int id, CreateUpdateCourrierAdministratifDto input)
     {
         var entity = await _repository.GetAsync(id);
+        // Verifie les doublons en ignorant le courrier en cours de modification.
+        await ValidateUniqueNumbersAsync(input, id);
         await _repository.UpdateAsync(Map(entity, input), autoSave: true);
         return await GetAsync(id);
     }
@@ -86,7 +91,7 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     private static CourrierAdministratif Map(CourrierAdministratif entity, CreateUpdateCourrierAdministratifDto input)
     {
-        entity.IdBureauOrdre = input.IdBureauOrdre;
+        entity.IdBureauOrdre = NormalizeNumber(input.IdBureauOrdre);
         entity.Date = input.Date == default ? DateTime.Now : input.Date;
         entity.Source = input.Source?.Trim() ?? string.Empty;
         entity.Sujet = input.Sujet.Trim();
@@ -102,6 +107,51 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
         entity.NumeroDeCourrier = input.NumeroDeCourrier?.Trim() ?? string.Empty;
         entity.EstTransmissible = input.EstTransmissible;
         return entity;
+    }
+
+    private async Task ValidateUniqueNumbersAsync(CreateUpdateCourrierAdministratifDto input, int? currentId = null)
+    {
+        // Controle l'unicite du numero d'ordre.
+        var idBureauOrdre = NormalizeNumber(input.IdBureauOrdre);
+        if (!string.IsNullOrWhiteSpace(idBureauOrdre))
+        {
+            var query = (await _repository.GetQueryableAsync())
+                .Where(x => x.IdBureauOrdre == idBureauOrdre);
+
+            if (currentId.HasValue)
+            {
+                query = query.Where(x => x.Id != currentId.Value);
+            }
+
+            if (await AsyncExecuter.AnyAsync(query))
+            {
+                throw new UserFriendlyException("Le numéro d'ordre existe déjà. Veuillez saisir un numéro unique.");
+            }
+        }
+
+        // Controle l'unicite du numero de courrier administratif.
+        var numeroCourrier = NormalizeNumber(input.NumeroDeCourrier);
+        if (!string.IsNullOrWhiteSpace(numeroCourrier))
+        {
+            var query = (await _repository.GetQueryableAsync())
+                .Where(x => x.NumeroDeCourrier == numeroCourrier);
+
+            if (currentId.HasValue)
+            {
+                query = query.Where(x => x.Id != currentId.Value);
+            }
+
+            if (await AsyncExecuter.AnyAsync(query))
+            {
+                throw new UserFriendlyException("Le numéro de courrier existe déjà. Veuillez saisir un numéro unique.");
+            }
+        }
+    }
+
+    private static string? NormalizeNumber(string? value)
+    {
+        // Nettoie le numero pour eviter les faux doublons avec des espaces.
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static CourrierAdministratifDto ToDto(CourrierAdministratif entity)
