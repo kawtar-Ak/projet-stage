@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System;
 
 namespace GestionCourrierAbp.Transactions;
 
@@ -19,6 +20,8 @@ public class CreateTransactionDto
     public int? DestinationUserId { get; set; }
 
     public bool DoitRevenir { get; set; }
+
+    public DateTime? DateEnvoi { get; set; }
 
     public string Message { get; set; } = string.Empty;
 }

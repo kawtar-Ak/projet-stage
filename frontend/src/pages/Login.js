@@ -3,22 +3,32 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
+const defaultAdminLogin = 'admin';
+const defaultAdminPassword = '1q2w3E*';
+
 function Login() {
-  const [login, setLogin] = useState('');
-  const [password, setPassword] = useState('');
+  const [login, setLogin] = useState(defaultAdminLogin);
+  const [password, setPassword] = useState(defaultAdminPassword);
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const { login: loginUser } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError('');
     try {
       await loginUser(login, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(t('identifiants_incorrects'));
+      setError(getLoginErrorMessage(err, t('identifiants_incorrects')));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -51,12 +61,25 @@ function Login() {
             />
             <label htmlFor="remember">{t('se_souvenir')}</label>
           </div>
-          <button type="submit">{t('se_connecter')}</button>
+          <button type="submit" disabled={submitting}>
+            {submitting ? t('chargement') : t('se_connecter')}
+          </button>
+          <p style={{ color: '#5f6b7a', marginTop: 10, fontSize: 13 }}>
+            admin / 1q2w3E* | archive / 1q2w3E*
+          </p>
           {error && <p style={{ color: 'red', marginTop: 10 }}>{error}</p>}
         </form>
       </div>
     </div>
   );
+}
+
+function getLoginErrorMessage(error, fallback) {
+  const data = error.response?.data;
+  return data?.error_description ||
+    (typeof data?.error === 'string' ? data.error : data?.error?.message) ||
+    data?.message ||
+    fallback;
 }
 
 export default Login;

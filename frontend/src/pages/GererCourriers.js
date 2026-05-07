@@ -12,6 +12,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import GererCourriersJuridiques from "./GererCourriersJuridiques";
+import DocumentModal from "../components/DocumentModal";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 
@@ -53,6 +54,7 @@ function GererCourriers() {
 
   // Stocke la liste des courriers affichés dans le tableau.
   const [courriers, setCourriers] = useState([]);
+  const [allCourriers, setAllCourriers] = useState([]);
 
   // Stocke uniquement les courriers de type Waridat.
   // Cette liste est utilisée pour créer des Morasalat liées.
@@ -64,6 +66,8 @@ function GererCourriers() {
   // Si editingId = null => mode ajout.
   // Si editingId contient un id => mode modification.
   const [editingId, setEditingId] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [consultedDocument, setConsultedDocument] = useState(null);
 
 
   // ==========================================================
@@ -74,8 +78,6 @@ function GererCourriers() {
   const [motCle, setMotCle] = useState("");
 
   // Numéro de bureau d'ordre utilisé dans la recherche.
-  const [numeroRecherche, setNumeroRecherche] = useState("");
-
   // Date utilisée dans la recherche.
   const [dateRecherche, setDateRecherche] = useState("");
 
@@ -133,7 +135,11 @@ function GererCourriers() {
 
   // Vérifie si une recherche est active.
   const hasActiveSearch = Boolean(
-    motCle.trim() || numeroRecherche.trim() || dateRecherche
+    motCle.trim() || dateRecherche
+  );
+  const filteredCourriers = useMemo(
+    () => filterCourriers(allCourriers, motCle, dateRecherche),
+    [allCourriers, motCle, dateRecherche]
   );
 
   // Si la Morasalat est liée, on ne saisit pas le numéro de bureau d'ordre,
@@ -170,7 +176,9 @@ function GererCourriers() {
   const fetchCourriers = async () => {
     try {
       const response = await axios.get("/api/courriers");
-      setCourriers(response.data);
+      const items = Array.isArray(response.data) ? response.data : [];
+      setCourriers(items);
+      setAllCourriers(items);
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_chargement_courriers")));
@@ -328,6 +336,7 @@ function GererCourriers() {
 
   const resetForm = () => {
     setEditingId(null);
+    setIsEditModalOpen(false);
     setForm(getInitialForm(services, form.typeRegistre, form.typeCorrespondance));
     setError("");
     setSuccess("");
@@ -440,7 +449,7 @@ function GererCourriers() {
       setSavingLinked(true);
 
       const existingWarida = !editingId
-        ? findMainWaridatByNumero(courriers, form.idBureauOrdre)
+        ? findMainWaridatByNumero(allCourriers, form.idBureauOrdre)
         : null;
 
       const savedWarida = existingWarida || (await saveCurrentCourrier());
@@ -482,6 +491,7 @@ function GererCourriers() {
         : MODE_INDEPENDANTE;
 
     setEditingId(courrier.id);
+    setIsEditModalOpen(true);
 
     setForm({
       idBureauOrdre: courrier.idBureauOrdre || "",
@@ -503,8 +513,20 @@ function GererCourriers() {
       typeCorrespondance,
       estTransmissible: Boolean(courrier.estTransmissible),
     });
+  };
 
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  const handleConsult = (courrier) => {
+    setConsultedDocument({
+      idEntite: courrier.id,
+      sujet: courrier.sujet,
+      type: formatRegistre(courrier, t),
+      dateCreation: courrier.date,
+      source: courrier.source,
+      destinataire: courrier.destinataire,
+      description: courrier.description,
+      numeroCourrier: courrier.numeroDeCourrier || courrier.idBureauOrdre,
+      etat: courrier.etat,
+    });
   };
 
 
@@ -603,30 +625,9 @@ function GererCourriers() {
 
   const runSearch = async () => {
     try {
-      if (!motCle.trim() && !numeroRecherche.trim() && !dateRecherche) {
+      if (allCourriers.length === 0) {
         await fetchCourriers();
-        return;
       }
-
-      const params = new URLSearchParams();
-
-      if (motCle.trim()) {
-        params.append("motCle", motCle.trim());
-      }
-
-      if (numeroRecherche.trim()) {
-        params.append("numeroBureauOrdre", numeroRecherche.trim());
-      }
-
-      if (dateRecherche) {
-        params.append("date", dateRecherche);
-      }
-
-      const response = await axios.get(
-        `/api/courriers/search?${params.toString()}`
-      );
-
-      setCourriers(response.data);
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_recherche")));
     }
@@ -646,7 +647,7 @@ function GererCourriers() {
     }, 250);
 
     return () => clearTimeout(timeoutId);
-  }, [motCle, numeroRecherche, dateRecherche]);
+  }, [motCle, dateRecherche]);
 
 
   // ==========================================================
@@ -785,8 +786,8 @@ function GererCourriers() {
     <div className="data-table-wrapper search-results-table">
       <h3>
         {hasActiveSearch
-          ? t("resultats_recherche", { count: courriers.length })
-          : t("registre_count", { count: courriers.length })}
+          ? t("resultats_recherche", { count: filteredCourriers.length })
+          : t("registre_count", { count: filteredCourriers.length })}
       </h3>
 
       <table className="modern-table">
@@ -808,14 +809,14 @@ function GererCourriers() {
         </thead>
 
         <tbody>
-          {courriers.length === 0 ? (
+          {filteredCourriers.length === 0 ? (
             <tr>
               <td colSpan="12" style={{ textAlign: "center" }}>
                 {t("aucun_registre")}
               </td>
             </tr>
           ) : (
-            courriers.map((courrier) => (
+            filteredCourriers.map((courrier) => (
               <tr key={courrier.id}>
                 <td>{courrier.idBureauOrdre || "-"}</td>
                 <td>{formatRegistre(courrier, t)}</td>
@@ -858,6 +859,14 @@ function GererCourriers() {
                       {t("ajouter_morasalat")}
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleConsult(courrier)}
+                    title={t("consulter")}
+                  >
+                    {t("consulter")}
+                  </button>
 
                   <button
                     type="button"
@@ -1024,7 +1033,11 @@ function GererCourriers() {
       {/* ======================================================
           FORMULAIRE D'AJOUT / MODIFICATION
       ====================================================== */}
-      <div className="form-card">
+      {editingId && isEditModalOpen && <div className="modal-overlay" onClick={resetForm} />}
+      <div
+        className={editingId && isEditModalOpen ? "modal form-card edit-modal" : "form-card"}
+        onClick={editingId && isEditModalOpen ? (event) => event.stopPropagation() : undefined}
+      >
         <h3>
           {editingId ? t("modifier") : t("ajouter")} {formatFormTitle(form, t)}
         </h3>
@@ -1318,13 +1331,6 @@ function GererCourriers() {
             />
 
             <input
-              type="text"
-              value={numeroRecherche}
-              onChange={(e) => setNumeroRecherche(e.target.value)}
-              placeholder={t("numero_bureau_ordre")}
-            />
-
-            <input
               type="date"
               value={dateRecherche}
               onChange={(e) => setDateRecherche(e.target.value)}
@@ -1335,7 +1341,6 @@ function GererCourriers() {
               className="btn-secondary"
               onClick={() => {
                 setMotCle("");
-                setNumeroRecherche("");
                 setDateRecherche("");
                 fetchCourriers();
               }}
@@ -1347,6 +1352,13 @@ function GererCourriers() {
 
         {renderCourriersTable()}
       </div>
+
+      {consultedDocument && (
+        <DocumentModal
+          document={consultedDocument}
+          onClose={() => setConsultedDocument(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1456,6 +1468,46 @@ function formatFormTitle(form, t) {
   return form.typeCorrespondance === CORRESPONDANCE_ENTRANTE
     ? t("morasalat_entrantes")
     : t("morasalat_sortantes");
+}
+
+function filterCourriers(courriers, motCle, dateRecherche) {
+  const keyword = normalizeSearchText(motCle);
+
+  return courriers.filter((courrier) => {
+    const matchesDate = !dateRecherche || toDateInputValue(courrier.date) === dateRecherche;
+    const matchesKeyword =
+      !keyword ||
+      [
+        courrier.id,
+        courrier.idBureauOrdre,
+        courrier.numeroDeCourrier,
+        courrier.source,
+        courrier.sujet,
+        courrier.destinataire,
+        courrier.description,
+        courrier.etat,
+        courrier.direction,
+        courrier.typeRegistre,
+        courrier.typeCorrespondance,
+        courrier.serviceNom,
+        courrier.idService,
+        courrier.lienPdf,
+        courrier.parentId
+      ].some((value) => normalizeSearchText(value).includes(keyword));
+
+    return matchesDate && matchesKeyword;
+  });
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function toDateInputValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
 }
 
 

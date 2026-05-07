@@ -1,17 +1,14 @@
-import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import RoleDashboard from './RoleDashboard';
 
 function EmployeDashboard() {
-  const { t } = useTranslation();
-
   return (
-    <div>
-      <h1>{t('dashboard_employe')}</h1>
-      <ul>
-        <li><Link to="/consulter-dossiers">{t('consulter_dossiers')}</Link></li>
-        <li><Link to="/rechercher">{t('rechercher_dossier')}</Link></li>
-      </ul>
-    </div>
+    <RoleDashboard
+      titleKey="dashboard_employe"
+      actions={[
+        { to: '/consulter-dossiers', labelKey: 'consulter_dossiers', icon: 'CD', tone: 'green' },
+        { to: '/rechercher', labelKey: 'rechercher_dossier', icon: 'RD', tone: 'blue' },
+      ]}
+    />
   );
 }
 

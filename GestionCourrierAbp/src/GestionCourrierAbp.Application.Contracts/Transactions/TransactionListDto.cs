@@ -8,6 +8,11 @@ public class TransactionListDto
     public int DocumentId { get; set; }
     public string DocumentType { get; set; } = string.Empty;
     public string DocumentSujet { get; set; } = string.Empty;
+    public string? NumeroCourrier { get; set; }
+    public string? NumeroDossierJudiciaire { get; set; }
+    public int? CurrentServiceId { get; set; }
+    public string CurrentServiceNom { get; set; } = string.Empty;
+    public string CurrentLocation { get; set; } = string.Empty;
     public int SourceServiceId { get; set; }
     public string SourceServiceNom { get; set; } = string.Empty;
     public int DestinationServiceId { get; set; }

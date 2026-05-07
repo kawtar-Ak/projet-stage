@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
+import { ABP_API_URL } from '../api/axiosConfig';
 
 const AuthContext = createContext();
 
@@ -14,38 +15,51 @@ export const AuthProvider = ({ children }) => {
     const login = localStorage.getItem('login');
     const nomService = localStorage.getItem('nomService');
     const idService = localStorage.getItem('idService');
+    const nomComplet = localStorage.getItem('nomComplet');
     if (token && login) {
-      setUser({ token, login, nomService, idService: parseInt(idService) });
+      setUser({ token, login, nomComplet, nomService, idService: parseInt(idService) });
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     }
     setLoading(false);
   }, []);
 
   const login = async (login, password) => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('login');
+    localStorage.removeItem('nomComplet');
+    localStorage.removeItem('nomService');
+    localStorage.removeItem('idService');
+    delete axios.defaults.headers.common['Authorization'];
+
     const body = new URLSearchParams({
       grant_type: 'password',
       client_id: 'GestionCourrierAbp_App',
-      username: login,
+      username: login.trim(),
       password,
       scope: 'GestionCourrierAbp'
     });
 
     const response = await axios.post('/connect/token', body, {
-      baseURL: process.env.REACT_APP_ABP_API_URL || 'http://localhost:44301',
+      baseURL: ABP_API_URL,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 
     const token = response.data.access_token;
-    const userLogin = login;
-    const nomComplet = login;
-    const idService = Number(localStorage.getItem('idService') || 1);
-    const nomService = localStorage.getItem('nomService') || 'ABP';
+    const userLogin = login.trim();
 
     localStorage.setItem('token', token);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+    const profile = await getBusinessUserProfile(userLogin);
+    const isArchiveLogin = userLogin.toLowerCase() === 'archive';
+    const nomComplet = profile?.nomComplet || (isArchiveLogin ? 'Service Archive' : userLogin);
+    const idService = Number(profile?.idService || profile?.serviceId || (isArchiveLogin ? 13 : 1));
+    const nomService = profile?.serviceNom || profile?.nomService || (isArchiveLogin ? 'الحفظ' : 'ABP');
+
     localStorage.setItem('login', userLogin);
+    localStorage.setItem('nomComplet', nomComplet);
     localStorage.setItem('nomService', nomService);
     localStorage.setItem('idService', idService);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser({ token, login: userLogin, nomComplet, idService, nomService });
     return response.data;
   };
@@ -62,3 +76,12 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+async function getBusinessUserProfile(login) {
+  try {
+    const response = await axios.get('/api/utilisateurs');
+    return response.data?.find(user => user.login?.toLowerCase() === login.toLowerCase()) || null;
+  } catch {
+    return null;
+  }
+}

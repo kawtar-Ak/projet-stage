@@ -10,7 +10,7 @@ function MesEntites() {
     const [services, setServices] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [selectedDoc, setSelectedDoc] = useState(null);
-    const [transferForm, setTransferForm] = useState({ serviceId: '', doitRevenir: false, message: '' });
+    const [transferForm, setTransferForm] = useState(getInitialTransferForm());
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,7 +24,7 @@ function MesEntites() {
     const fetchDocuments = async () => {
         try {
             const res = await axios.get('/api/documents');
-            setDocuments(res.data);
+            setDocuments(normalizeDocuments(res.data));
             setError('');
         } catch (err) {
             setError(t('erreur_chargement'));
@@ -42,7 +42,7 @@ function MesEntites() {
 
     const openTransferModal = (doc) => {
         setSelectedDoc(doc);
-        setTransferForm({ serviceId: '', doitRevenir: false, message: '' });
+        setTransferForm(getInitialTransferForm());
         setShowModal(true);
         setError('');
         setSuccess('');
@@ -60,12 +60,18 @@ function MesEntites() {
         }
 
         try {
+            if (!selectedDoc.estTransmissible) {
+                setError(translate(t, 'document_non_transmissible', 'Ce dossier n est pas transmissible.'));
+                return;
+            }
+
             await axios.post('/api/transactions', {
                 documentId: selectedDoc.idEntite,
                 documentType: selectedDoc.type,
                 destinationServiceId: Number(transferForm.serviceId),
                 destinationUserId: null,
                 doitRevenir: transferForm.doitRevenir,
+                dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
                 message: transferForm.message
             });
             setShowModal(false);
@@ -74,7 +80,7 @@ function MesEntites() {
             setError('');
             fetchDocuments();
         } catch (err) {
-            setError(err.response?.data?.message || err.response?.data || t('erreur_transaction'));
+            setError(getErrorMessage(err, t('erreur_transaction')));
         }
     };
 
@@ -100,34 +106,46 @@ function MesEntites() {
             {success && <div className="success-message">{success}</div>}
 
             <div className="data-table-wrapper">
-                <h3>{t('documents_transmissibles')} ({documents.length})</h3>
+                <h3>{translate(t, 'tous_les_dossiers', 'Tous les dossiers')} ({documents.length})</h3>
                 <table className="modern-table">
                     <thead>
                         <tr>
+                            <th>{translate(t, 'ordre', 'Ordre')}</th>
+                            <th>{t('id')}</th>
                             <th>{t('titre')}</th>
                             <th>{t('type')}</th>
+                            <th>{translate(t, 'numero', 'Numéro')}</th>
                             <th>{t('date')}</th>
+                            <th>{translate(t, 'date_enregistrement', 'Date enregistrement')}</th>
                             <th>{t('source')}</th>
                             <th>{t('destinataire')}</th>
+                            <th>{t('service')}</th>
+                            <th>{t('transmissible')}</th>
                             <th>{t('actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {documents.length === 0 ? (
                             <tr>
-                                <td colSpan="6" className="loading">{t('aucun_document')}</td>
+                                <td colSpan="12" className="loading">{t('aucun_document')}</td>
                             </tr>
                         ) : (
                             documents.map(doc => (
                                 <tr key={`${doc.idEntite}_${doc.type}`}>
+                                    <td>{doc.ordre}</td>
+                                    <td>{doc.idEntite}</td>
                                     <td>{doc.sujet || '-'}</td>
                                     <td>{doc.type}</td>
+                                    <td>{doc.numeroCourrier || doc.numeroDossierJudiciaire || '-'}</td>
                                     <td>{doc.dateCreation ? new Date(doc.dateCreation).toLocaleString('ar-MA') : '-'}</td>
+                                    <td>{doc.dateEnregistrement ? new Date(doc.dateEnregistrement).toLocaleString('ar-MA') : '-'}</td>
                                     <td>{doc.source || '-'}</td>
                                     <td>{doc.destinataire || '-'}</td>
+                                    <td>{doc.serviceNom || doc.idService || '-'}</td>
+                                    <td>{doc.estTransmissible ? t('oui') : t('non')}</td>
                                     <td className="action-icons">
                                         <button className="btn-secondary" onClick={() => handleConsult(doc)}>{t('consulter')}</button>
-                                        <button className="btn-primary" onClick={() => openTransferModal(doc)}>{t('transferer')}</button>
+                                        <button className="btn-primary" onClick={() => openTransferModal(doc)} disabled={!doc.estTransmissible}>{t('transferer')}</button>
                                     </td>
                                 </tr>
                             ))
@@ -150,6 +168,15 @@ function MesEntites() {
                                         <option key={s.idService} value={s.idService}>{s.nomService}</option>
                                     ))}
                                 </select>
+                            </div>
+                            <div className="form-field">
+                                <label>{t('date')} *</label>
+                                <input
+                                    type="date"
+                                    value={transferForm.dateEnvoi}
+                                    onChange={e => setTransferForm({ ...transferForm, dateEnvoi: e.target.value })}
+                                    required
+                                />
                             </div>
                             <div className="form-field">
                                 <label className="checkbox-field">
@@ -179,6 +206,40 @@ function MesEntites() {
             )}
         </div>
     );
+}
+
+function getInitialTransferForm() {
+    return {
+        serviceId: '',
+        dateEnvoi: new Date().toISOString().slice(0, 10),
+        doitRevenir: false,
+        message: ''
+    };
+}
+
+function normalizeDocuments(data) {
+    const items = Array.isArray(data) ? data : [];
+
+    return items
+        .map((item, index) => ({
+            ...item,
+            ordre: item.ordre || index + 1
+        }))
+        .sort((a, b) => Number(a.ordre || 0) - Number(b.ordre || 0));
+}
+
+function translate(t, key, fallback) {
+    const value = t(key);
+    return value === key ? fallback : value;
+}
+
+function getErrorMessage(error, fallback) {
+    const data = error.response?.data;
+    if (typeof data === 'string') return data;
+    if (typeof data?.error === 'string') return data.error;
+    if (data?.error?.message) return data.error.message;
+    if (data?.message) return data.message;
+    return fallback;
 }
 
 export default MesEntites;

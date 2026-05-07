@@ -337,6 +337,316 @@ a {
   text-align: right;
 }
 
+.dashboard-container,
+.role-dashboard {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.dashboard-header,
+.role-dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(8, 42, 74, 0.05);
+}
+
+.dashboard-header h1,
+.role-dashboard-header h1 {
+  margin: 0.2rem 0 0;
+  color: var(--navy-900);
+  font-size: 1.85rem;
+  font-weight: 900;
+}
+
+.dashboard-header p,
+.role-dashboard-eyebrow {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.role-dashboard-eyebrow {
+  display: inline-flex;
+  margin-bottom: 0.15rem;
+  font-size: 0.82rem;
+}
+
+.role-dashboard-count {
+  min-width: 112px;
+  display: grid;
+  place-items: center;
+  padding: 0.75rem 0.9rem;
+  color: var(--navy-900);
+  background: #f6f9fc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.role-dashboard-count strong {
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.role-dashboard-count span {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.role-actions-grid,
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.role-action-card,
+.quick-link-card,
+.stat-card,
+.transaction-item {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 22px rgba(8, 42, 74, 0.045);
+}
+
+.role-action-card {
+  min-height: 112px;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem;
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.role-action-card:hover {
+  border-color: var(--navy-700);
+  box-shadow: 0 14px 28px rgba(8, 42, 74, 0.09);
+  transform: translateY(-2px);
+}
+
+.role-action-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: var(--navy-800);
+  border-radius: 8px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.role-action-icon.green { background: #13835f; }
+.role-action-icon.gold { background: #b77913; }
+.role-action-icon.red { background: #b42318; }
+.role-action-icon.blue { background: var(--navy-800); }
+
+.role-action-content {
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.role-action-content strong {
+  color: var(--navy-900);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.role-action-content small {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.quick-link-card {
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem;
+  cursor: pointer;
+  text-align: start;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.quick-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.quick-link-card:hover {
+  border-color: var(--navy-700);
+  box-shadow: 0 14px 28px rgba(8, 42, 74, 0.09);
+  transform: translateY(-1px);
+}
+
+.quick-link-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: var(--navy-800);
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.quick-link-label {
+  color: var(--navy-900);
+  font-size: 1.05rem;
+  font-weight: 900;
+  display: block;
+}
+
+.quick-link-description {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-weight: 750;
+  display: block;
+}
+
+.stat-card {
+  min-height: 116px;
+  padding: 1rem;
+  border-inline-start: 5px solid var(--navy-800);
+}
+
+.stat-card.accepted { border-inline-start-color: var(--green); }
+.stat-card.rejected { border-inline-start-color: var(--danger); }
+.stat-card.cancelled { border-inline-start-color: #b77913; }
+.stat-card.pending { border-inline-start-color: var(--navy-800); }
+
+.stat-label {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.stat-value {
+  margin-top: 0.65rem;
+  color: var(--navy-900);
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 1.6rem 0 0.75rem;
+  color: var(--navy-900);
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.section-title::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--line);
+}
+
+.text-muted {
+  padding: 0.85rem 1rem;
+  color: var(--muted);
+  background: #f8fbfe;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.transaction-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.transaction-item {
+  padding: 1rem;
+}
+
+.transaction-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.transaction-title {
+  min-width: 0;
+  color: var(--navy-900);
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.transaction-badge {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.6rem;
+  color: var(--navy-800);
+  background: #edf3f9;
+  border: 1px solid #cbdcec;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.transaction-details {
+  display: grid;
+  gap: 0.35rem;
+  color: #42617d;
+  font-weight: 750;
+}
+
+.transaction-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+}
+
+.action-link {
+  min-height: 34px;
+  padding: 0.35rem 0.7rem;
+  color: var(--navy-800);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.action-link.view,
+.action-link.accept {
+  color: #ffffff;
+  background: var(--navy-800);
+  border-color: var(--navy-800);
+}
+
+.action-link.cancel {
+  color: var(--danger);
+  border-color: #efc2bd;
+}
+
+.action-link.hide {
+  color: #8a5a0a;
+  border-color: #ead2a8;
+}
+
 .filters,
 .form-card,
 .data-table-wrapper,
@@ -704,6 +1014,19 @@ button:disabled {
   transform: translate(-50%, -50%);
 }
 
+.archive-retrait-modal {
+  width: min(94vw, 1180px);
+}
+
+.edit-modal,
+.transfer-modal {
+  width: min(94vw, 980px);
+}
+
+.archive-retrait-modal .data-table-wrapper {
+  margin-top: 1rem;
+}
+
 .mapping-panel,
 .archive-service-panel {
   margin: 1rem 0;
@@ -922,7 +1245,10 @@ button:disabled {
   .search-form,
   .form-actions,
   .registry-panel-header,
-  .registry-tools {
+  .registry-tools,
+  .dashboard-header,
+  .role-dashboard-header,
+  .transaction-header {
     flex-direction: column;
     align-items: stretch;
   }
@@ -939,6 +1265,32 @@ button:disabled {
 
   .form-card {
     padding: 1rem;
+  }
+
+  .dashboard-header,
+  .role-dashboard-header,
+  .transaction-item {
+    padding: 1rem;
+  }
+
+  .dashboard-header h1,
+  .role-dashboard-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .role-actions-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .role-action-card {
+    grid-template-columns: 48px minmax(0, 1fr);
+    min-height: 92px;
+  }
+
+  .role-action-icon {
+    width: 44px;
+    height: 44px;
   }
 
   .document-control,

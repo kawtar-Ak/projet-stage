@@ -32,5 +32,6 @@ public class GestionCourrierAbpHttpApiClientModule : AbpModule
         {
             options.FileSets.AddEmbedded<GestionCourrierAbpHttpApiClientModule>();
         });
+    
     }
 }

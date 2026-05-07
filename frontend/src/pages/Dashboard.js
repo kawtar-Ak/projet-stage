@@ -3,9 +3,11 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
+import { useAuth } from '../context/AuthContext';
 
 function Dashboard() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const { t, i18n } = useTranslation();
     const locale = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar') ? 'ar-MA' : 'fr-FR';
     const [pending, setPending] = useState([]);
@@ -16,6 +18,8 @@ function Dashboard() {
     const [hiddenIds, setHiddenIds] = useState([]);
     const [showDocModal, setShowDocModal] = useState(false);
     const [currentDocument, setCurrentDocument] = useState(null);
+    const serviceId = Number(user?.idService || localStorage.getItem('idService') || 0);
+    const isArchiveService = serviceId === 13;
 
     useEffect(() => {
         const stored = localStorage.getItem('hiddenDashboardTransactions');
@@ -24,15 +28,22 @@ function Dashboard() {
 
     useEffect(() => {
         fetchData();
-    }, [hiddenIds]);
+    }, [hiddenIds, serviceId]);
 
     const fetchData = async () => {
+        setLoading(true);
         try {
-            const [outgoingRes, returnsRes] = await Promise.all([
-                axios.get('/api/transactions/outgoing'),
+            const [transactionsRes, returnsRes] = await Promise.all([
+                isArchiveService
+                    ? axios.get('/api/transactions', { params: { skipCount: 0, maxResultCount: 1000 } })
+                    : axios.get('/api/transactions/outgoing'),
                 axios.get('/api/transactions/pending-returns')
             ]);
-            const filtered = outgoingRes.data.filter(tx => !hiddenIds.includes(tx.id));
+            const transactions = Array.isArray(transactionsRes.data) ? transactionsRes.data : [];
+            const visibleTransactions = isArchiveService
+                ? transactions.filter(tx => Number(tx.destinationServiceId) === serviceId)
+                : transactions;
+            const filtered = visibleTransactions.filter(tx => !hiddenIds.includes(tx.id));
             setPending(filtered.filter(tx => isPending(tx.statut)));
             setCompleted(filtered.filter(tx => isAccepted(tx.statut) || isRejected(tx.statut)));
             setPendingReturns(returnsRes.data);
@@ -50,7 +61,7 @@ function Dashboard() {
                 await axios.post(`/api/transactions/${id}/cancel`);
                 fetchData();
             } catch (err) {
-                alert(err.response?.data || t('erreur'));
+                alert(getErrorMessage(err, t('erreur')));
             }
         }
     };
@@ -69,7 +80,7 @@ function Dashboard() {
                 await axios.post(`/api/transactions/${id}/mark-returned`);
                 fetchData();
             } catch (err) {
-                alert(err.response?.data || t('erreur'));
+                alert(getErrorMessage(err, t('erreur')));
             }
         }
     };
@@ -88,6 +99,18 @@ function Dashboard() {
         }
     };
 
+    const handleRespond = async (id, accepte) => {
+        try {
+            await axios.post(`/api/transactions/${id}/respond`, {
+                accepte,
+                message: accepte ? t('acceptees') : t('refusees')
+            });
+            fetchData();
+        } catch (err) {
+            alert(getErrorMessage(err, t('erreur')));
+        }
+    };
+
     const stats = {
         pending: pending.length,
         accepted: completed.filter(tx => isAccepted(tx.statut)).length,
@@ -101,16 +124,54 @@ function Dashboard() {
     return (
         <div className="dashboard-container">
             <div className="dashboard-header">
-                <h1>{t('dashboard')}</h1>
-                <p>{t('dashboard_subtitle')}</p>
+                <h1>{isArchiveService ? translate(t, 'dashboard_archive_service', 'Interface du service Archive') : t('dashboard')}</h1>
+                <p>{isArchiveService ? translate(t, 'dashboard_archive_subtitle', "Acceptation des dossiers envoyes a l'archive, archivage et registre des retraits") : t('dashboard_subtitle')}</p>
             </div>
 
-            <div className="quick-link-card" onClick={() => navigate('/mes-entites')}>
-                <div className="quick-link-icon">D</div>
-                <div className="quick-link-info">
-                    <div className="quick-link-label">{t('mes_entites')}</div>
-                    <div className="quick-link-description">{t('quick_link_desc')}</div>
-                </div>
+            <div className="quick-links-grid">
+                {isArchiveService ? (
+                    <>
+                        <QuickLink
+                            icon="NT"
+                            label={t('notifications')}
+                            description={translate(t, 'archive_dashboard_notifications_desc', 'Consulter, accepter ou refuser les dossiers envoyes au service Archive')}
+                            onClick={() => navigate('/notifications')}
+                        />
+                        <QuickLink
+                            icon="AR"
+                            label={t('menu_archives_juridiques')}
+                            description={translate(t, 'archive_dashboard_archives_desc', 'Consulter les dossiers archives et leurs emplacements')}
+                            onClick={() => navigate('/archives-juridiques')}
+                        />
+                        <QuickLink
+                            icon="RT"
+                            label={t('registre_retraits')}
+                            description={translate(t, 'archive_dashboard_retraits_desc', "Gerer les retraits, les retours et l'export Excel")}
+                            onClick={() => navigate('/archives-juridiques')}
+                        />
+                    </>
+                ) : (
+                    <>
+                        <QuickLink
+                            icon="D"
+                            label={t('mes_entites')}
+                            description={t('quick_link_desc')}
+                            onClick={() => navigate('/mes-entites')}
+                        />
+                        <QuickLink
+                            icon="C"
+                            label={t('consulter')}
+                            description={t('consulter_messages_admin')}
+                            onClick={() => navigate('/messages-administratifs')}
+                        />
+                        <QuickLink
+                            icon="AJ"
+                            label={t('menu_acteurs_judiciaires')}
+                            description={t('consulter_acteurs_judiciaires')}
+                            onClick={() => navigate('/acteurs-judiciaires')}
+                        />
+                    </>
+                )}
             </div>
 
             <div className="stats-grid">
@@ -144,7 +205,11 @@ function Dashboard() {
                                 badge={t('en_attente')}
                                 locale={locale}
                                 t={t}
-                                actions={[
+                                actions={isArchiveService ? [
+                                    <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
+                                    <button className="action-link accept" onClick={() => handleRespond(tx.id, true)}>{t('accepter')}</button>,
+                                    <button className="action-link cancel" onClick={() => handleRespond(tx.id, false)}>{t('refuser')}</button>
+                                ] : [
                                     <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
                                     <button className="action-link cancel" onClick={() => handleCancel(tx.id)}>{t('annuler')}</button>
                                 ]}
@@ -208,10 +273,22 @@ function Dashboard() {
     );
 }
 
+function QuickLink({ icon, label, description, onClick }) {
+    return (
+        <button type="button" className="quick-link-card" onClick={onClick}>
+            <span className="quick-link-icon">{icon}</span>
+            <span className="quick-link-info">
+                <span className="quick-link-label">{label}</span>
+                <span className="quick-link-description">{description}</span>
+            </span>
+        </button>
+    );
+}
+
 function Section({ title, children }) {
     return (
         <>
-            <div className="section-title" style={{ marginTop: '2rem' }}>
+            <div className="section-title">
                 <span>{title}</span>
             </div>
             {children}
@@ -228,6 +305,7 @@ function TransactionItem({ tx, badge, locale, t, actions, note, date, dateLabel 
             </div>
             <div className="transaction-details">
                 <span>{t('service_destinataire')} : {tx.destinationServiceNom}</span>
+                <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {tx.currentLocation || tx.currentServiceNom || '-'}</span>
                 <span>{note ? `${t('note')} : ${note}` : `${t('message')} : ${tx.message || t('non_renseigne')}`}</span>
                 <span>{dateLabel || t('envoye_le')} : {formatDate(date || tx.dateEnvoi, locale)}</span>
             </div>
@@ -270,6 +348,20 @@ function translateStatus(value, t) {
     if (isCancelled(value)) return t('annulees');
     if (isPending(value)) return t('en_attente');
     return value || '-';
+}
+
+function translate(t, key, fallback) {
+    const value = t(key);
+    return value === key ? fallback : value;
+}
+
+function getErrorMessage(error, fallback) {
+    const data = error.response?.data;
+    if (typeof data === 'string') return data;
+    if (typeof data?.error === 'string') return data.error;
+    if (data?.error?.message) return data.error.message;
+    if (data?.message) return data.message;
+    return fallback;
 }
 
 export default Dashboard;

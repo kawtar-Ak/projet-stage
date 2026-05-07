@@ -1,7 +1,10 @@
 import axios from 'axios';
 
-const ABP_API_URL = process.env.REACT_APP_ABP_API_URL || 'http://localhost:44301';
-const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || 'http://localhost:5127';
+const DEFAULT_ABP_API_URL = 'http://localhost:44301';
+const DEFAULT_LEGACY_API_URL = 'http://localhost:5127';
+
+export const ABP_API_URL = normalizeLocalAbpUrl(process.env.REACT_APP_ABP_API_URL || DEFAULT_ABP_API_URL);
+const LEGACY_API_URL = normalizeBaseUrl(process.env.REACT_APP_LEGACY_API_URL || DEFAULT_LEGACY_API_URL);
 
 const token = localStorage.getItem('token');
 if (token) {
@@ -11,7 +14,10 @@ if (token) {
 axios.interceptors.request.use(config => {
   const currentToken = localStorage.getItem('token');
 
-  if (currentToken) {
+  if (config.url === '/connect/token') {
+    delete config.headers.Authorization;
+    delete axios.defaults.headers.common.Authorization;
+  } else if (currentToken) {
     config.headers.Authorization = `Bearer ${currentToken}`;
   }
 
@@ -51,9 +57,24 @@ function shouldUseAbp(url = '', originalUrl = '') {
     url?.startsWith('/api/acteursjudiciaires/') ||
     url?.startsWith('/api/documents') ||
     url?.startsWith('/api/services/') ||
+    url?.startsWith('/api/circulations/') ||
     url?.startsWith('/api/equipements/') ||
     url?.startsWith('/api/utilisateurs/') ||
     url === '/api/transactions/export-selected';
+}
+
+function normalizeLocalAbpUrl(url) {
+  const normalizedUrl = normalizeBaseUrl(url);
+
+  if (/^https:\/\/localhost:44301$/i.test(normalizedUrl)) {
+    return DEFAULT_ABP_API_URL;
+  }
+
+  return normalizedUrl;
+}
+
+function normalizeBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '');
 }
 
 function mapLegacyUrlToAbp(url = '') {
@@ -67,14 +88,16 @@ function mapLegacyUrlToAbp(url = '') {
     .replace(/^\/api\/courriers\/archiver\/(\d+)$/, '/api/app/courrier-administratif/$1/archiver')
     .replace(/^\/api\/courriers(\/\d+)?$/, match => match.replace('/api/courriers', '/api/app/courrier-administratif'))
     .replace(/^\/api\/acteursjudiciaires\/(export\/excel|import\/excel|upload-pdf|upload-document)(\?.*)?$/, '/api/acteursjudiciaires/$1$2')
+    .replace(/^\/api\/acteursjudiciaires\/(\d+)\/retraits\/export\/excel$/, '/api/acteursjudiciaires/$1/retraits/export/excel')
     .replace(/^\/api\/acteursjudiciaires\/search(\?.*)?$/, '/api/app/courrier-judiciaire/search$1')
     .replace(/^\/api\/acteursjudiciaires\/archives(\?.*)?$/, '/api/app/courrier-judiciaire/archives$1')
     .replace(/^\/api\/acteursjudiciaires\/archiver\/(\d+)$/, '/api/app/courrier-judiciaire/$1/archiver')
     .replace(/^\/api\/acteursjudiciaires\/(\d+)\/retraits$/, '/api/app/courrier-judiciaire/$1/retraits')
-    .replace(/^\/api\/acteursjudiciaires\/retraits\/(\d+)\/retour$/, '/api/app/courrier-judiciaire/retour/$1')
+    .replace(/^\/api\/acteursjudiciaires\/retraits\/(\d+)\/retour$/, '/api/app/courrier-judiciaire/$1/retour')
     .replace(/^\/api\/acteursjudiciaires(\/\d+)?$/, match => match.replace('/api/acteursjudiciaires', '/api/app/courrier-judiciaire'))
     .replace(/^\/api\/services\/(export\/excel|import\/preview|import\/execute)(\?.*)?$/, '/api/services/$1$2')
     .replace(/^\/api\/services(\/\d+)?$/, match => match.replace('/api/services', '/api/app/service'))
+    .replace(/^\/api\/circulations(\/\d+)?$/, match => match.replace('/api/circulations', '/api/app/circulation'))
     .replace(/^\/api\/equipements\/(export\/excel|import\/preview|import\/execute)(\?.*)?$/, '/api/equipements/$1$2')
     .replace(/^\/api\/equipements(\/\d+)?$/, match => match.replace('/api/equipements', '/api/app/equipement'))
     .replace(/^\/api\/equipements\/(\d+)\/charger$/, '/api/app/equipement/$1/charger')
@@ -96,6 +119,7 @@ function mapLegacyParamsToAbp(url = '', params) {
     url === '/api/app/service' ||
     url === '/api/app/equipement' ||
     url === '/api/app/utilisateur' ||
+    url === '/api/app/circulation' ||
     url === '/api/app/courrier-administratif' ||
     url === '/api/app/courrier-judiciaire'
   ) {
@@ -138,6 +162,21 @@ function mapLegacyPayloadToAbp(url = '', data) {
     return payload;
   }
 
+  if (url?.startsWith('/api/app/circulation')) {
+    return {
+      documentId: data.documentId,
+      documentType: data.documentType,
+      dateDeReception: data.dateDeReception,
+      dateEnvoi: data.dateEnvoi || null,
+      recepteur: data.recepteur,
+      emetteurService: data.emetteurService,
+      sourceServiceId: data.sourceServiceId ?? null,
+      destinationServiceId: data.destinationServiceId ?? null,
+      etat: data.etat || null,
+      notes: data.notes || null
+    };
+  }
+
   if (url === '/api/app/transaction-workflow') {
     return {
       documentId: data.documentId,
@@ -146,6 +185,7 @@ function mapLegacyPayloadToAbp(url = '', data) {
       destinationServiceId: data.destinationServiceId,
       destinationUserId: data.destinationUserId,
       doitRevenir: data.doitRevenir,
+      dateEnvoi: data.dateEnvoi,
       message: data.message || ''
     };
   }
@@ -215,6 +255,10 @@ function mapAbpResponseToLegacy(url = '', data) {
     return items ? items.map(mapUtilisateur) : mapUtilisateur(data);
   }
 
+  if (url?.startsWith('/api/app/circulation')) {
+    return items ? items.map(mapCirculation) : mapCirculation(data);
+  }
+
   if (url?.startsWith('/api/app/courrier-administratif')) {
     return items ? items.map(mapCourrierAdministratif) : mapCourrierAdministratif(data);
   }
@@ -258,6 +302,10 @@ function mapUtilisateur(item) {
 }
 
 function mapTransaction(item) {
+  return item;
+}
+
+function mapCirculation(item) {
   return item;
 }
 

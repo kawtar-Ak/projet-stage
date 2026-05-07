@@ -41,19 +41,15 @@ public class DefaultServicesDataSeedContributor : IDataSeedContributor, ITransie
 
     private async Task InsertWithFixedIdAsync(ServiceSeedItem service)
     {
-        await _dbContext.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [AppServices] ON");
-        try
-        {
-            await _dbContext.Database.ExecuteSqlInterpolatedAsync($@"
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync($@"
+SET IDENTITY_INSERT [AppServices] ON;
+
 INSERT INTO [AppServices]
     ([Id], [NomService], [Description], [Etage], [ExtraProperties], [ConcurrencyStamp], [CreationTime])
 VALUES
-    ({service.Id}, {service.NomService}, {service.Description}, {service.Etage}, {"{}"}, {Guid.NewGuid().ToString("N")}, {DateTime.Now})");
-        }
-        finally
-        {
-            await _dbContext.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [AppServices] OFF");
-        }
+    ({service.Id}, {service.NomService}, {service.Description}, {service.Etage}, {"{}"}, {Guid.NewGuid().ToString("N")}, {DateTime.Now});
+
+SET IDENTITY_INSERT [AppServices] OFF;");
     }
 
     private static List<ServiceSeedItem> GetDefaultServices()
@@ -78,7 +74,8 @@ VALUES
             new(16, "الاستعجالي", "Référé", "1er"),
             new(17, "قضاء الموضوع", "Jugement au fond", "2ème"),
             new(18, "المفوض الملكي", "Commissaire royal", "2ème"),
-            new(19, "الرئيس الأول", "Premier président", "3ème")
+            new(19, "الرئيس الأول", "Premier président", "3ème"),
+            new(20, "تدبير السحب", "Gestion de retrait", "1er")
         };
     }
 

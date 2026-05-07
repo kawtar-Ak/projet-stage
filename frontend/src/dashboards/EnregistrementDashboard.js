@@ -1,20 +1,17 @@
-import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import RoleDashboard from './RoleDashboard';
 
 function EnregistrementDashboard() {
-  const { t } = useTranslation();
-
   return (
-    <div>
-      <h1>{t('dashboard_enregistrement')}</h1>
-      <ul>
-        <li><Link to="/gestion-transactions">{t('gestion_transactions')}</Link></li>
-        <li><Link to="/entites-juridiques">{t('consulter_entites_juridiques')}</Link></li>
-        <li><Link to="/notifications">{t('notification_transaction')}</Link></li>
-        <li><Link to="/archives-entite-ui">{t('archive_entite_ui')}</Link></li>
-        <li><Link to="/registre-generateur">{t('registre_generateur')}</Link></li>
-      </ul>
-    </div>
+    <RoleDashboard
+      titleKey="dashboard_enregistrement"
+      actions={[
+        { to: '/gestion-transactions', labelKey: 'gestion_transactions', icon: 'GT', tone: 'blue' },
+        { to: '/entites-juridiques', labelKey: 'consulter_entites_juridiques', icon: 'EJ', tone: 'green' },
+        { to: '/notifications', labelKey: 'notification_transaction', icon: 'NT', tone: 'red' },
+        { to: '/archives-entite-ui', labelKey: 'archive_entite_ui', icon: 'AR', tone: 'gold' },
+        { to: '/registre-generateur', labelKey: 'registre_generateur', icon: 'RG', tone: 'blue' },
+      ]}
+    />
   );
 }
 

@@ -1,3 +1,13 @@
+//Ce fichier est un controller spécial pour l’import/export Excel et l’upload de documents.
+
+//Il ne remplace pas les AppService ABP. Il utilise les AppService existants pour récupérer ou créer les données, puis il ajoute des fonctionnalités pratiques comme :
+
+//Exporter vers Excel
+//Importer depuis Excel
+//Uploader un PDF ou Word
+//Télécharger un modèle Excel
+//Prévisualiser les colonnes Excel
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -228,6 +238,49 @@ public class LegacyExcelController : ControllerBase
         }
 
         return ExcelFile(workbook, $"courriers-juridiques-{DateTime.Now:yyyyMMddHHmm}.xlsx");
+    }
+
+    [HttpGet("api/acteursjudiciaires/{id:int}/retraits/export/excel")]
+    public async Task<IActionResult> ExportRetraitsJudiciaires(int id)
+    {
+        var courrier = await _courrierJudiciaireAppService.GetAsync(id);
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("Registre retraits");
+
+        ws.Cell(1, 1).Value = "Numero dossier";
+        ws.Cell(1, 2).Value = courrier.NumeroDossier;
+        ws.Cell(2, 1).Value = "Sujet";
+        ws.Cell(2, 2).Value = courrier.Sujet;
+        ws.Cell(3, 1).Value = "Emplacement";
+        ws.Cell(3, 2).Value = courrier.Emplacement;
+
+        WriteHeaders(ws, new[]
+        {
+            "Date retrait",
+            "Motif",
+            "Effectue par",
+            "Date retour",
+            "Notes"
+        }, 5);
+
+        var row = 6;
+        foreach (var retrait in courrier.Retraits.OrderByDescending(x => x.DateDeRetrait))
+        {
+            ws.Cell(row, 1).Value = retrait.DateDeRetrait;
+            ws.Cell(row, 1).Style.DateFormat.Format = "dd/MM/yyyy";
+            ws.Cell(row, 2).Value = retrait.MotifDeRetrait;
+            ws.Cell(row, 3).Value = retrait.EffectuePar;
+            ws.Cell(row, 4).Value = retrait.DateDeRetour;
+            ws.Cell(row, 4).Style.DateFormat.Format = "dd/MM/yyyy";
+            ws.Cell(row, 5).Value = retrait.Notes;
+            row++;
+        }
+
+        var numero = string.IsNullOrWhiteSpace(courrier.NumeroDossier)
+            ? id.ToString()
+            : courrier.NumeroDossier.Replace("/", "-");
+
+        return ExcelFile(workbook, $"registre-retraits-{numero}-{DateTime.Now:yyyyMMddHHmm}.xlsx");
     }
 
     [HttpPost("api/acteursjudiciaires/import/excel")]
@@ -645,12 +698,12 @@ public class LegacyExcelController : ControllerBase
         return result.Items.ToList();
     }
 
-    private static void WriteHeaders(IXLWorksheet ws, IReadOnlyList<string> headers)
+    private static void WriteHeaders(IXLWorksheet ws, IReadOnlyList<string> headers, int rowNumber = 1)
     {
         for (var i = 0; i < headers.Count; i++)
         {
-            ws.Cell(1, i + 1).Value = headers[i];
-            ws.Cell(1, i + 1).Style.Font.Bold = true;
+            ws.Cell(rowNumber, i + 1).Value = headers[i];
+            ws.Cell(rowNumber, i + 1).Style.Font.Bold = true;
         }
     }
 

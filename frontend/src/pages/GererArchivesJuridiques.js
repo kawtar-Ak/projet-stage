@@ -1,20 +1,45 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
+import { DEFAULT_SERVICES } from "../constants/defaultServices";
 
 function GererArchivesJuridiques() {
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedRetrait, setSelectedRetrait] = useState(null);
+  const [selectedRetourRetrait, setSelectedRetourRetrait] = useState(null);
+  const [showRetraitModal, setShowRetraitModal] = useState(false);
   const [motCle, setMotCle] = useState("");
+  const [retraitMotCle, setRetraitMotCle] = useState("");
+  const [retraitDate, setRetraitDate] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [services, setServices] = useState([]);
   const [retraitForm, setRetraitForm] = useState(getInitialRetraitForm());
+  const [retourForm, setRetourForm] = useState(getInitialRetourForm());
+  const filteredRetraits = useMemo(
+    () => filterRetraits(selectedItem?.retraits || [], retraitMotCle, retraitDate),
+    [selectedItem, retraitMotCle, retraitDate]
+  );
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
 
   useEffect(() => {
     const timeout = setTimeout(fetchArchives, 250);
     return () => clearTimeout(timeout);
   }, [motCle]);
+
+  const fetchServices = async () => {
+    try {
+      const response = await axios.get("/api/services");
+      setServices(response.data?.length > 0 ? response.data : DEFAULT_SERVICES);
+    } catch (err) {
+      setServices(DEFAULT_SERVICES);
+    }
+  };
 
   const fetchArchives = async () => {
     try {
@@ -27,7 +52,9 @@ function GererArchivesJuridiques() {
 
       if (selectedItem) {
         const refreshed = response.data.find((item) => item.id === selectedItem.id);
-        setSelectedItem(refreshed || null);
+        setSelectedItem(refreshed || response.data[0] || null);
+      } else {
+        setSelectedItem(response.data[0] || null);
       }
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_chargement_archives_judiciaires")));
@@ -41,9 +68,39 @@ function GererArchivesJuridiques() {
 
   const selectItem = (item) => {
     setSelectedItem(item);
-    setRetraitForm(getInitialRetraitForm());
+    setRetraitMotCle("");
+    setRetraitDate("");
     setError("");
     setSuccess("");
+  };
+
+  const openRetraitModal = (item) => {
+    setSelectedItem(item);
+    setRetraitForm(getInitialRetraitForm());
+    setShowRetraitModal(true);
+    setError("");
+    setSuccess("");
+  };
+
+  const closeRetraitModal = () => {
+    setShowRetraitModal(false);
+  };
+
+  const openRetourModal = (retrait) => {
+    setSelectedRetourRetrait(retrait);
+    setRetourForm({
+      dateDeRetour: retrait.dateDeRetour
+        ? new Date(retrait.dateDeRetour).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+      notes: retrait.notes || "",
+    });
+    setError("");
+    setSuccess("");
+  };
+
+  const closeRetourModal = () => {
+    setSelectedRetourRetrait(null);
+    setRetourForm(getInitialRetourForm());
   };
 
   const handleSaveRetrait = async (event) => {
@@ -62,11 +119,13 @@ function GererArchivesJuridiques() {
           : new Date().toISOString(),
         motifDeRetrait: retraitForm.motifDeRetrait.trim(),
         effectuePar: retraitForm.effectuePar.trim(),
+        dateDeRetour: retraitForm.dateDeRetour ? new Date(retraitForm.dateDeRetour).toISOString() : null,
         notes: retraitForm.notes.trim(),
       });
 
       setSelectedItem(response.data);
       setRetraitForm(getInitialRetraitForm());
+      setShowRetraitModal(false);
       setSuccess(t("retrait_enregistre"));
       await fetchArchives();
     } catch (err) {
@@ -74,17 +133,36 @@ function GererArchivesJuridiques() {
     }
   };
 
-  const handleSaveRetour = async (retraitId) => {
+  const exportRetraits = async () => {
     if (!selectedItem) return;
 
     try {
-      const response = await axios.put(`/api/acteursjudiciaires/retraits/${retraitId}/retour`, {
-        dateDeRetour: new Date().toISOString(),
-        notes: retraitForm.notes.trim(),
+      const response = await axios.get(`/api/acteursjudiciaires/${selectedItem.id}/retraits/export/excel`, {
+        responseType: "blob",
+      });
+      const numero = selectedItem.numeroDossier ? selectedItem.numeroDossier.replaceAll("/", "-") : selectedItem.id;
+      downloadBlob(response.data, `registre-retraits-${numero}.xlsx`);
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_export")));
+    }
+  };
+
+  const handleSaveRetour = async (event) => {
+    event.preventDefault();
+    if (!selectedItem) return;
+    if (!selectedRetourRetrait) return;
+
+    try {
+      const response = await axios.put(`/api/acteursjudiciaires/retraits/${selectedRetourRetrait.id}/retour`, {
+        dateDeRetour: retourForm.dateDeRetour
+          ? new Date(retourForm.dateDeRetour).toISOString()
+          : new Date().toISOString(),
+        notes: retourForm.notes.trim(),
       });
 
       setSelectedItem(response.data);
       setSuccess(t("retour_enregistre"));
+      closeRetourModal();
       await fetchArchives();
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_enregistrer_retour")));
@@ -123,24 +201,29 @@ function GererArchivesJuridiques() {
                 <th>{t("tribunal_source")}</th>
                 <th>{t("objet")}</th>
                 <th>{t("emplacement")}</th>
+                <th>{t("etat")}</th>
                 <th>{t("retraits")}</th>
                 <th>{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan="7" style={{ textAlign: "center" }}>{t("aucune_archive_judiciaire")}</td></tr>
+                <tr><td colSpan="8" style={{ textAlign: "center" }}>{t("aucune_archive_judiciaire")}</td></tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.id}>
+                  <tr key={item.id} onClick={() => selectItem(item)}>
                     <td>{item.numeroDossier || "-"}</td>
                     <td>{formatDate(item.date)}</td>
                     <td>{item.tribunalSource || "-"}</td>
                     <td>{item.sujet || "-"}</td>
                     <td>{item.emplacement || "-"}</td>
+                    <td>{formatEtat(item.etatArchive, t)}</td>
                     <td>{item.retraitsCount ?? 0}</td>
                     <td className="action-icons">
-                      <button type="button" onClick={() => selectItem(item)}>
+                      <button type="button" onClick={(event) => {
+                        event.stopPropagation();
+                        openRetraitModal(item);
+                      }}>
                         {t("gerer_retrait")}
                       </button>
                     </td>
@@ -152,103 +235,218 @@ function GererArchivesJuridiques() {
         </div>
       </div>
 
-      {selectedItem && (
-        <div className="form-card archive-service-panel">
-          <div className="registry-panel-header">
-            <div>
-              <h3>{t("gestion_retrait_retour")}</h3>
-              <p>{selectedItem.numeroDossier || "-"} - {selectedItem.sujet || "-"}</p>
-            </div>
-            <button type="button" className="btn-secondary" onClick={() => setSelectedItem(null)}>
-              {t("fermer")}
-            </button>
-          </div>
-
-          <form onSubmit={handleSaveRetrait}>
-            <div className="form-grid">
-              <div className="form-field">
-                <label>{t("date_retrait")}</label>
-                <input
-                  type="date"
-                  name="dateDeRetrait"
-                  value={retraitForm.dateDeRetrait}
-                  onChange={handleRetraitChange}
-                />
-              </div>
-
-              <div className="form-field">
-                <label>{t("motif_retrait")} *</label>
-                <input
-                  name="motifDeRetrait"
-                  value={retraitForm.motifDeRetrait}
-                  onChange={handleRetraitChange}
-                  required
-                />
-              </div>
-
-              <div className="form-field">
-                <label>{t("effectue_par")}</label>
-                <input
-                  name="effectuePar"
-                  value={retraitForm.effectuePar}
-                  onChange={handleRetraitChange}
-                />
-              </div>
-
-              <div className="form-field full-width">
-                <label>{t("note")}</label>
-                <textarea
-                  name="notes"
-                  value={retraitForm.notes}
-                  onChange={handleRetraitChange}
-                  rows="2"
-                />
-              </div>
-            </div>
-
-            <div className="form-actions">
-              <button type="submit" className="btn-primary">{t("enregistrer_retrait")}</button>
-            </div>
-          </form>
-
-          <div className="data-table-wrapper">
+      <div className="form-card archive-service-panel">
+        <div className="registry-panel-header">
+          <div>
             <h3>{t("registre_retraits")}</h3>
-            <table className="modern-table">
-              <thead>
-                <tr>
-                  <th>{t("date_retrait")}</th>
-                  <th>{t("motif")}</th>
-                  <th>{t("effectue_par")}</th>
-                  <th>{t("date_retour")}</th>
-                  <th>{t("note")}</th>
-                  <th>{t("actions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(selectedItem.retraits || []).length === 0 ? (
-                  <tr><td colSpan="6" style={{ textAlign: "center" }}>{t("aucun_retrait")}</td></tr>
-                ) : (
-                  selectedItem.retraits.map((retrait) => (
-                    <tr key={retrait.id}>
-                      <td>{formatDate(retrait.dateDeRetrait)}</td>
-                      <td>{retrait.motifDeRetrait || "-"}</td>
-                      <td>{retrait.effectuePar || "-"}</td>
-                      <td>{retrait.dateDeRetour ? formatDate(retrait.dateDeRetour) : "-"}</td>
-                      <td>{retrait.notes || "-"}</td>
-                      <td>
-                        {!retrait.dateDeRetour ? (
-                          <button type="button" onClick={() => handleSaveRetour(retrait.id)}>
-                            {t("enregistrer_retour")}
-                          </button>
-                        ) : (
-                          t("retour_effectue")
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <p>{selectedItem ? `${selectedItem.numeroDossier || "-"} - ${selectedItem.sujet || "-"}` : "-"}</p>
+          </div>
+          <button type="button" className="btn-primary" onClick={exportRetraits} disabled={!selectedItem}>
+            {t("exporter_excel")}
+          </button>
+        </div>
+
+        <div className="filters">
+          <input
+            value={retraitMotCle}
+            onChange={(event) => setRetraitMotCle(event.target.value)}
+            placeholder={translate(t, "rechercher_retraits", "Rechercher dans les retraits")}
+          />
+          <input
+            type="date"
+            value={retraitDate}
+            onChange={(event) => setRetraitDate(event.target.value)}
+          />
+          <button type="button" className="btn-secondary" onClick={() => {
+            setRetraitMotCle("");
+            setRetraitDate("");
+          }}>
+            {t("reinitialiser")}
+          </button>
+        </div>
+
+        <div className="data-table-wrapper">
+          <table className="modern-table">
+            <thead>
+              <tr>
+                <th>{t("date_retrait")}</th>
+                <th>{t("motif")}</th>
+                <th>{t("effectue_par")}</th>
+                <th>{t("date_retour")}</th>
+                <th>{t("note")}</th>
+                <th>{t("actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!selectedItem || filteredRetraits.length === 0 ? (
+                <tr><td colSpan="6" style={{ textAlign: "center" }}>{t("aucun_retrait")}</td></tr>
+              ) : (
+                filteredRetraits.map((retrait) => (
+                  <tr key={retrait.id}>
+                    <td>{formatDate(retrait.dateDeRetrait)}</td>
+                    <td>{retrait.motifDeRetrait || "-"}</td>
+                    <td>{retrait.effectuePar || "-"}</td>
+                    <td>{retrait.dateDeRetour ? formatDate(retrait.dateDeRetour) : "-"}</td>
+                    <td>{retrait.notes || "-"}</td>
+                    <td className="action-icons">
+                      <button type="button" onClick={() => setSelectedRetrait(retrait)}>
+                        {t("consulter")}
+                      </button>
+                      {!retrait.dateDeRetour ? (
+                        <button type="button" onClick={() => openRetourModal(retrait)}>
+                          {t("enregistrer_retour")}
+                        </button>
+                      ) : (
+                        t("retour_effectue")
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {selectedItem && showRetraitModal && (
+        <div className="modal-overlay" onClick={closeRetraitModal}>
+          <div className="modal archive-retrait-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="registry-panel-header">
+              <div>
+                <h3>{t("gestion_retrait_retour")}</h3>
+                <p>{selectedItem.numeroDossier || "-"} - {selectedItem.sujet || "-"}</p>
+              </div>
+              <button type="button" className="btn-secondary" onClick={closeRetraitModal}>
+                {t("fermer")}
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRetrait}>
+              <div className="form-grid">
+                <div className="form-field">
+                  <label>{t("date_retrait")}</label>
+                  <input
+                    type="date"
+                    name="dateDeRetrait"
+                    value={retraitForm.dateDeRetrait}
+                    onChange={handleRetraitChange}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>{t("motif_retrait")} *</label>
+                  <input
+                    name="motifDeRetrait"
+                    value={retraitForm.motifDeRetrait}
+                    onChange={handleRetraitChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>{t("effectue_par")}</label>
+                  <select
+                    name="effectuePar"
+                    value={retraitForm.effectuePar}
+                    onChange={handleRetraitChange}
+                  >
+                    <option value="">--</option>
+                    {services.map((service) => (
+                      <option key={service.idService} value={service.nomService}>
+                        {service.nomService}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-field">
+                  <label>{t("date_retour")}</label>
+                  <input
+                    type="date"
+                    name="dateDeRetour"
+                    value={retraitForm.dateDeRetour}
+                    onChange={handleRetraitChange}
+                  />
+                </div>
+
+                <div className="form-field full-width">
+                  <label>{t("note")}</label>
+                  <textarea
+                    name="notes"
+                    value={retraitForm.notes}
+                    onChange={handleRetraitChange}
+                    rows="2"
+                  />
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="btn-primary">{t("enregistrer_retrait")}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {selectedRetourRetrait && (
+        <div className="modal-overlay" onClick={closeRetourModal}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="registry-panel-header">
+              <div>
+                <h3>{t("enregistrer_retour")}</h3>
+                <p>{selectedItem ? `${selectedItem.numeroDossier || "-"} - ${selectedItem.sujet || "-"}` : "-"}</p>
+              </div>
+              <button type="button" className="btn-secondary" onClick={closeRetourModal}>
+                {t("fermer")}
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRetour}>
+              <div className="form-grid">
+                <div className="form-field">
+                  <label>{t("date_retour")}</label>
+                  <input
+                    type="date"
+                    value={retourForm.dateDeRetour}
+                    onChange={(event) => setRetourForm((prev) => ({ ...prev, dateDeRetour: event.target.value }))}
+                  />
+                </div>
+
+                <div className="form-field full-width">
+                  <label>{t("note")}</label>
+                  <textarea
+                    value={retourForm.notes}
+                    onChange={(event) => setRetourForm((prev) => ({ ...prev, notes: event.target.value }))}
+                    rows="3"
+                  />
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="btn-primary">{t("enregistrer_retour")}</button>
+                <button type="button" className="btn-secondary" onClick={closeRetourModal}>{t("annuler")}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {selectedRetrait && (
+        <div className="modal-overlay" onClick={() => setSelectedRetrait(null)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="registry-panel-header">
+              <h3>{t("details_retrait")}</h3>
+              <button type="button" className="btn-secondary" onClick={() => setSelectedRetrait(null)}>
+                {t("fermer")}
+              </button>
+            </div>
+            <div className="form-grid">
+              <div className="form-field"><label>{t("date_retrait")}</label><span>{formatDate(selectedRetrait.dateDeRetrait)}</span></div>
+              <div className="form-field"><label>{t("motif")}</label><span>{selectedRetrait.motifDeRetrait || "-"}</span></div>
+              <div className="form-field"><label>{t("effectue_par")}</label><span>{selectedRetrait.effectuePar || "-"}</span></div>
+              <div className="form-field"><label>{t("date_retour")}</label><span>{selectedRetrait.dateDeRetour ? formatDate(selectedRetrait.dateDeRetour) : "-"}</span></div>
+              <div className="form-field full-width"><label>{t("note")}</label><span>{selectedRetrait.notes || "-"}</span></div>
+            </div>
           </div>
         </div>
       )}
@@ -261,6 +459,14 @@ function getInitialRetraitForm() {
     dateDeRetrait: new Date().toISOString().slice(0, 10),
     motifDeRetrait: "",
     effectuePar: "",
+    dateDeRetour: "",
+    notes: "",
+  };
+}
+
+function getInitialRetourForm() {
+  return {
+    dateDeRetour: new Date().toISOString().slice(0, 10),
     notes: "",
   };
 }
@@ -268,6 +474,67 @@ function getInitialRetraitForm() {
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString();
+}
+
+function filterRetraits(retraits, motCle, dateRecherche) {
+  const keyword = normalizeSearchText(motCle);
+
+  return retraits.filter((retrait) => {
+    const matchesDate =
+      !dateRecherche ||
+      toDateInputValue(retrait.dateDeRetrait) === dateRecherche ||
+      toDateInputValue(retrait.dateDeRetour) === dateRecherche;
+    const matchesKeyword =
+      !keyword ||
+      [
+        retrait.id,
+        retrait.motifDeRetrait,
+        retrait.effectuePar,
+        retrait.notes,
+        formatDate(retrait.dateDeRetrait),
+        formatDate(retrait.dateDeRetour)
+      ].some((value) => normalizeSearchText(value).includes(keyword));
+
+    return matchesDate && matchesKeyword;
+  });
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function toDateInputValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function translate(t, key, fallback) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
+function downloadBlob(data, fileName) {
+  const blob = data instanceof Blob
+    ? data
+    : new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", fileName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function formatEtat(value, t) {
+  if (value === "Archive") return t("etat_archive");
+  if (value === "EnCours" || value === "En cours") return t("etat_en_cours");
+  if (value === "Traite" || value === "Traité") return t("etat_traite");
+  if (value === "Nouveau") return t("etat_nouveau");
+  return value || "-";
 }
 
 function getErrorMessage(error, fallback) {

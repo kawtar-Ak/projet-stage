@@ -34,22 +34,27 @@ function MainLayout({ children }) {
       { labelKey: 'menu_courriers', icon: 'mail', path: '/courriers' },
       { labelKey: 'menu_dossiers_juridiques', icon: 'folder', path: '/courriers-juridiques' },
       { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
-      { labelKey: 'consulter', icon: 'eye', path: '/messages-administratifs' },
-      { labelKey: 'menu_acteurs_judiciaires', icon: 'users', path: '/acteurs-judiciaires' },
       { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
+      { labelKey: 'circulations', icon: 'send', path: '/circulations' },
       { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' },
       { labelKey: 'notifications', icon: 'bell', path: '/notifications' }
     ];
 
-    const registreLink = { labelKey: 'registre', icon: 'book', path: '/registre' };
+    if (serviceId === 13 || serviceName.includes('archivage') || serviceName.includes('archive')) {
+      return [
+        { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
+        { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
+        { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' }
+      ];
+    }
 
     if (serviceId === 1 || serviceName.includes('خلية المعلومات')) {
       return [
         ...commonLinks,
         { labelKey: 'equipements', icon: 'settings', path: '/equipements' },
         { labelKey: 'services', icon: 'service', path: '/services' },
-        { labelKey: 'utilisateurs', icon: 'users', path: '/utilisateurs' },
-        registreLink
+        { labelKey: 'utilisateurs', icon: 'users', path: '/utilisateurs' }
       ];
     }
 
@@ -60,7 +65,7 @@ function MainLayout({ children }) {
       serviceName.includes('فتح الملفات') ||
       [2, 3, 5, 13].includes(serviceId)
     ) {
-      return [...commonLinks, registreLink];
+      return commonLinks;
     }
 
     return commonLinks;

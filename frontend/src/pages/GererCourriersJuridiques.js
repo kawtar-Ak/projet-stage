@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_SERVICES } from "../constants/defaultServices";
+import DocumentModal from "../components/DocumentModal";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 
@@ -10,34 +11,40 @@ function GererCourriersJuridiques({ embedded = false }) {
   const [courriers, setCourriers] = useState([]);
   const [services, setServices] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [consultedDocument, setConsultedDocument] = useState(null);
   const [motCle, setMotCle] = useState("");
+  const [dateRecherche, setDateRecherche] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [retraitMotCle, setRetraitMotCle] = useState("");
+  const [retraitDate, setRetraitDate] = useState("");
   const [form, setForm] = useState(getInitialForm());
   const [selectedArchiveItem, setSelectedArchiveItem] = useState(null);
   const [retraitForm, setRetraitForm] = useState(getInitialRetraitForm());
   const [selectedTransferItem, setSelectedTransferItem] = useState(null);
   const [transferForm, setTransferForm] = useState(getInitialTransferForm());
+  const filteredCourriers = useMemo(
+    () => filterCourriersJudiciaires(courriers, motCle, dateRecherche),
+    [courriers, motCle, dateRecherche]
+  );
+  const filteredArchiveRetraits = useMemo(
+    () => filterRetraits(selectedArchiveItem?.retraits || [], retraitMotCle, retraitDate),
+    [selectedArchiveItem, retraitMotCle, retraitDate]
+  );
 
   useEffect(() => {
     fetchCourriers();
     fetchServices();
   }, []);
 
-  useEffect(() => {
-    const timeout = setTimeout(fetchCourriers, 250);
-    return () => clearTimeout(timeout);
-  }, [motCle]);
-
   const fetchCourriers = async () => {
     try {
-      const url = motCle.trim()
-        ? `/api/acteursjudiciaires/search?motCle=${encodeURIComponent(motCle.trim())}`
-        : "/api/acteursjudiciaires";
-      const response = await axios.get(url);
-      setCourriers(response.data);
+      const response = await axios.get("/api/acteursjudiciaires");
+      setCourriers(Array.isArray(response.data) ? response.data : []);
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_chargement_courriers_judiciaires")));
@@ -159,6 +166,7 @@ function GererCourriersJuridiques({ embedded = false }) {
 
   const handleEdit = (courrier) => {
     setEditingId(courrier.id);
+    setIsEditModalOpen(true);
     setForm({
       idBureauOrdre: courrier.idBureauOrdre || "",
       date: courrier.date ? courrier.date.slice(0, 10) : "",
@@ -174,7 +182,21 @@ function GererCourriersJuridiques({ embedded = false }) {
       idService: courrier.idService || getDefaultServiceId(services),
       estTransmissible: Boolean(courrier.estTransmissible),
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleConsult = (courrier) => {
+    setConsultedDocument({
+      idEntite: courrier.id,
+      sujet: courrier.sujet,
+      type: t("courrier_judiciaire"),
+      dateCreation: courrier.date,
+      source: courrier.tribunalSource,
+      destinataire: courrier.destinataire,
+      description: courrier.description,
+      numeroCourrier: courrier.idBureauOrdre,
+      numeroDossierJudiciaire: courrier.numeroDossier,
+      etatArchive: courrier.etatArchive,
+    });
   };
 
   const handleDelete = async (id) => {
@@ -189,21 +211,11 @@ function GererCourriersJuridiques({ embedded = false }) {
     }
   };
 
-  const handleArchive = async (id) => {
-    if (!window.confirm(t("confirmation_archiver_courrier_judiciaire"))) return;
-
-    try {
-      await axios.put(`/api/acteursjudiciaires/archiver/${id}`);
-      setSuccess(t("courrier_judiciaire_archive"));
-      await fetchCourriers();
-    } catch (err) {
-      setError(getErrorMessage(err, t("erreur_archiver_courrier_judiciaire")));
-    }
-  };
-
   const openArchiveService = (courrier) => {
     setSelectedArchiveItem(courrier);
     setRetraitForm(getInitialRetraitForm());
+    setRetraitMotCle("");
+    setRetraitDate("");
     setError("");
     setSuccess("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -226,6 +238,14 @@ function GererCourriersJuridiques({ embedded = false }) {
     setTransferForm(getInitialTransferForm());
   };
 
+  const openCreateModal = () => {
+    setEditingId(null);
+    setForm(getInitialForm(services));
+    setIsCreateModalOpen(true);
+    setError("");
+    setSuccess("");
+  };
+
   const handleTransferSubmit = async (event) => {
     event.preventDefault();
     if (!selectedTransferItem || !transferForm.serviceId) {
@@ -241,6 +261,7 @@ function GererCourriersJuridiques({ embedded = false }) {
         destinationServiceId: Number(transferForm.serviceId),
         destinationUserId: null,
         doitRevenir: transferForm.doitRevenir,
+        dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
         message: transferForm.message.trim(),
       });
 
@@ -297,6 +318,8 @@ function GererCourriersJuridiques({ embedded = false }) {
 
   const resetForm = () => {
     setEditingId(null);
+    setIsEditModalOpen(false);
+    setIsCreateModalOpen(false);
     setForm(getInitialForm(services));
     setError("");
   };
@@ -364,6 +387,9 @@ function GererCourriersJuridiques({ embedded = false }) {
     }
   };
 
+  const isFormVisible = embedded || isCreateModalOpen || Boolean(editingId);
+  const isFormModal = isCreateModalOpen || (editingId && isEditModalOpen);
+
   return (
     <div className={embedded ? "courriers-juridiques-content" : "page-container"} dir="rtl">
       {!embedded && <h1 className="page-title">{t("gestion_courriers_judiciaires")}</h1>}
@@ -371,7 +397,12 @@ function GererCourriersJuridiques({ embedded = false }) {
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">{success}</div>}
 
-      <div className="form-card">
+      {isFormModal && <div className="modal-overlay" onClick={resetForm} />}
+      {isFormVisible && (
+      <div
+        className={isFormModal ? "modal form-card edit-modal" : "form-card"}
+        onClick={isFormModal ? (event) => event.stopPropagation() : undefined}
+      >
         <h3>{editingId ? t("modifier") : t("ajouter")} {t("courrier_judiciaire")}</h3>
 
         <form onSubmit={handleSubmit}>
@@ -480,10 +511,11 @@ function GererCourriersJuridiques({ embedded = false }) {
 
           <div className="form-actions">
             <button type="submit" className="btn-primary">{editingId ? t("modifier") : t("ajouter")}</button>
-            {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>{t("annuler")}</button>}
+            {(editingId || isCreateModalOpen) && <button type="button" className="btn-secondary" onClick={resetForm}>{t("annuler")}</button>}
           </div>
         </form>
       </div>
+      )}
 
       {selectedArchiveItem && (
         <div className="form-card archive-service-panel">
@@ -548,6 +580,24 @@ function GererCourriersJuridiques({ embedded = false }) {
 
           <div className="data-table-wrapper">
             <h3>{t("registre_retraits")}</h3>
+            <div className="filters">
+              <input
+                value={retraitMotCle}
+                onChange={(event) => setRetraitMotCle(event.target.value)}
+                placeholder={translate(t, "rechercher_retraits", "Rechercher dans les retraits")}
+              />
+              <input
+                type="date"
+                value={retraitDate}
+                onChange={(event) => setRetraitDate(event.target.value)}
+              />
+              <button type="button" className="btn-secondary" onClick={() => {
+                setRetraitMotCle("");
+                setRetraitDate("");
+              }}>
+                {t("reinitialiser")}
+              </button>
+            </div>
             <table className="modern-table">
               <thead>
                 <tr>
@@ -560,10 +610,10 @@ function GererCourriersJuridiques({ embedded = false }) {
                 </tr>
               </thead>
               <tbody>
-                {(selectedArchiveItem.retraits || []).length === 0 ? (
+                {filteredArchiveRetraits.length === 0 ? (
                   <tr><td colSpan="6" style={{ textAlign: "center" }}>{t("aucun_retrait")}</td></tr>
                 ) : (
-                  selectedArchiveItem.retraits.map((retrait) => (
+                  filteredArchiveRetraits.map((retrait) => (
                     <tr key={retrait.id}>
                       <td>{formatDate(retrait.dateDeRetrait)}</td>
                       <td>{retrait.motifDeRetrait || "-"}</td>
@@ -589,7 +639,9 @@ function GererCourriersJuridiques({ embedded = false }) {
       )}
 
       {selectedTransferItem && (
-        <div className="form-card">
+        <>
+        <div className="modal-overlay" onClick={closeTransferModal} />
+        <div className="modal form-card transfer-modal" onClick={(event) => event.stopPropagation()}>
           <div className="registry-panel-header">
             <div>
               <h3>{t("transferer_dossier")}</h3>
@@ -619,6 +671,17 @@ function GererCourriersJuridiques({ embedded = false }) {
               </div>
 
               <div className="form-field">
+                <label>{t("date")} *</label>
+                <input
+                  type="date"
+                  name="dateEnvoi"
+                  value={transferForm.dateEnvoi}
+                  onChange={handleTransferChange}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
                 <label className="checkbox-field">
                   <input
                     type="checkbox"
@@ -642,6 +705,15 @@ function GererCourriersJuridiques({ embedded = false }) {
             </div>
           </form>
         </div>
+        </>
+      )}
+
+      {!embedded && (
+        <div className="registry-choice">
+          <button type="button" className="choice-pill" onClick={openCreateModal}>
+            {t("ajouter")} {t("courrier_judiciaire")}
+          </button>
+        </div>
       )}
 
       <div className="registry-panel">
@@ -658,7 +730,11 @@ function GererCourriersJuridiques({ embedded = false }) {
 
         <div className="filters">
           <input value={motCle} onChange={(e) => setMotCle(e.target.value)} placeholder={t("rechercher_courriers_judiciaires")} />
-          <button type="button" className="btn-secondary" onClick={() => setMotCle("")}>{t("reinitialiser")}</button>
+          <input type="date" value={dateRecherche} onChange={(e) => setDateRecherche(e.target.value)} />
+          <button type="button" className="btn-secondary" onClick={() => {
+            setMotCle("");
+            setDateRecherche("");
+          }}>{t("reinitialiser")}</button>
         </div>
 
         <div className="data-table-wrapper">
@@ -679,10 +755,10 @@ function GererCourriersJuridiques({ embedded = false }) {
               </tr>
             </thead>
             <tbody>
-              {courriers.length === 0 ? (
+              {filteredCourriers.length === 0 ? (
                 <tr><td colSpan="11" style={{ textAlign: "center" }}>{t("aucun_courrier_judiciaire")}</td></tr>
               ) : (
-                courriers.map((courrier) => (
+                filteredCourriers.map((courrier) => (
                   <tr key={courrier.id}>
                     <td>{formatDate(courrier.date)}</td>
                     <td>{courrier.tribunalSource || "-"}</td>
@@ -695,12 +771,11 @@ function GererCourriersJuridiques({ embedded = false }) {
                     <td>{courrier.retraitsCount ?? 0}</td>
                     <td>{courrier.lienPdf ? <a href={getDocumentHref(courrier.lienPdf)} target="_blank" rel="noreferrer">{t("ouvrir")}</a> : "-"}</td>
                     <td className="action-icons">
+                      <button type="button" onClick={() => handleConsult(courrier)}>{t("consulter")}</button>
                       <button type="button" onClick={() => handleEdit(courrier)}>{t("modifier")}</button>
                       <button type="button" onClick={() => openTransferModal(courrier)} disabled={!courrier.estTransmissible}>
                         {t("transferer")}
                       </button>
-                      <button type="button" onClick={() => openArchiveService(courrier)}>{t("service_archive")}</button>
-                      <button type="button" onClick={() => handleArchive(courrier.id)}>{t("archiver")}</button>
                       <button type="button" onClick={() => handleDelete(courrier.id)}>{t("supprimer")}</button>
                     </td>
                   </tr>
@@ -710,6 +785,12 @@ function GererCourriersJuridiques({ embedded = false }) {
           </table>
         </div>
       </div>
+      {consultedDocument && (
+        <DocumentModal
+          document={consultedDocument}
+          onClose={() => setConsultedDocument(null)}
+        />
+      )}
     </div>
   );
 }
@@ -744,6 +825,7 @@ function getInitialRetraitForm() {
 function getInitialTransferForm() {
   return {
     serviceId: "",
+    dateEnvoi: new Date().toISOString().slice(0, 10),
     doitRevenir: false,
     message: "",
   };
@@ -763,6 +845,75 @@ function validateForm(form, t) {
   if (!form.sujet.trim()) return t("erreur_objet_requis");
   if (!form.idService) return t("erreur_service_requis");
   return "";
+}
+
+function filterCourriersJudiciaires(courriers, motCle, dateRecherche) {
+  const keyword = normalizeSearchText(motCle);
+
+  return courriers.filter((courrier) => {
+    const matchesDate = !dateRecherche || toDateInputValue(courrier.date) === dateRecherche;
+    const matchesKeyword =
+      !keyword ||
+      [
+        courrier.id,
+        courrier.idBureauOrdre,
+        courrier.numeroDossier,
+        courrier.numeroDossierAnnee,
+        courrier.numeroDossierNombre,
+        courrier.numeroDossierSujet,
+        courrier.tribunalSource,
+        courrier.sujet,
+        courrier.destinataire,
+        courrier.description,
+        courrier.etatArchive,
+        courrier.emplacement,
+        courrier.serviceNom,
+        courrier.idService,
+        courrier.lienPdf,
+        courrier.retraitsCount
+      ].some((value) => normalizeSearchText(value).includes(keyword));
+
+    return matchesDate && matchesKeyword;
+  });
+}
+
+function filterRetraits(retraits, motCle, dateRecherche) {
+  const keyword = normalizeSearchText(motCle);
+
+  return retraits.filter((retrait) => {
+    const matchesDate =
+      !dateRecherche ||
+      toDateInputValue(retrait.dateDeRetrait) === dateRecherche ||
+      toDateInputValue(retrait.dateDeRetour) === dateRecherche;
+    const matchesKeyword =
+      !keyword ||
+      [
+        retrait.id,
+        retrait.motifDeRetrait,
+        retrait.effectuePar,
+        retrait.notes,
+        formatDate(retrait.dateDeRetrait),
+        formatDate(retrait.dateDeRetour)
+      ].some((value) => normalizeSearchText(value).includes(keyword));
+
+    return matchesDate && matchesKeyword;
+  });
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function toDateInputValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function translate(t, key, fallback) {
+  const value = t(key);
+  return value === key ? fallback : value;
 }
 
 function formatDate(value) {

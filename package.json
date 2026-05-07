@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "backend": "dotnet run --project GestionCourrierAbp/src/GestionCourrierAbp.HttpApi.Host/GestionCourrierAbp.HttpApi.Host.csproj",
+    "frontend": "npm start --prefix frontend"
+  },
+  "dependencies": {
+    "i18next": "^26.0.8",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "react-i18next": "^17.0.6"
+  }
+}

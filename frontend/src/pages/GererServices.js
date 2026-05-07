@@ -42,7 +42,7 @@ function GererServices() {
             }
             resetForm();
             fetchServices();
-        } catch (err) { setError(err.response?.data || t('erreur')); }
+        } catch (err) { setError(getErrorMessage(err, t('erreur'))); }
     };
 
     const handleEdit = (s) => {
@@ -53,7 +53,7 @@ function GererServices() {
     const handleDelete = async (id) => {
         if (window.confirm(t('confirmation_supprimer'))) {
             try { await axios.delete(`/api/services/${id}`); fetchServices(); }
-            catch (err) { setError(err.response?.data); }
+            catch (err) { setError(getErrorMessage(err, t('erreur'))); }
         }
     };
 
@@ -189,4 +189,14 @@ function GererServices() {
         </div>
     );
 }
+
+function getErrorMessage(error, fallback) {
+    const data = error.response?.data;
+    if (typeof data === 'string') return data;
+    if (typeof data?.error === 'string') return data.error;
+    if (data?.error?.message) return data.error.message;
+    if (data?.message) return data.message;
+    return fallback;
+}
+
 export default GererServices;

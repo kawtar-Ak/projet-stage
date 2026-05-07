@@ -79,6 +79,13 @@ public class ServiceAppService : GestionCourrierAbpAppService, IServiceAppServic
         foreach (var service in GetDefaultServices())
         {
             var existing = await _repository.FindAsync(service.Id);
+            if (existing == null)
+            {
+                var query = await _repository.GetQueryableAsync();
+                existing = await AsyncExecuter.FirstOrDefaultAsync(
+                    query.Where(x => x.NomService == service.NomService || x.Description == service.Description));
+            }
+
             if (existing != null)
             {
                 existing.NomService = service.NomService;
@@ -119,7 +126,8 @@ public class ServiceAppService : GestionCourrierAbpAppService, IServiceAppServic
             new(16, "الاستعجالي", "Référé", "1er"),
             new(17, "قضاء الموضوع", "Jugement au fond", "2ème"),
             new(18, "المفوض الملكي", "Commissaire royal", "2ème"),
-            new(19, "الرئيس الأول", "Premier président", "3ème")
+            new(19, "الرئيس الأول", "Premier président", "3ème"),
+            new(20, "تدبير السحب", "Gestion de retrait", "1er")
         };
     }
 

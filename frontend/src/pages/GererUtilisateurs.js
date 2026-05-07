@@ -75,7 +75,7 @@ function GererUtilisateurs() {
             resetForm();
             fetchUsers();
         } catch (err) {
-            setError(err.response?.data || t('erreur_enregistrement'));
+            setError(getErrorMessage(err, t('erreur_enregistrement')));
         }
     };
 
@@ -375,6 +375,15 @@ function GererUtilisateurs() {
             )}
         </div>
     );
+}
+
+function getErrorMessage(error, fallback) {
+    const data = error.response?.data;
+    if (typeof data === 'string') return data;
+    if (typeof data?.error === 'string') return data.error;
+    if (data?.error?.message) return data.error.message;
+    if (data?.message) return data.message;
+    return fallback;
 }
 
 export default GererUtilisateurs;

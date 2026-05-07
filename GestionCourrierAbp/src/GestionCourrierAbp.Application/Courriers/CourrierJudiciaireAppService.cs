@@ -85,7 +85,12 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<CourrierJudiciaireDto> CreateRetraitAsync(int id, CreateRetraitJudiciaireDto input)
     {
-        await _repository.GetAsync(id);
+        var courrier = await _repository.GetAsync(id);
+        if (!courrier.EstArchive)
+        {
+            throw new BusinessException("RetraitDossierNonArchive");
+        }
+
         await _retraitRepository.InsertAsync(new RetraitJudiciaire
         {
             CourrierJudiciaireId = id,
@@ -122,11 +127,47 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
     {
         if (string.IsNullOrWhiteSpace(motCle)) return query;
         var value = motCle.Trim();
+        var parts = value.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parsedNumbers = parts.Select(part => int.TryParse(part, out var number) ? number : (int?)null).ToArray();
+
+        if (parsedNumbers.Length == 3 && parsedNumbers.All(x => x.HasValue))
+        {
+            var annee = parsedNumbers[0]!.Value;
+            var nombre = parsedNumbers[1]!.Value;
+            var sujet = parsedNumbers[2]!.Value;
+            return query.Where(x =>
+                x.Sujet.Contains(value) ||
+                x.TribunalSource.Contains(value) ||
+                x.Destinataire.Contains(value) ||
+                x.Emplacement.Contains(value) ||
+                x.EtatArchive.Contains(value) ||
+                (x.IdBureauOrdre != null && x.IdBureauOrdre.Contains(value)) ||
+                (x.NumeroDossierAnnee == annee &&
+                    x.NumeroDossierNombre == nombre &&
+                    x.NumeroDossierSujet == sujet));
+        }
+
+        if (parsedNumbers.Length == 1 && parsedNumbers[0].HasValue)
+        {
+            var number = parsedNumbers[0]!.Value;
+            return query.Where(x =>
+                x.Sujet.Contains(value) ||
+                x.TribunalSource.Contains(value) ||
+                x.Destinataire.Contains(value) ||
+                x.Emplacement.Contains(value) ||
+                x.EtatArchive.Contains(value) ||
+                (x.IdBureauOrdre != null && x.IdBureauOrdre.Contains(value)) ||
+                x.NumeroDossierAnnee == number ||
+                x.NumeroDossierNombre == number ||
+                x.NumeroDossierSujet == number);
+        }
+
         return query.Where(x =>
             x.Sujet.Contains(value) ||
             x.TribunalSource.Contains(value) ||
             x.Destinataire.Contains(value) ||
             x.Emplacement.Contains(value) ||
+            x.EtatArchive.Contains(value) ||
             (x.IdBureauOrdre != null && x.IdBureauOrdre.Contains(value)));
     }
 

@@ -3,9 +3,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System;
+using Microsoft.AspNetCore.Identity;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Domain.Repositories;
+using Volo.Abp.Guids;
+using Volo.Abp.Identity;
 
 namespace GestionCourrierAbp.Utilisateurs;
 
@@ -13,13 +16,19 @@ public class UtilisateurAppService : GestionCourrierAbpAppService, IUtilisateurA
 {
     private readonly IRepository<Utilisateur, int> _repository;
     private readonly IRepository<Services.Service, int> _serviceRepository;
+    private readonly IdentityUserManager _identityUserManager;
+    private readonly IGuidGenerator _guidGenerator;
 
     public UtilisateurAppService(
         IRepository<Utilisateur, int> repository,
-        IRepository<Services.Service, int> serviceRepository)
+        IRepository<Services.Service, int> serviceRepository,
+        IdentityUserManager identityUserManager,
+        IGuidGenerator guidGenerator)
     {
         _repository = repository;
         _serviceRepository = serviceRepository;
+        _identityUserManager = identityUserManager;
+        _guidGenerator = guidGenerator;
     }
 
     public async Task<UtilisateurDto> GetAsync(int id)
@@ -51,6 +60,8 @@ public class UtilisateurAppService : GestionCourrierAbpAppService, IUtilisateurA
             ServiceId = input.ServiceId
         }, autoSave: true);
 
+        await CreateOrUpdateIdentityUserAsync(utilisateur.Login, input.Password);
+
         return await GetAsync(utilisateur.Id);
     }
 
@@ -81,6 +92,7 @@ public class UtilisateurAppService : GestionCourrierAbpAppService, IUtilisateurA
         }
 
         await _repository.UpdateAsync(utilisateur, autoSave: true);
+        await CreateOrUpdateIdentityUserAsync(utilisateur.Login, input.Password);
         return await GetAsync(id);
     }
 
@@ -111,6 +123,44 @@ public class UtilisateurAppService : GestionCourrierAbpAppService, IUtilisateurA
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
         return Convert.ToHexString(bytes);
+    }
+
+    private async Task CreateOrUpdateIdentityUserAsync(string login, string? password)
+    {
+        var userName = login.Trim();
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            return;
+        }
+
+        var identityUser = await _identityUserManager.FindByNameAsync(userName);
+        if (identityUser == null)
+        {
+            identityUser = new IdentityUser(
+                _guidGenerator.Create(),
+                userName,
+                $"{userName}@gestioncourrier.local");
+
+            await CheckIdentityResultAsync(await _identityUserManager.CreateAsync(identityUser, password ?? "123456"));
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(password))
+        {
+            var resetToken = await _identityUserManager.GeneratePasswordResetTokenAsync(identityUser);
+            await CheckIdentityResultAsync(await _identityUserManager.ResetPasswordAsync(identityUser, resetToken, password));
+        }
+    }
+
+    private static Task CheckIdentityResultAsync(IdentityResult result)
+    {
+        if (result.Succeeded)
+        {
+            return Task.CompletedTask;
+        }
+
+        var message = string.Join(" ", result.Errors.Select(error => error.Description));
+        throw new UserFriendlyException(message);
     }
 
     private static UtilisateurDto ToDto(Utilisateur utilisateur)

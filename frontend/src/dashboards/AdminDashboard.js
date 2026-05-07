@@ -1,24 +1,21 @@
 // frontend/src/dashboards/AdminDashboard.js
-import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import RoleDashboard from './RoleDashboard';
 
 function AdminDashboard() {
-  const { t } = useTranslation();
-
   return (
-    <div>
-      <h1>{t('dashboard_admin')}</h1>
-      <ul>
-        <li><Link to="/equipements">{t('gerer_equipements')}</Link></li>
-        <li><Link to="/messages-administratifs">{t('consulter_messages_admin')}</Link></li>
-        <li><Link to="/acteurs-judiciaires">{t('consulter_acteurs_judiciaires')}</Link></li>
-        <li><Link to="/transactions">{t('enregistrer_transactions')}</Link></li>
-        <li><Link to="/notifications">{t('notification_transaction')}</Link></li>
-        <li><Link to="/archives">{t('archiver_entite_ou')}</Link></li>
-        <li><Link to="/services">{t('gerer_services')}</Link></li>
-        <li><Link to="/utilisateurs">{t('gerer_utilisateurs')}</Link></li>
-      </ul>
-    </div>
+    <RoleDashboard
+      titleKey="dashboard_admin"
+      actions={[
+        { to: '/equipements', labelKey: 'gerer_equipements', icon: 'EQ', tone: 'blue' },
+        { to: '/messages-administratifs', labelKey: 'consulter_messages_admin', icon: 'MA', tone: 'green' },
+        { to: '/acteurs-judiciaires', labelKey: 'consulter_acteurs_judiciaires', icon: 'AJ', tone: 'gold' },
+        { to: '/transactions', labelKey: 'enregistrer_transactions', icon: 'TR', tone: 'blue' },
+        { to: '/notifications', labelKey: 'notification_transaction', icon: 'NT', tone: 'red' },
+        { to: '/archives', labelKey: 'archiver_entite_ou', icon: 'AR', tone: 'gold' },
+        { to: '/services', labelKey: 'gerer_services', icon: 'SV', tone: 'green' },
+        { to: '/utilisateurs', labelKey: 'gerer_utilisateurs', icon: 'US', tone: 'blue' },
+      ]}
+    />
   );
 }
 

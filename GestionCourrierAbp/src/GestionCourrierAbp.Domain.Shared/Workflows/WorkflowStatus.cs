@@ -45,7 +45,6 @@ public static class WorkflowStatusExtensions
 
     public static bool IsActiveTransactionStatus(this string? value)
     {
-        return value.IsSameAs(WorkflowStatus.EnAttente) ||
-               value.IsSameAs(WorkflowStatus.Accepte);
+        return value.IsSameAs(WorkflowStatus.EnAttente);
     }
 }

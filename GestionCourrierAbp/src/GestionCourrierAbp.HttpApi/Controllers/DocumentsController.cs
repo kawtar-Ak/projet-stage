@@ -1,3 +1,12 @@
+/*Ce code n’est pas la partie qui gère réellement les transactions/circulations.
+Il sert surtout à préparer la liste des documents transmissibles que tu peux ensuite envoyer ou transférer.*/
+
+//DocumentsController
+//→ affiche les documents disponibles pour la circulation
+//→ regroupe les courriers administratifs + courriers judiciaires
+//→ filtre par service si nécessaire
+//→ retourne un DocumentCirculationDto
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -37,14 +46,23 @@ public class DocumentsController : ControllerBase
         var administratifs = await _courrierAdministratifAppService.GetListAsync(input);
         var judiciaires = await _courrierJudiciaireAppService.GetListAsync(input);
 
-        return administratifs.Items
-            .Where(x => x.EstTransmissible && (!serviceId.HasValue || x.IdService == serviceId.Value))
+        var documents = administratifs.Items
+            .Where(x => !serviceId.HasValue || x.IdService == serviceId.Value)
             .Select(MapAdministratif)
             .Concat(judiciaires.Items
-                .Where(x => x.EstTransmissible && (!serviceId.HasValue || x.IdService == serviceId.Value))
+                .Where(x => !serviceId.HasValue || x.IdService == serviceId.Value)
                 .Select(MapJudiciaire))
-            .OrderByDescending(x => x.DateCreation)
+            .OrderBy(x => x.DateEnregistrement ?? x.DateCreation)
+            .ThenBy(x => x.Type)
+            .ThenBy(x => x.IdEntite)
             .ToList();
+
+        for (var i = 0; i < documents.Count; i++)
+        {
+            documents[i].Ordre = i + 1;
+        }
+
+        return documents;
     }
 
     [HttpGet("{id:int}")]
@@ -71,12 +89,15 @@ public class DocumentsController : ControllerBase
             Type = "Administratif",
             Sujet = document.Sujet,
             DateCreation = document.Date,
+            DateEnregistrement = document.CreationTime,
             Source = document.Source,
             Destinataire = document.Destinataire,
             Description = document.Description,
             NumeroCourrier = document.NumeroDeCourrier,
             Etat = document.Etat,
-            IdService = document.IdService
+            IdService = document.IdService,
+            ServiceNom = document.ServiceNom,
+            EstTransmissible = document.EstTransmissible
         };
     }
 
@@ -88,22 +109,27 @@ public class DocumentsController : ControllerBase
             Type = "Judiciaire",
             Sujet = document.Sujet,
             DateCreation = document.Date,
+            DateEnregistrement = document.CreationTime,
             Source = document.TribunalSource,
             Destinataire = document.Destinataire,
             Description = document.Description,
             NumeroDossierJudiciaire = document.NumeroDossier,
             EtatArchive = document.EtatArchive,
-            IdService = document.IdService
+            IdService = document.IdService,
+            ServiceNom = document.ServiceNom,
+            EstTransmissible = document.EstTransmissible
         };
     }
 }
 
 public class DocumentCirculationDto
 {
+    public int Ordre { get; set; }
     public int IdEntite { get; set; }
     public string Type { get; set; } = string.Empty;
     public string Sujet { get; set; } = string.Empty;
     public DateTime? DateCreation { get; set; }
+    public DateTime? DateEnregistrement { get; set; }
     public string Source { get; set; } = string.Empty;
     public string Destinataire { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
@@ -112,4 +138,6 @@ public class DocumentCirculationDto
     public string? Etat { get; set; }
     public string? EtatArchive { get; set; }
     public int IdService { get; set; }
+    public string? ServiceNom { get; set; }
+    public bool EstTransmissible { get; set; }
 }

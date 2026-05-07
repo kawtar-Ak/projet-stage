@@ -18,4 +18,5 @@ export const DEFAULT_SERVICES = [
   { idService: 17, nomService: "قضاء الموضوع", description: "Jugement au fond", etage: "2ème" },
   { idService: 18, nomService: "المفوض الملكي", description: "Commissaire royal", etage: "2ème" },
   { idService: 19, nomService: "الرئيس الأول", description: "Premier président", etage: "3ème" },
+  { idService: 20, nomService: "تدبير السحب", description: "Gestion de retrait", etage: "1er" },
 ];

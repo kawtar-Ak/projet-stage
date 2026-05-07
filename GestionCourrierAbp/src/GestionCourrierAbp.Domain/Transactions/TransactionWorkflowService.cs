@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using GestionCourrierAbp.Courriers;
+using GestionCourrierAbp.Services;
 using GestionCourrierAbp.Workflows;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
@@ -13,15 +14,18 @@ public class TransactionWorkflowService : DomainService
     private readonly IRepository<Transaction, int> _transactionRepository;
     private readonly IRepository<CourrierAdministratif, int> _courrierAdministratifRepository;
     private readonly IRepository<CourrierJudiciaire, int> _courrierJudiciaireRepository;
+    private readonly IRepository<Service, int> _serviceRepository;
 
     public TransactionWorkflowService(
         IRepository<Transaction, int> transactionRepository,
         IRepository<CourrierAdministratif, int> courrierAdministratifRepository,
-        IRepository<CourrierJudiciaire, int> courrierJudiciaireRepository)
+        IRepository<CourrierJudiciaire, int> courrierJudiciaireRepository,
+        IRepository<Service, int> serviceRepository)
     {
         _transactionRepository = transactionRepository;
         _courrierAdministratifRepository = courrierAdministratifRepository;
         _courrierJudiciaireRepository = courrierJudiciaireRepository;
+        _serviceRepository = serviceRepository;
     }
 
     public async Task RespondAsync(Transaction transaction, bool accepted, string? message)
@@ -46,6 +50,43 @@ public class TransactionWorkflowService : DomainService
         await _transactionRepository.UpdateAsync(transaction, autoSave: true);
     }
 
+    public async Task ReturnDocumentToSourceServiceAsync(Transaction transaction)
+    {
+        if (transaction.DocumentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase))
+        {
+            var document = await _courrierAdministratifRepository.FindAsync(transaction.DocumentId);
+            if (document != null)
+            {
+                document.ServiceId = transaction.SourceServiceId;
+                if (!await IsArchiveServiceAsync(transaction.SourceServiceId))
+                {
+                    document.EstArchive = false;
+                    document.Etat = WorkflowStatus.Nouveau.ToStorageValue();
+                }
+
+                await _courrierAdministratifRepository.UpdateAsync(document, autoSave: true);
+            }
+
+            return;
+        }
+
+        if (transaction.DocumentType.Equals("Judiciaire", StringComparison.OrdinalIgnoreCase))
+        {
+            var document = await _courrierJudiciaireRepository.FindAsync(transaction.DocumentId);
+            if (document != null)
+            {
+                document.ServiceId = transaction.SourceServiceId;
+                if (!await IsArchiveServiceAsync(transaction.SourceServiceId))
+                {
+                    document.EstArchive = false;
+                    document.EtatArchive = WorkflowStatus.Nouveau.ToStorageValue();
+                }
+
+                await _courrierJudiciaireRepository.UpdateAsync(document, autoSave: true);
+            }
+        }
+    }
+
     private async Task MoveDocumentToDestinationServiceAsync(Transaction transaction)
     {
         if (transaction.DocumentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase))
@@ -54,6 +95,12 @@ public class TransactionWorkflowService : DomainService
             if (document != null)
             {
                 document.ServiceId = transaction.DestinationServiceId;
+                if (await IsArchiveServiceAsync(transaction.DestinationServiceId))
+                {
+                    document.EstArchive = true;
+                    document.Etat = WorkflowStatus.Archive.ToStorageValue();
+                }
+
                 await _courrierAdministratifRepository.UpdateAsync(document, autoSave: true);
             }
 
@@ -66,8 +113,27 @@ public class TransactionWorkflowService : DomainService
             if (document != null)
             {
                 document.ServiceId = transaction.DestinationServiceId;
+                if (await IsArchiveServiceAsync(transaction.DestinationServiceId))
+                {
+                    document.EstArchive = true;
+                    document.EtatArchive = WorkflowStatus.Archive.ToStorageValue();
+                }
+
                 await _courrierJudiciaireRepository.UpdateAsync(document, autoSave: true);
             }
         }
+    }
+
+    private async Task<bool> IsArchiveServiceAsync(int serviceId)
+    {
+        if (serviceId == 13)
+        {
+            return true;
+        }
+
+        var service = await _serviceRepository.FindAsync(serviceId);
+        return service != null &&
+            (service.Description.Contains("Archivage", StringComparison.OrdinalIgnoreCase) ||
+                service.Description.Contains("Archive", StringComparison.OrdinalIgnoreCase));
     }
 }
