@@ -65,7 +65,7 @@ function Login() {
             {submitting ? t('chargement') : t('se_connecter')}
           </button>
           <p style={{ color: '#5f6b7a', marginTop: 10, fontSize: 13 }}>
-            admin / 1q2w3E* | archive / 1q2w3E*
+            admin / 1q2w3E* | archive / 1q2w3E* | bureauordre / 1q2w3E*
           </p>
           {error && <p style={{ color: 'red', marginTop: 10 }}>{error}</p>}
         </form>

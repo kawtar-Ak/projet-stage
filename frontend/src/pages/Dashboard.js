@@ -20,6 +20,7 @@ function Dashboard() {
     const [currentDocument, setCurrentDocument] = useState(null);
     const serviceId = Number(user?.idService || localStorage.getItem('idService') || 0);
     const isArchiveService = serviceId === 13;
+    const isGreffeService = serviceId === 2;
 
     useEffect(() => {
         const stored = localStorage.getItem('hiddenDashboardTransactions');
@@ -39,10 +40,14 @@ function Dashboard() {
                     : axios.get('/api/transactions/outgoing'),
                 axios.get('/api/transactions/pending-returns')
             ]);
-            const transactions = Array.isArray(transactionsRes.data) ? transactionsRes.data : [];
+            const transactions = toArray(transactionsRes.data);
             const visibleTransactions = isArchiveService
                 ? transactions.filter(tx => Number(tx.destinationServiceId) === serviceId)
-                : transactions;
+                : transactions.filter(tx =>
+                    Number(tx.sourceServiceId) === serviceId ||
+                    Number(tx.destinationServiceId) === serviceId ||
+                    Number(tx.currentServiceId) === serviceId
+                );
             const filtered = visibleTransactions.filter(tx => !hiddenIds.includes(tx.id));
             setPending(filtered.filter(tx => isPending(tx.statut)));
             setCompleted(filtered.filter(tx => isAccepted(tx.statut) || isRejected(tx.statut)));
@@ -124,8 +129,20 @@ function Dashboard() {
     return (
         <div className="dashboard-container">
             <div className="dashboard-header">
-                <h1>{isArchiveService ? translate(t, 'dashboard_archive_service', 'Interface du service Archive') : t('dashboard')}</h1>
-                <p>{isArchiveService ? translate(t, 'dashboard_archive_subtitle', "Acceptation des dossiers envoyes a l'archive, archivage et registre des retraits") : t('dashboard_subtitle')}</p>
+                <h1>
+                    {isArchiveService
+                        ? translate(t, 'dashboard_archive_service', 'Interface du service Archive')
+                        : isGreffeService
+                        ? t('dashboard_greffier')
+                        : t('dashboard')}
+                </h1>
+                <p>
+                    {isArchiveService
+                        ? translate(t, 'dashboard_archive_subtitle', "Acceptation des dossiers envoyes a l'archive, archivage et registre des retraits")
+                        : isGreffeService
+                        ? translate(t, 'dashboard_greffier_subtitle', "Enregistrement, suivi et transmission des dossiers du bureau d'ordre")
+                        : t('dashboard_subtitle')}
+                </p>
             </div>
 
             <div className="quick-links-grid">
@@ -148,6 +165,45 @@ function Dashboard() {
                             label={t('registre_retraits')}
                             description={translate(t, 'archive_dashboard_retraits_desc', "Gerer les retraits, les retours et l'export Excel")}
                             onClick={() => navigate('/archives-juridiques')}
+                        />
+                    </>
+                ) : isGreffeService ? (
+                    <>
+                        <QuickLink
+                            icon="@"
+                            label={t('menu_courriers')}
+                            description={translate(t, 'greffe_dashboard_courriers_desc', "Enregistrer et suivre les courriers administratifs")}
+                            onClick={() => navigate('/courriers')}
+                        />
+                        <QuickLink
+                            icon="F"
+                            label={t('menu_dossiers_juridiques')}
+                            description={translate(t, 'greffe_dashboard_dossiers_desc', "Creer et suivre les dossiers judiciaires")}
+                            onClick={() => navigate('/courriers-juridiques')}
+                        />
+                        <QuickLink
+                            icon="D"
+                            label={t('mes_entites')}
+                            description={t('quick_link_desc')}
+                            onClick={() => navigate('/mes-entites')}
+                        />
+                        <QuickLink
+                            icon="NT"
+                            label={t('notifications')}
+                            description={translate(t, 'greffe_dashboard_notifications_desc', "Traiter les demandes recues et les transmissions")}
+                            onClick={() => navigate('/notifications')}
+                        />
+                        <QuickLink
+                            icon="RG"
+                            label={t('registre_transactions')}
+                            description={translate(t, 'greffe_dashboard_registre_desc', "Consulter l'historique des transactions du bureau d'ordre")}
+                            onClick={() => navigate('/transactions-outgoing')}
+                        />
+                        <QuickLink
+                            icon="C"
+                            label={t('circulations')}
+                            description={translate(t, 'greffe_dashboard_circulations_desc', "Suivre les mouvements et emplacements des dossiers")}
+                            onClick={() => navigate('/circulations')}
                         />
                     </>
                 ) : (
@@ -305,7 +361,7 @@ function TransactionItem({ tx, badge, locale, t, actions, note, date, dateLabel 
             </div>
             <div className="transaction-details">
                 <span>{t('service_destinataire')} : {tx.destinationServiceNom}</span>
-                <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {tx.currentLocation || tx.currentServiceNom || '-'}</span>
+                <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {tx.currentServiceNom || tx.currentLocation || '-'}</span>
                 <span>{note ? `${t('note')} : ${note}` : `${t('message')} : ${tx.message || t('non_renseigne')}`}</span>
                 <span>{dateLabel || t('envoye_le')} : {formatDate(date || tx.dateEnvoi, locale)}</span>
             </div>
@@ -353,6 +409,12 @@ function translateStatus(value, t) {
 function translate(t, key, fallback) {
     const value = t(key);
     return value === key ? fallback : value;
+}
+
+function toArray(data) {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.items)) return data.items;
+    return [];
 }
 
 function getErrorMessage(error, fallback) {

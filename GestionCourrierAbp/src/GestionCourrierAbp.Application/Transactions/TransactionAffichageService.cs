@@ -10,6 +10,7 @@ using GestionCourrierAbp.Services;
 
 // Importation de l'entité Utilisateur
 using GestionCourrierAbp.Utilisateurs;
+using GestionCourrierAbp.Workflows;
 
 // IRepository permet d'accéder aux données de la base via ABP
 using Volo.Abp.Domain.Repositories;
@@ -37,6 +38,99 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
 
     // Repository pour accéder aux utilisateurs
     private readonly IRepository<Utilisateur, int> _utilisateurRepository;
+
+    private async Task<DocumentInfo> GetDocumentInfoAsync(int documentId, string documentType)
+    {
+        if (documentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase))
+        {
+            var document = await _courrierAdministratifRepository.FindAsync(documentId);
+            if (document == null)
+            {
+                return DocumentInfo.Empty;
+            }
+
+            var serviceName = await GetServiceNameAsync(document.ServiceId);
+            return new DocumentInfo(
+                document.Sujet,
+                document.NumeroDeCourrier,
+                null,
+                document.ServiceId,
+                serviceName,
+                serviceName);
+        }
+
+        if (documentType.Equals("Judiciaire", StringComparison.OrdinalIgnoreCase))
+        {
+            var document = await _courrierJudiciaireRepository.FindAsync(documentId);
+            if (document == null)
+            {
+                return DocumentInfo.Empty;
+            }
+
+            var serviceName = await GetServiceNameAsync(document.ServiceId);
+            var location = string.IsNullOrWhiteSpace(document.Emplacement)
+                ? serviceName
+                : $"{serviceName} - {document.Emplacement}";
+
+            return new DocumentInfo(
+                document.Sujet,
+                null,
+                BuildNumeroDossierJudiciaire(document),
+                document.ServiceId,
+                serviceName,
+                location);
+        }
+
+        return DocumentInfo.Empty;
+    }
+
+    private async Task<DocumentInfo> GetEffectiveDocumentInfoAsync(Transaction transaction)
+    {
+        var documentInfo = await GetDocumentInfoAsync(transaction.DocumentId, transaction.DocumentType);
+        var effectiveServiceId = GetEffectiveCurrentServiceId(transaction, documentInfo.CurrentServiceId);
+
+        if (!effectiveServiceId.HasValue || effectiveServiceId == documentInfo.CurrentServiceId)
+        {
+            return documentInfo;
+        }
+
+        var serviceName = await GetServiceNameAsync(effectiveServiceId.Value);
+        return documentInfo with
+        {
+            CurrentServiceId = effectiveServiceId,
+            CurrentServiceNom = serviceName,
+            CurrentLocation = serviceName
+        };
+    }
+
+    private static int? GetEffectiveCurrentServiceId(Transaction transaction, int? storedServiceId)
+    {
+        if (transaction.Statut.IsSameAs(WorkflowStatus.EnAttente))
+        {
+            return transaction.DestinationServiceId;
+        }
+
+        if (transaction.Statut.IsSameAs(WorkflowStatus.Refuse) ||
+            transaction.Statut.IsSameAs(WorkflowStatus.Annule) ||
+            transaction.Statut.IsSameAs(WorkflowStatus.Retourne))
+        {
+            return transaction.SourceServiceId;
+        }
+
+        return storedServiceId;
+    }
+
+    private static string? BuildNumeroDossierJudiciaire(CourrierJudiciaire document)
+    {
+        if (!document.NumeroDossierAnnee.HasValue &&
+            !document.NumeroDossierNombre.HasValue &&
+            !document.NumeroDossierSujet.HasValue)
+        {
+            return null;
+        }
+
+        return $"{document.NumeroDossierNombre?.ToString() ?? "-"} / {document.NumeroDossierSujet?.ToString() ?? "-"} / {document.NumeroDossierAnnee?.ToString() ?? "-"}";
+    }
 
     /// <summary>
     /// Constructeur du service.
@@ -122,6 +216,8 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
         // Parcours de chaque transaction
         foreach (var transaction in transactions)
         {
+            var documentInfo = await GetEffectiveDocumentInfoAsync(transaction);
+
             result.Add(new TransactionListDto
             {
                 // Informations principales de la transaction
@@ -130,7 +226,12 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
                 DocumentType = transaction.DocumentType,
 
                 // Récupération du sujet du document à partir de son type et de son ID
-                DocumentSujet = await GetDocumentSujetAsync(transaction.DocumentId, transaction.DocumentType),
+                DocumentSujet = documentInfo.Subject,
+                NumeroCourrier = documentInfo.NumeroCourrier,
+                NumeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
+                CurrentServiceId = documentInfo.CurrentServiceId,
+                CurrentServiceNom = documentInfo.CurrentServiceNom,
+                CurrentLocation = documentInfo.CurrentLocation,
 
                 // Service source
                 SourceServiceId = transaction.SourceServiceId,
@@ -228,5 +329,16 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
         // Recherche de l'utilisateur par son ID
         // Si l'utilisateur existe, on retourne son nom complet
         return (await _utilisateurRepository.FindAsync(userId.Value))?.NomComplet;
+    }
+
+    private sealed record DocumentInfo(
+        string Subject,
+        string? NumeroCourrier,
+        string? NumeroDossierJudiciaire,
+        int? CurrentServiceId,
+        string CurrentServiceNom,
+        string CurrentLocation)
+    {
+        public static DocumentInfo Empty { get; } = new(string.Empty, null, null, null, string.Empty, string.Empty);
     }
 }

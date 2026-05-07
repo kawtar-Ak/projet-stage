@@ -5,11 +5,12 @@ function GreffierDashboard() {
     <RoleDashboard
       titleKey="dashboard_greffier"
       actions={[
-        { to: '/creer-dossier', labelKey: 'creer_dossier_juridique', icon: 'DJ', tone: 'blue' },
-        { to: '/numeros-dossier', labelKey: 'generer_numero_dossier', icon: 'ND', tone: 'gold' },
-        { to: '/dossiers-encours', labelKey: 'consulter_dossiers_en_cours', icon: 'EC', tone: 'green' },
-        { to: '/transferer-dossier', labelKey: 'transferer_dossier', icon: 'TF', tone: 'blue' },
-        { to: '/retraits', labelKey: 'suivi_retraits', icon: 'RT', tone: 'red' },
+        { to: '/courriers', labelKey: 'menu_courriers', icon: '@', tone: 'blue' },
+        { to: '/courriers-juridiques', labelKey: 'menu_dossiers_juridiques', icon: 'F', tone: 'gold' },
+        { to: '/mes-entites', labelKey: 'mes_entites', icon: 'D', tone: 'green' },
+        { to: '/notifications', labelKey: 'notifications', icon: '!', tone: 'red' },
+        { to: '/transactions-outgoing', labelKey: 'registre_transactions', icon: '<', tone: 'blue' },
+        { to: '/circulations', labelKey: 'circulations', icon: 'C', tone: 'gold' },
       ]}
     />
   );

@@ -211,6 +211,8 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             DateEnvoi = input.DateEnvoi ?? DateTime.Now
         }, autoSave: true);
 
+        await _workflowService.SendDocumentToDestinationServiceAsync(transaction);
+
         // Lancement du workflow après la création de la transaction
         await _workflowHost.StartWorkflow(
             TransactionLifecycleWorkflow.WorkflowId,
@@ -270,6 +272,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         transaction.DateReponse = DateTime.Now;
         transaction.MessageReponse = "Annulée par l'émetteur";
 
+        await _workflowService.ReturnDocumentToSourceServiceAsync(transaction);
         await _repository.UpdateAsync(transaction, autoSave: true);
 
         return await ToDtoAsync(transaction);
@@ -425,7 +428,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
         foreach (var transaction in transactions)
         {
-            var documentInfo = await GetDocumentInfoAsync(transaction.DocumentId, transaction.DocumentType);
+            var documentInfo = await GetEffectiveDocumentInfoAsync(transaction);
 
             result.Add(new TransactionListDto
             {
@@ -499,7 +502,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             var serviceName = await GetServiceNameAsync(document.ServiceId);
             var location = string.IsNullOrWhiteSpace(document.Emplacement)
                 ? serviceName
-                : document.Emplacement;
+                : $"{serviceName} - {document.Emplacement}";
 
             return new DocumentInfo(
                 document.Sujet,
@@ -511,6 +514,42 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         }
 
         return DocumentInfo.Empty;
+    }
+
+    private async Task<DocumentInfo> GetEffectiveDocumentInfoAsync(Transaction transaction)
+    {
+        var documentInfo = await GetDocumentInfoAsync(transaction.DocumentId, transaction.DocumentType);
+        var effectiveServiceId = GetEffectiveCurrentServiceId(transaction, documentInfo.CurrentServiceId);
+
+        if (!effectiveServiceId.HasValue || effectiveServiceId == documentInfo.CurrentServiceId)
+        {
+            return documentInfo;
+        }
+
+        var serviceName = await GetServiceNameAsync(effectiveServiceId.Value);
+        return documentInfo with
+        {
+            CurrentServiceId = effectiveServiceId,
+            CurrentServiceNom = serviceName,
+            CurrentLocation = serviceName
+        };
+    }
+
+    private static int? GetEffectiveCurrentServiceId(Transaction transaction, int? storedServiceId)
+    {
+        if (transaction.Statut.IsSameAs(WorkflowStatus.EnAttente))
+        {
+            return transaction.DestinationServiceId;
+        }
+
+        if (transaction.Statut.IsSameAs(WorkflowStatus.Refuse) ||
+            transaction.Statut.IsSameAs(WorkflowStatus.Annule) ||
+            transaction.Statut.IsSameAs(WorkflowStatus.Retourne))
+        {
+            return transaction.SourceServiceId;
+        }
+
+        return storedServiceId;
     }
 
     private async Task<int?> GetCurrentServiceIdAsync(int documentId, string documentType)
@@ -568,7 +607,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     /// </summary>
     private async Task<TransactionDto> ToDtoAsync(Transaction transaction)
     {
-        var documentInfo = await GetDocumentInfoAsync(transaction.DocumentId, transaction.DocumentType);
+        var documentInfo = await GetEffectiveDocumentInfoAsync(transaction);
 
         return new TransactionDto
         {

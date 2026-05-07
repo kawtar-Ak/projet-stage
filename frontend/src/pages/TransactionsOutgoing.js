@@ -14,9 +14,20 @@ function TransactionsOutgoing() {
     const [selectAll, setSelectAll] = useState(false);
 
     const fetchTransactions = useCallback(() => {
-        axios.get('/api/transactions/outgoing')
-            .then(res => {
-                const visibleTransactions = toArray(res.data);
+        Promise.all([
+            axios.get('/api/transactions/outgoing'),
+            axios.get('/api/app/transaction-workflow', {
+                params: { skipCount: 0, maxResultCount: 1000 }
+            }).catch(() => ({ data: [] }))
+        ])
+            .then(([outgoingRes, allRes]) => {
+                const outgoingTransactions = toArray(outgoingRes.data);
+                const allServiceTransactions = toArray(allRes.data).filter(tx =>
+                    Number(tx.sourceServiceId) === currentServiceId ||
+                    (Number(tx.destinationServiceId) === currentServiceId && isProcessedStatus(tx.statut))
+                );
+                const visibleTransactions = mergeTransactions(outgoingTransactions, allServiceTransactions)
+                    .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
                 setAllTransactions(visibleTransactions);
                 setFiltered(visibleTransactions);
                 setSelectedIds([]);
@@ -24,7 +35,7 @@ function TransactionsOutgoing() {
                 setError('');
             })
             .catch(() => setError(t('erreur_chargement')));
-    }, [t]);
+    }, [currentServiceId, t]);
 
     useEffect(() => {
         fetchTransactions();
@@ -141,7 +152,7 @@ function TransactionsOutgoing() {
                                 <td>{tx.numeroDossierJudiciaire || '-'}</td>
                                 <td>{tx.sourceServiceNom || '-'}</td>
                                 <td>{tx.destinationServiceNom}</td>
-                                <td>{tx.currentLocation || tx.currentServiceNom || '-'}</td>
+                                <td>{tx.currentServiceNom || tx.currentLocation || '-'}</td>
                                 <td>{formatStatus(tx.statut, t)}</td>
                                 <td>{tx.dateEnvoi ? new Date(tx.dateEnvoi).toLocaleString(locale) : '-'}</td>
                                 <td>{tx.messageReponse || '-'}</td>
@@ -192,6 +203,23 @@ function isProcessedStatus(value) {
         status.includes('refus') ||
         status.includes('annul') ||
         status.includes('retourn');
+}
+
+function mergeTransactions(...groups) {
+    const result = new Map();
+
+    groups.flat().forEach(tx => {
+        if (tx?.id !== undefined && tx?.id !== null) {
+            result.set(tx.id, tx);
+        }
+    });
+
+    return Array.from(result.values());
+}
+
+function getTime(value) {
+    const date = new Date(value || 0);
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
 function toArray(data) {

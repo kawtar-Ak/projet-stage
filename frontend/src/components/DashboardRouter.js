@@ -15,7 +15,7 @@ function DashboardRouter() {
   if (serviceName.includes('admin') || serviceName.includes('informatique')) {
     return <AdminDashboard />;
   }
-  if (serviceName.includes('greffier') || serviceName.includes('ouverture')) {
+  if (user.idService === 2 || serviceName.includes('greffe') || serviceName.includes('bureau') || serviceName.includes('مكتب الضبط')) {
     return <GreffierDashboard />;
   }
   if (serviceName.includes('enregistrement')) {

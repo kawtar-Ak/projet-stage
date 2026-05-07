@@ -44,10 +44,19 @@ public class TransactionWorkflowService : DomainService
 
         if (accepted)
         {
-            await MoveDocumentToDestinationServiceAsync(transaction);
+            await MoveDocumentToDestinationServiceAsync(transaction, finalizeArchive: true);
+        }
+        else
+        {
+            await ReturnDocumentToSourceServiceAsync(transaction);
         }
 
         await _transactionRepository.UpdateAsync(transaction, autoSave: true);
+    }
+
+    public async Task SendDocumentToDestinationServiceAsync(Transaction transaction)
+    {
+        await MoveDocumentToDestinationServiceAsync(transaction, finalizeArchive: false);
     }
 
     public async Task ReturnDocumentToSourceServiceAsync(Transaction transaction)
@@ -87,7 +96,7 @@ public class TransactionWorkflowService : DomainService
         }
     }
 
-    private async Task MoveDocumentToDestinationServiceAsync(Transaction transaction)
+    private async Task MoveDocumentToDestinationServiceAsync(Transaction transaction, bool finalizeArchive)
     {
         if (transaction.DocumentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase))
         {
@@ -95,7 +104,7 @@ public class TransactionWorkflowService : DomainService
             if (document != null)
             {
                 document.ServiceId = transaction.DestinationServiceId;
-                if (await IsArchiveServiceAsync(transaction.DestinationServiceId))
+                if (finalizeArchive && await IsArchiveServiceAsync(transaction.DestinationServiceId))
                 {
                     document.EstArchive = true;
                     document.Etat = WorkflowStatus.Archive.ToStorageValue();
@@ -113,7 +122,7 @@ public class TransactionWorkflowService : DomainService
             if (document != null)
             {
                 document.ServiceId = transaction.DestinationServiceId;
-                if (await IsArchiveServiceAsync(transaction.DestinationServiceId))
+                if (finalizeArchive && await IsArchiveServiceAsync(transaction.DestinationServiceId))
                 {
                     document.EstArchive = true;
                     document.EtatArchive = WorkflowStatus.Archive.ToStorageValue();

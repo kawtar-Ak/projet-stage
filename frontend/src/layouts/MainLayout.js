@@ -33,7 +33,6 @@ function MainLayout({ children }) {
       { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
       { labelKey: 'menu_courriers', icon: 'mail', path: '/courriers' },
       { labelKey: 'menu_dossiers_juridiques', icon: 'folder', path: '/courriers-juridiques' },
-      { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
       { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
       { labelKey: 'circulations', icon: 'send', path: '/circulations' },
       { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' },
@@ -52,6 +51,7 @@ function MainLayout({ children }) {
     if (serviceId === 1 || serviceName.includes('خلية المعلومات')) {
       return [
         ...commonLinks,
+        { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
         { labelKey: 'equipements', icon: 'settings', path: '/equipements' },
         { labelKey: 'services', icon: 'service', path: '/services' },
         { labelKey: 'utilisateurs', icon: 'users', path: '/utilisateurs' }
