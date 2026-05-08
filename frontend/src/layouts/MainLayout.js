@@ -65,6 +65,13 @@ function MainLayout({ children }) {
       serviceName.includes('فتح الملفات') ||
       [2, 3, 5, 13].includes(serviceId)
     ) {
+      if (serviceId === 2 || serviceName.includes('bureau') || serviceName.includes('greffe')) {
+        return [
+          ...commonLinks,
+          { labelKey: 'gerer_equipements', icon: 'settings', path: '/equipements' }
+        ];
+      }
+
       return commonLinks;
     }
 

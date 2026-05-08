@@ -11,6 +11,7 @@ function GreffierDashboard() {
         { to: '/notifications', labelKey: 'notifications', icon: '!', tone: 'red' },
         { to: '/transactions-outgoing', labelKey: 'registre_transactions', icon: '<', tone: 'blue' },
         { to: '/circulations', labelKey: 'circulations', icon: 'C', tone: 'gold' },
+        { to: '/equipements', labelKey: 'gerer_equipements', icon: 'EQ', tone: 'green' },
       ]}
     />
   );

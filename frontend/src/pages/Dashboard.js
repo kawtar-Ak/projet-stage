@@ -205,6 +205,12 @@ function Dashboard() {
                             description={translate(t, 'greffe_dashboard_circulations_desc', "Suivre les mouvements et emplacements des dossiers")}
                             onClick={() => navigate('/circulations')}
                         />
+                        <QuickLink
+                            icon="EQ"
+                            label={t('gerer_equipements')}
+                            description={translate(t, 'greffe_dashboard_equipements_desc', "Gerer les equipements affectes au bureau d'ordre")}
+                            onClick={() => navigate('/equipements')}
+                        />
                     </>
                 ) : (
                     <>
