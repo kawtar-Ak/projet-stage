@@ -22,13 +22,13 @@ public class RegistreAppService : GestionCourrierAbpAppService, IRegistreAppServ
 
     public async Task<RegistreDto> GetAsync(int id)
     {
-        var query = await _registreRepository.WithDetailsAsync(x => x.Service, x => x.Reponses);
+        var query = (await _registreRepository.WithDetailsAsync(x => x.Service!, x => x.Reponses))!;
         return ToDto(await AsyncExecuter.FirstAsync(query.Where(x => x.Id == id)));
     }
 
     public async Task<PagedResultDto<RegistreDto>> GetListAsync(PagedAndSortedResultRequestDto input)
     {
-        var query = await _registreRepository.WithDetailsAsync(x => x.Service, x => x.Reponses);
+        var query = (await _registreRepository.WithDetailsAsync(x => x.Service!, x => x.Reponses))!;
         var totalCount = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(
             query.OrderByDescending(x => x.DateCreation).Skip(input.SkipCount).Take(input.MaxResultCount));
@@ -38,7 +38,7 @@ public class RegistreAppService : GestionCourrierAbpAppService, IRegistreAppServ
 
     public async Task<List<RegistreDto>> GetByServiceAsync(int serviceId)
     {
-        var query = await _registreRepository.WithDetailsAsync(x => x.Service, x => x.Reponses);
+        var query = (await _registreRepository.WithDetailsAsync(x => x.Service!, x => x.Reponses))!;
         var items = await AsyncExecuter.ToListAsync(
             query.Where(x => x.ServiceId == serviceId).OrderByDescending(x => x.DateCreation));
 

@@ -11,6 +11,8 @@ namespace GestionCourrierAbp.Courriers;
 
 public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourrierJudiciaireAppService
 {
+    private const int OpeningFilesServiceId = 3;
+
     private readonly IRepository<CourrierJudiciaire, int> _repository;
     private readonly IRepository<RetraitJudiciaire, int> _retraitRepository;
 
@@ -24,13 +26,13 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<CourrierJudiciaireDto> GetAsync(int id)
     {
-        var query = await _repository.WithDetailsAsync(x => x.Service, x => x.Retraits);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits))!;
         return ToDto(await AsyncExecuter.FirstAsync(query.Where(x => x.Id == id)));
     }
 
     public async Task<PagedResultDto<CourrierJudiciaireDto>> GetListAsync(PagedAndSortedResultRequestDto input)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service, x => x.Retraits)).Where(x => !x.EstArchive);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits))!.Where(x => !x.EstArchive);
         var total = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date).Skip(input.SkipCount).Take(input.MaxResultCount));
         return new PagedResultDto<CourrierJudiciaireDto>(total, items.Select(ToDto).ToList());
@@ -60,7 +62,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<List<CourrierJudiciaireDto>> SearchAsync(string? motCle)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service, x => x.Retraits)).Where(x => !x.EstArchive);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits))!.Where(x => !x.EstArchive);
         query = ApplySearch(query, motCle);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date));
         return items.Select(ToDto).ToList();
@@ -68,7 +70,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<List<CourrierJudiciaireDto>> GetArchivesAsync(string? motCle)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service, x => x.Retraits)).Where(x => x.EstArchive);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits))!.Where(x => x.EstArchive);
         query = ApplySearch(query, motCle);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date));
         return items.Select(ToDto).ToList();
@@ -184,11 +186,16 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         entity.Emplacement = input.Emplacement?.Trim() ?? string.Empty;
         entity.LienPdf = input.LienPdf?.Trim() ?? string.Empty;
         entity.ServiceId = input.IdService;
-        entity.EstTransmissible = input.EstTransmissible;
         var parsed = ParseNumeroDossier(input);
         entity.NumeroDossierAnnee = parsed.annee;
         entity.NumeroDossierNombre = parsed.nombre;
         entity.NumeroDossierSujet = parsed.sujet;
+        entity.EstTransmissible = input.EstTransmissible || HasCompleteNumeroDossier(parsed);
+        if (entity.ServiceId == OpeningFilesServiceId && HasCompleteNumeroDossier(parsed))
+        {
+            entity.EstTransmissible = true;
+        }
+
         return entity;
     }
 
@@ -247,6 +254,11 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             return (annee, nombre, sujet);
 
         return (null, null, null);
+    }
+
+    private static bool HasCompleteNumeroDossier((int? annee, int? nombre, int? sujet) numero)
+    {
+        return numero.annee.HasValue && numero.nombre.HasValue && numero.sujet.HasValue;
     }
 
     private static string? NormalizeNumber(string? value)

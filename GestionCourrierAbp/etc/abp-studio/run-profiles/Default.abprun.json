@@ -2,7 +2,7 @@
   "applications": {
     "GestionCourrierAbp.HttpApi.Host": {
       "type": "dotnet-project",
-      "launchUrl": "https://localhost:44300",
+      "launchUrl": "http://localhost:44301",
       "path": "../../../src/GestionCourrierAbp.HttpApi.Host/GestionCourrierAbp.HttpApi.Host.csproj",
       "kubernetesService": ".*-httpapihost$",
       "healthCheckEndpoint": "/health-status",

@@ -5,9 +5,14 @@ import { DEFAULT_SERVICES } from "../constants/defaultServices";
 import DocumentModal from "../components/DocumentModal";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
+const BUREAU_ORDRE_SERVICE_ID = 2;
+const OUVERTURE_DOSSIERS_SERVICE_ID = 3;
 
 function GererCourriersJuridiques({ embedded = false }) {
   const { t } = useTranslation();
+  const currentServiceId = Number(localStorage.getItem("idService") || 0);
+  const isBureauOrdreService = currentServiceId === BUREAU_ORDRE_SERVICE_ID;
+  const isOuvertureDossiersService = currentServiceId === OUVERTURE_DOSSIERS_SERVICE_ID;
   const [courriers, setCourriers] = useState([]);
   const [services, setServices] = useState([]);
   const [editingId, setEditingId] = useState(null);
@@ -59,14 +64,14 @@ function GererCourriersJuridiques({ embedded = false }) {
       if (serviceList.length > 0) {
         setForm((prev) => ({
           ...prev,
-          idService: prev.idService || serviceList[0].idService,
+          idService: prev.idService || currentServiceId || serviceList[0].idService,
         }));
       }
     } catch (err) {
       setServices(DEFAULT_SERVICES);
       setForm((prev) => ({
         ...prev,
-        idService: prev.idService || DEFAULT_SERVICES[0].idService,
+        idService: prev.idService || currentServiceId || DEFAULT_SERVICES[0].idService,
       }));
     }
   };
@@ -126,7 +131,7 @@ function GererCourriersJuridiques({ embedded = false }) {
     setError("");
     setSuccess("");
 
-    const validationError = validateForm(form, t);
+    const validationError = validateForm(form, t, isOuvertureDossiersService);
     if (validationError) {
       setError(validationError);
       return;
@@ -144,8 +149,10 @@ function GererCourriersJuridiques({ embedded = false }) {
       emplacement: form.emplacement.trim(),
       lienPdf: form.lienPdf.trim(),
       idService: Number(form.idService),
-      numeroDossier: form.numeroDossier.trim(),
-      estTransmissible: Boolean(form.estTransmissible),
+      numeroDossier: isBureauOrdreService ? "" : form.numeroDossier.trim(),
+      estTransmissible: isOuvertureDossiersService
+        ? hasCompleteNumeroDossier(form.numeroDossier)
+        : Boolean(form.estTransmissible) && !isBureauOrdreService && hasCompleteNumeroDossier(form.numeroDossier),
     };
 
     try {
@@ -228,7 +235,7 @@ function GererCourriersJuridiques({ embedded = false }) {
 
   const openTransferModal = (courrier) => {
     setSelectedTransferItem(courrier);
-    setTransferForm(getInitialTransferForm());
+    setTransferForm(getInitialTransferForm(getDefaultTransferServiceId(courrier)));
     setError("");
     setSuccess("");
   };
@@ -240,7 +247,7 @@ function GererCourriersJuridiques({ embedded = false }) {
 
   const openCreateModal = () => {
     setEditingId(null);
-    setForm(getInitialForm(services));
+    setForm(getInitialForm(services, currentServiceId));
     setIsCreateModalOpen(true);
     setError("");
     setSuccess("");
@@ -254,11 +261,17 @@ function GererCourriersJuridiques({ embedded = false }) {
     }
 
     try {
+      const isIncomplete = isIncompleteJudicialFile(selectedTransferItem);
+      const destinationServiceId = isIncomplete
+        ? OUVERTURE_DOSSIERS_SERVICE_ID
+        : Number(transferForm.serviceId);
+      const sourceServiceId = Number(selectedTransferItem.idService || currentServiceId);
+
       await axios.post("/api/transactions", {
         documentId: selectedTransferItem.id,
         documentType: "Judiciaire",
-        sourceServiceId: selectedTransferItem.idService,
-        destinationServiceId: Number(transferForm.serviceId),
+        sourceServiceId,
+        destinationServiceId,
         destinationUserId: null,
         doitRevenir: transferForm.doitRevenir,
         dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
@@ -320,7 +333,7 @@ function GererCourriersJuridiques({ embedded = false }) {
     setEditingId(null);
     setIsEditModalOpen(false);
     setIsCreateModalOpen(false);
-    setForm(getInitialForm(services));
+    setForm(getInitialForm(services, currentServiceId));
     setError("");
   };
 
@@ -407,10 +420,18 @@ function GererCourriersJuridiques({ embedded = false }) {
 
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
-            <div className="form-field">
-              <label>{t("numero_dossier_appel")} *</label>
-              <input name="numeroDossier" value={form.numeroDossier} onChange={handleChange} placeholder="2026/15/3" required />
-            </div>
+            {!isBureauOrdreService && (
+              <div className="form-field">
+                <label>{t("numero_dossier_appel")}{isOuvertureDossiersService ? " *" : ""}</label>
+                <input
+                  name="numeroDossier"
+                  value={form.numeroDossier}
+                  onChange={handleChange}
+                  placeholder="2026/15/3"
+                  required={isOuvertureDossiersService}
+                />
+              </div>
+            )}
 
             <div className="form-field">
               <label>{t("date")} *</label>
@@ -467,6 +488,7 @@ function GererCourriersJuridiques({ embedded = false }) {
                   name="estTransmissible"
                   checked={form.estTransmissible}
                   onChange={handleChange}
+                  disabled={isBureauOrdreService || isOuvertureDossiersService}
                 />
                 {t("oui")}
               </label>
@@ -653,6 +675,7 @@ function GererCourriersJuridiques({ embedded = false }) {
               {t("fermer")}
             </button>
           </div>
+          {error && <div className="error-message">{error}</div>}
 
           <form onSubmit={handleTransferSubmit}>
             <div className="form-grid">
@@ -661,7 +684,9 @@ function GererCourriersJuridiques({ embedded = false }) {
                 <select name="serviceId" value={transferForm.serviceId} onChange={handleTransferServiceChange} required>
                   <option value="">-- {t("selectionner_service")} --</option>
                   {services
-                    .filter((service) => Number(service.idService) !== Number(selectedTransferItem.idService))
+                    .filter((service) => isIncompleteJudicialFile(selectedTransferItem)
+                      ? Number(service.idService) === OUVERTURE_DOSSIERS_SERVICE_ID
+                      : Number(service.idService) !== Number(selectedTransferItem.idService))
                     .map((service) => (
                       <option key={service.idService} value={service.idService}>
                         {service.nomService}
@@ -773,7 +798,7 @@ function GererCourriersJuridiques({ embedded = false }) {
                     <td className="action-icons">
                       <button type="button" onClick={() => handleConsult(courrier)}>{t("consulter")}</button>
                       <button type="button" onClick={() => handleEdit(courrier)}>{t("modifier")}</button>
-                      <button type="button" onClick={() => openTransferModal(courrier)} disabled={!courrier.estTransmissible}>
+                      <button type="button" onClick={() => openTransferModal(courrier)} disabled={!canTransferCourrier(courrier)}>
                         {t("transferer")}
                       </button>
                       <button type="button" onClick={() => handleDelete(courrier.id)}>{t("supprimer")}</button>
@@ -795,7 +820,7 @@ function GererCourriersJuridiques({ embedded = false }) {
   );
 }
 
-function getInitialForm(services = []) {
+function getInitialForm(services = [], currentServiceId = 0) {
   return {
     idBureauOrdre: "",
     date: "",
@@ -808,8 +833,8 @@ function getInitialForm(services = []) {
     etatArchive: "Nouveau",
     emplacement: "",
     lienPdf: "",
-    idService: getDefaultServiceId(services),
-    estTransmissible: true,
+    idService: currentServiceId || getDefaultServiceId(services),
+    estTransmissible: false,
   };
 }
 
@@ -822,9 +847,9 @@ function getInitialRetraitForm() {
   };
 }
 
-function getInitialTransferForm() {
+function getInitialTransferForm(serviceId = "") {
   return {
-    serviceId: "",
+    serviceId,
     dateEnvoi: new Date().toISOString().slice(0, 10),
     doitRevenir: false,
     message: "",
@@ -835,16 +860,35 @@ function getDefaultServiceId(services) {
   return services.length > 0 ? services[0].idService : "";
 }
 
-function validateForm(form, t) {
+function validateForm(form, t, requireNumeroDossier = false) {
   if (!form.date) return t("erreur_date_requise");
   if (!form.tribunalSource.trim()) return t("erreur_tribunal_requis");
-  if (!form.numeroDossier.trim()) return t("erreur_numero_dossier_requis");
-  if (!/^\d+(\/\d+){0,2}$/.test(form.numeroDossier.trim())) {
+  if (requireNumeroDossier && !form.numeroDossier.trim()) return t("erreur_numero_dossier_requis");
+  if (form.numeroDossier.trim() && !/^\d+(\/\d+){2}$/.test(form.numeroDossier.trim())) {
     return t("erreur_numero_dossier_format");
   }
   if (!form.sujet.trim()) return t("erreur_objet_requis");
   if (!form.idService) return t("erreur_service_requis");
   return "";
+}
+
+function hasCompleteNumeroDossier(value) {
+  return /^\d+\/\d+\/\d+$/.test(String(value || "").trim());
+}
+
+function isIncompleteJudicialFile(courrier) {
+  return !hasCompleteNumeroDossier(courrier?.numeroDossier);
+}
+
+function canTransferCourrier(courrier) {
+  if (courrier?.estTransmissible) return true;
+  return Number(courrier?.idService) === BUREAU_ORDRE_SERVICE_ID && isIncompleteJudicialFile(courrier);
+}
+
+function getDefaultTransferServiceId(courrier) {
+  return canTransferCourrier(courrier) && isIncompleteJudicialFile(courrier)
+    ? String(OUVERTURE_DOSSIERS_SERVICE_ID)
+    : "";
 }
 
 function filterCourriersJudiciaires(courriers, motCle, dateRecherche) {

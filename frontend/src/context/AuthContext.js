@@ -53,10 +53,11 @@ export const AuthProvider = ({ children }) => {
     const profile = await getBusinessUserProfile(userLogin);
     const isArchiveLogin = userLogin.toLowerCase() === 'archive';
     const isGreffeLogin = userLogin.toLowerCase() === 'bureauordre';
+    const isOpeningFilesLogin = userLogin.toLowerCase() === 'ouverturedossiers';
     const nomComplet = profile?.nomComplet ||
-      (isArchiveLogin ? 'Service Archive' : isGreffeLogin ? "Greffier - Bureau d'ordre" : userLogin);
-    const idService = Number(profile?.idService || profile?.serviceId || (isArchiveLogin ? 13 : isGreffeLogin ? 2 : 1));
-    const nomService = profile?.serviceNom || profile?.nomService || (isArchiveLogin ? 'الحفظ' : isGreffeLogin ? 'مكتب الضبط' : 'ABP');
+      (isArchiveLogin ? 'Service Archive' : isGreffeLogin ? "Greffier - Bureau d'ordre" : isOpeningFilesLogin ? "Bureau d'ouverture des dossiers" : userLogin);
+    const idService = Number(profile?.idService || profile?.serviceId || (isArchiveLogin ? 13 : isGreffeLogin ? 2 : isOpeningFilesLogin ? 3 : 1));
+    const nomService = profile?.serviceNom || profile?.nomService || (isArchiveLogin ? 'الحفظ' : isGreffeLogin ? 'مكتب الضبط' : isOpeningFilesLogin ? 'فتح الملفات' : 'ABP');
 
     localStorage.setItem('login', userLogin);
     localStorage.setItem('nomComplet', nomComplet);

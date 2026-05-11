@@ -1,7 +1,7 @@
 export const DEFAULT_SERVICES = [
   { idService: 1, nomService: "خلية المعلوميات", description: "Cellule informatique", etage: "2ème" },
   { idService: 2, nomService: "مكتب الضبط", description: "Greffe", etage: "1er" },
-  { idService: 3, nomService: "فتح الملفات", description: "Caisse", etage: "RDC" },
+  { idService: 3, nomService: "فتح الملفات", description: "Ouverture des dossiers", etage: "RDC" },
   { idService: 4, nomService: "التوزيع", description: "Distribution", etage: "2ème" },
   { idService: 5, nomService: "رئيس المصلحة", description: "Chef de service", etage: "2ème" },
   { idService: 6, nomService: "مدير النظام", description: "Admin système", etage: "2ème" },

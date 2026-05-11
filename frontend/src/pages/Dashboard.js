@@ -21,6 +21,8 @@ function Dashboard() {
     const serviceId = Number(user?.idService || localStorage.getItem('idService') || 0);
     const isArchiveService = serviceId === 13;
     const isGreffeService = serviceId === 2;
+    const isOpeningFilesService = serviceId === 3;
+    const handlesIncomingRequests = !isGreffeService;
 
     useEffect(() => {
         const stored = localStorage.getItem('hiddenDashboardTransactions');
@@ -34,24 +36,38 @@ function Dashboard() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [transactionsRes, returnsRes] = await Promise.all([
+            const [pendingRes, historyRes, returnsRes] = await Promise.all([
+                isArchiveService
+                    ? axios.get('/api/transactions', { params: { skipCount: 0, maxResultCount: 1000 } })
+                    : handlesIncomingRequests
+                    ? axios.get('/api/transactions/incoming')
+                    : axios.get('/api/transactions/outgoing'),
                 isArchiveService
                     ? axios.get('/api/transactions', { params: { skipCount: 0, maxResultCount: 1000 } })
                     : axios.get('/api/transactions/outgoing'),
                 axios.get('/api/transactions/pending-returns')
             ]);
-            const transactions = toArray(transactionsRes.data);
-            const visibleTransactions = isArchiveService
-                ? transactions.filter(tx => Number(tx.destinationServiceId) === serviceId)
-                : transactions.filter(tx =>
+            const pendingTransactions = toArray(pendingRes.data);
+            const historyTransactions = toArray(historyRes.data);
+            const visiblePending = isArchiveService
+                ? pendingTransactions.filter(tx => Number(tx.destinationServiceId) === serviceId)
+                : pendingTransactions.filter(tx =>
                     Number(tx.sourceServiceId) === serviceId ||
                     Number(tx.destinationServiceId) === serviceId ||
                     Number(tx.currentServiceId) === serviceId
                 );
-            const filtered = visibleTransactions.filter(tx => !hiddenIds.includes(tx.id));
-            setPending(filtered.filter(tx => isPending(tx.statut)));
-            setCompleted(filtered.filter(tx => isAccepted(tx.statut) || isRejected(tx.statut)));
-            setPendingReturns(returnsRes.data);
+            const visibleHistory = isArchiveService
+                ? historyTransactions.filter(tx => Number(tx.destinationServiceId) === serviceId)
+                : historyTransactions.filter(tx =>
+                    Number(tx.sourceServiceId) === serviceId ||
+                    Number(tx.destinationServiceId) === serviceId ||
+                    Number(tx.currentServiceId) === serviceId
+                );
+            const filteredPending = visiblePending.filter(tx => !hiddenIds.includes(tx.id));
+            const filteredHistory = visibleHistory.filter(tx => !hiddenIds.includes(tx.id));
+            setPending(filteredPending.filter(tx => isPending(tx.statut)));
+            setCompleted(filteredHistory.filter(tx => isAccepted(tx.statut) || isRejected(tx.statut)));
+            setPendingReturns(toArray(returnsRes.data));
             setError('');
         } catch (err) {
             setError(t('erreur_chargement_donnees'));
@@ -145,74 +161,23 @@ function Dashboard() {
                 </p>
             </div>
 
-            <div className="quick-links-grid">
-                {isArchiveService ? (
-                    <>
-                        <QuickLink
-                            icon="NT"
-                            label={t('notifications')}
-                            description={translate(t, 'archive_dashboard_notifications_desc', 'Consulter, accepter ou refuser les dossiers envoyes au service Archive')}
-                            onClick={() => navigate('/notifications')}
-                        />
-                        <QuickLink
-                            icon="AR"
-                            label={t('menu_archives_juridiques')}
-                            description={translate(t, 'archive_dashboard_archives_desc', 'Consulter les dossiers archives et leurs emplacements')}
-                            onClick={() => navigate('/archives-juridiques')}
-                        />
-                        <QuickLink
-                            icon="RT"
-                            label={t('registre_retraits')}
-                            description={translate(t, 'archive_dashboard_retraits_desc', "Gerer les retraits, les retours et l'export Excel")}
-                            onClick={() => navigate('/archives-juridiques')}
-                        />
-                    </>
-                ) : isGreffeService ? (
-                    <>
-                        <QuickLink
-                            icon="@"
-                            label={t('menu_courriers')}
-                            description={translate(t, 'greffe_dashboard_courriers_desc', "Enregistrer et suivre les courriers administratifs")}
-                            onClick={() => navigate('/courriers')}
-                        />
-                        <QuickLink
-                            icon="F"
-                            label={t('menu_dossiers_juridiques')}
-                            description={translate(t, 'greffe_dashboard_dossiers_desc', "Creer et suivre les dossiers judiciaires")}
-                            onClick={() => navigate('/courriers-juridiques')}
-                        />
-                        <QuickLink
-                            icon="D"
-                            label={t('mes_entites')}
-                            description={t('quick_link_desc')}
-                            onClick={() => navigate('/mes-entites')}
-                        />
-                        <QuickLink
-                            icon="NT"
-                            label={t('notifications')}
-                            description={translate(t, 'greffe_dashboard_notifications_desc', "Traiter les demandes recues et les transmissions")}
-                            onClick={() => navigate('/notifications')}
-                        />
-                        <QuickLink
-                            icon="RG"
-                            label={t('registre_transactions')}
-                            description={translate(t, 'greffe_dashboard_registre_desc', "Consulter l'historique des transactions du bureau d'ordre")}
-                            onClick={() => navigate('/transactions-outgoing')}
-                        />
-                        <QuickLink
-                            icon="C"
-                            label={t('circulations')}
-                            description={translate(t, 'greffe_dashboard_circulations_desc', "Suivre les mouvements et emplacements des dossiers")}
-                            onClick={() => navigate('/circulations')}
-                        />
-                        <QuickLink
-                            icon="EQ"
-                            label={t('gerer_equipements')}
-                            description={translate(t, 'greffe_dashboard_equipements_desc', "Gerer les equipements affectes au bureau d'ordre")}
-                            onClick={() => navigate('/equipements')}
-                        />
-                    </>
-                ) : (
+            {isOpeningFilesService ? (
+                <div className="quick-links-grid">
+                    <QuickLink
+                        icon="OD"
+                        label={t('dossiers_acceptes_ouverture')}
+                        description={t('dossiers_acceptes_ouverture_desc')}
+                        onClick={() => navigate('/dossiers-ouverture')}
+                    />
+                    <QuickLink
+                        icon="NT"
+                        label={t('notifications')}
+                        description={t('notification_transaction')}
+                        onClick={() => navigate('/notifications')}
+                    />
+                </div>
+            ) : !isGreffeService && !isArchiveService && (
+                <div className="quick-links-grid">
                     <>
                         <QuickLink
                             icon="D"
@@ -233,8 +198,8 @@ function Dashboard() {
                             onClick={() => navigate('/acteurs-judiciaires')}
                         />
                     </>
-                )}
-            </div>
+                </div>
+            )}
 
             <div className="stats-grid">
                 <div className="stat-card pending">
@@ -267,7 +232,7 @@ function Dashboard() {
                                 badge={t('en_attente')}
                                 locale={locale}
                                 t={t}
-                                actions={isArchiveService ? [
+                                actions={handlesIncomingRequests ? [
                                     <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
                                     <button className="action-link accept" onClick={() => handleRespond(tx.id, true)}>{t('accepter')}</button>,
                                     <button className="action-link cancel" onClick={() => handleRespond(tx.id, false)}>{t('refuser')}</button>

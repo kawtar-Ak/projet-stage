@@ -110,7 +110,7 @@ public class ServiceAppService : GestionCourrierAbpAppService, IServiceAppServic
         {
             new(1, "خلية المعلوميات", "Cellule informatique", "2ème"),
             new(2, "مكتب الضبط", "Greffe", "1er"),
-            new(3, "فتح الملفات", "Caisse", "RDC"),
+            new(3, "فتح الملفات", "Ouverture des dossiers", "RDC"),
             new(4, "التوزيع", "Distribution", "2ème"),
             new(5, "رئيس المصلحة", "Chef de service", "2ème"),
             new(6, "مدير النظام", "Admin système", "2ème"),

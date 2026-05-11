@@ -41,6 +41,8 @@ namespace GestionCourrierAbp.Transactions;
 /// </summary>
 public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITransactionWorkflowAppService
 {
+    private const int OpeningFilesServiceId = 3;
+
     // Repository principal pour accéder aux transactions
     private readonly IRepository<Transaction, int> _repository;
 
@@ -191,7 +193,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         var documentType = input.DocumentType.Trim();
 
         // Vérifie que le document peut être transmis
-        await EnsureDocumentIsTransmissibleAsync(input.DocumentId, documentType);
+        await EnsureDocumentIsTransmissibleAsync(input.DocumentId, documentType, input.DestinationServiceId);
         await EnsureDocumentBelongsToSourceServiceAsync(input.DocumentId, documentType, input.SourceServiceId);
 
         // Vérifie qu’il n’existe pas déjà une transaction active pour ce document
@@ -383,14 +385,11 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     /// Vérifie que le document est transmissible.
     /// Un document non transmissible ne peut pas être envoyé vers un autre service.
     /// </summary>
-    private async Task EnsureDocumentIsTransmissibleAsync(int documentId, string documentType)
+    private async Task EnsureDocumentIsTransmissibleAsync(int documentId, string documentType, int destinationServiceId)
     {
-        // Cas d’un courrier administratif
         if (documentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase))
         {
             var document = await _courrierAdministratifRepository.FindAsync(documentId);
-
-            // Si le document n’existe pas ou n’est pas transmissible, on bloque
             if (document is not { EstTransmissible: true })
             {
                 throw new BusinessException("DocumentNonTransmissible");
@@ -399,13 +398,15 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             return;
         }
 
-        // Cas d’un courrier judiciaire
         if (documentType.Equals("Judiciaire", StringComparison.OrdinalIgnoreCase))
         {
             var document = await _courrierJudiciaireRepository.FindAsync(documentId);
+            if (document == null)
+            {
+                throw new BusinessException("DocumentNonTransmissible");
+            }
 
-            // Si le document n’existe pas ou n’est pas transmissible, on bloque
-            if (document is not { EstTransmissible: true })
+            if (!document.EstTransmissible && destinationServiceId != OpeningFilesServiceId)
             {
                 throw new BusinessException("DocumentNonTransmissible");
             }
@@ -413,11 +414,9 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             return;
         }
 
-        // Si le type du document est incorrect
         throw new BusinessException("TypeDocumentInvalide")
             .WithData("DocumentType", documentType);
     }
-
     /// <summary>
     /// Transforme une liste de transactions en DTO enrichis pour l’affichage.
     /// Cette méthode ajoute le sujet du document, le nom des services et le nom de l’utilisateur.

@@ -754,6 +754,19 @@ a {
   border-color: var(--navy-700);
 }
 
+.scope-filter {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filters .btn-primary {
+  color: #ffffff;
+  background: linear-gradient(180deg, var(--navy-800), var(--navy-950));
+  border-color: var(--navy-800);
+  box-shadow: 0 8px 16px rgba(8, 42, 74, 0.16);
+}
+
 .btn-primary:disabled,
 .btn-secondary:disabled,
 button:disabled {

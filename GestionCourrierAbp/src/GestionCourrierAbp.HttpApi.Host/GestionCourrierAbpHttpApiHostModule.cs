@@ -286,7 +286,7 @@ public class GestionCourrierAbpHttpApiHostModule : AbpModule
         app.UseAuthentication();
         app.UseAbpOpenIddictValidation();
 
-        if (MultiTenancyConsts.IsEnabled)
+        if (Convert.ToBoolean(MultiTenancyConsts.IsEnabled))
         {
             app.UseMultiTenancy();
         }

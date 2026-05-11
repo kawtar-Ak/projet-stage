@@ -48,6 +48,15 @@ function MainLayout({ children }) {
       ];
     }
 
+    if (serviceId === 3 || serviceName.includes('ouverture') || serviceName.includes('فتح الملفات')) {
+      return [
+        { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
+        { labelKey: 'dossiers_acceptes_ouverture', icon: 'folder', path: '/dossiers-ouverture' },
+        { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' }
+      ];
+    }
+
     if (serviceId === 1 || serviceName.includes('خلية المعلومات')) {
       return [
         ...commonLinks,

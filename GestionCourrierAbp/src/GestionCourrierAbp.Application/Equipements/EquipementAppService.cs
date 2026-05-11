@@ -36,12 +36,12 @@ public class EquipementAppService :
 
     protected override async Task<IQueryable<Equipement>> CreateFilteredQueryAsync(PagedAndSortedResultRequestDto input)
     {
-        return await Repository.WithDetailsAsync(x => x.Service);
+        return (await Repository.WithDetailsAsync(x => x.Service!))!;
     }
 
     protected override async Task<Equipement> GetEntityByIdAsync(int id)
     {
-        var query = await Repository.WithDetailsAsync(x => x.Service);
+        var query = (await Repository.WithDetailsAsync(x => x.Service!))!;
         return await AsyncExecuter.FirstAsync(query.Where(x => x.Id == id));
     }
 

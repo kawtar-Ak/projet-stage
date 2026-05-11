@@ -15,6 +15,7 @@ import Notifications from './pages/Notifications';
 import MessagesAdministratifs from './pages/MessagesAdministratifs';
 import ActeursJudiciaires from './pages/ActeursJudiciaires';
 import GererCourriersJuridiques from './pages/GererCourriersJuridiques';
+import DossiersOuverture from './pages/DossiersOuverture';
 import GererArchivesJuridiques from './pages/GererArchivesJuridiques';
 import Circulations from './pages/Circulations';
 // ... puis dans les routes
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/messages-administratifs" element={<PrivateRoute><MainLayout><MessagesAdministratifs /></MainLayout></PrivateRoute>} />
       <Route path="/acteurs-judiciaires" element={<PrivateRoute><MainLayout><ActeursJudiciaires /></MainLayout></PrivateRoute>} />
       <Route path="/courriers-juridiques" element={<PrivateRoute><MainLayout><GererCourriersJuridiques /></MainLayout></PrivateRoute>} />
+      <Route path="/dossiers-ouverture" element={<PrivateRoute><MainLayout><DossiersOuverture /></MainLayout></PrivateRoute>} />
       <Route path="/archives-juridiques" element={<PrivateRoute><MainLayout><GererArchivesJuridiques /></MainLayout></PrivateRoute>} />
       <Route path="/equipements" element={<PrivateRoute><MainLayout><GererEquipements /></MainLayout></PrivateRoute>} />
       <Route path="/services" element={<PrivateRoute><MainLayout><GererServices /></MainLayout></PrivateRoute>} />

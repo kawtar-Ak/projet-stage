@@ -33,13 +33,13 @@ public class UtilisateurAppService : GestionCourrierAbpAppService, IUtilisateurA
 
     public async Task<UtilisateurDto> GetAsync(int id)
     {
-        var query = await _repository.WithDetailsAsync(x => x.Service);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!))!;
         return ToDto(await AsyncExecuter.FirstAsync(query.Where(x => x.Id == id)));
     }
 
     public async Task<PagedResultDto<UtilisateurDto>> GetListAsync(PagedAndSortedResultRequestDto input)
     {
-        var query = await _repository.WithDetailsAsync(x => x.Service);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!))!;
         var totalCount = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(
             query.OrderBy(x => x.Id).Skip(input.SkipCount).Take(input.MaxResultCount));

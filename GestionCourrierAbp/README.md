@@ -19,6 +19,22 @@ The solution comes with a default configuration that works out of the box. Howev
 * Run `abp install-libs` command on your solution folder to install client-side package dependencies. This step is automatically done when you create a new solution, if you didn't especially disabled it. However, you should run it yourself if you have first cloned this solution from your source control, or added a new client-side package dependency to your solution.
 * Run `GestionCourrierAbp.DbMigrator` to create the initial database. This step is also automatically done when you create a new solution, if you didn't especially disabled it. This should be done in the first run. It is also needed if a new database migration is added to the solution later.
 
+### Backend startup
+
+Use the clean startup script from the solution folder:
+
+```powershell
+.\start-backend.cmd
+```
+
+For the first run, or after adding migrations, run:
+
+```powershell
+.\start-backend.cmd -Migrate
+```
+
+The script stops only the existing `GestionCourrierAbp.HttpApi.Host` process for this solution before launching it again. This prevents DLL lock errors when the backend is already running.
+
 #### Generating a Signing Certificate
 
 In the production environment, you need to use a production signing certificate. ABP Framework sets up signing and encryption certificates in your application and expects an `openiddict.pfx` file in your application.

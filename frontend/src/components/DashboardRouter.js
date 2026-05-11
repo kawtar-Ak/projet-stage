@@ -21,7 +21,7 @@ function DashboardRouter() {
   if (serviceName.includes('enregistrement')) {
     return <EnregistrementDashboard />;
   }
-  if (serviceName.includes('caisse')) {
+  if (user.idService === 3 || serviceName.includes('ouverture') || serviceName.includes('فتح الملفات')) {
     return <CaisseDashboard />;
   }
   return <EmployeDashboard />;

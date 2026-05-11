@@ -6,7 +6,11 @@ function TransactionsOutgoing() {
     const { t, i18n } = useTranslation();
     const locale = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar') ? 'ar-MA' : 'fr-FR';
     const currentServiceId = Number(localStorage.getItem('idService') || 0);
-    const [allTransactions, setAllTransactions] = useState([]);
+    const [transactionsByScope, setTransactionsByScope] = useState({
+        service: [],
+        all: []
+    });
+    const [transactionScope, setTransactionScope] = useState('service');
     const [filtered, setFiltered] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [error, setError] = useState('');
@@ -28,8 +32,13 @@ function TransactionsOutgoing() {
                 );
                 const visibleTransactions = mergeTransactions(outgoingTransactions, allServiceTransactions)
                     .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
-                setAllTransactions(visibleTransactions);
-                setFiltered(visibleTransactions);
+                const allTransactions = toArray(allRes.data)
+                    .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
+
+                setTransactionsByScope({
+                    service: visibleTransactions,
+                    all: allTransactions
+                });
                 setSelectedIds([]);
                 setSelectAll(false);
                 setError('');
@@ -48,12 +57,14 @@ function TransactionsOutgoing() {
     }, [fetchTransactions]);
 
     useEffect(() => {
+        const scopedTransactions = transactionsByScope[transactionScope] || [];
+
         if (!searchTerm.trim()) {
-            setFiltered(allTransactions);
+            setFiltered(scopedTransactions);
             return;
         }
         const term = searchTerm.toLowerCase();
-        setFiltered(allTransactions.filter(tx =>
+        setFiltered(scopedTransactions.filter(tx =>
             (tx.documentSujet && tx.documentSujet.toLowerCase().includes(term)) ||
             (tx.destinationServiceNom && tx.destinationServiceNom.toLowerCase().includes(term)) ||
             (tx.sourceServiceNom && tx.sourceServiceNom.toLowerCase().includes(term)) ||
@@ -65,7 +76,13 @@ function TransactionsOutgoing() {
         ));
         setSelectedIds([]);
         setSelectAll(false);
-    }, [searchTerm, allTransactions]);
+    }, [searchTerm, transactionScope, transactionsByScope]);
+
+    const handleScopeChange = (scope) => {
+        setTransactionScope(scope);
+        setSelectedIds([]);
+        setSelectAll(false);
+    };
 
     const handleSelectAll = () => {
         setSelectedIds(selectAll ? [] : filtered.map(tx => tx.id));
@@ -104,6 +121,22 @@ function TransactionsOutgoing() {
             <h1 className="page-title">{translate(t, 'historique_transactions', 'Historique des transactions')}</h1>
             {error && <div className="error-message">{error}</div>}
             <div className="filters">
+                <div className="scope-filter" role="group" aria-label={translate(t, 'filtre_transactions', 'Filtre transactions')}>
+                    <button
+                        type="button"
+                        className={transactionScope === 'service' ? 'btn-primary' : 'btn-secondary'}
+                        onClick={() => handleScopeChange('service')}
+                    >
+                        {translate(t, 'transactions_service', 'Transactions du service')}
+                    </button>
+                    <button
+                        type="button"
+                        className={transactionScope === 'all' ? 'btn-primary' : 'btn-secondary'}
+                        onClick={() => handleScopeChange('all')}
+                    >
+                        {translate(t, 'toutes_transactions', 'Toutes les transactions')}
+                    </button>
+                </div>
                 <input
                     type="text"
                     placeholder={t('rechercher')}

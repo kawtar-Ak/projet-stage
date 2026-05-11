@@ -63,27 +63,30 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
         if (!consoleAndAngularClientId.IsNullOrWhiteSpace())
         {
             var consoleAndAngularClientRootUrl = configurationSection["GestionCourrierAbp_App:RootUrl"]?.TrimEnd('/');
-            await CreateOrUpdateApplicationAsync(
-                applicationType: OpenIddictConstants.ApplicationTypes.Web,
-                name: consoleAndAngularClientId!,
-                type: OpenIddictConstants.ClientTypes.Public,
-                consentType: OpenIddictConstants.ConsentTypes.Implicit,
-                displayName: "Console Test / Angular Application",
-                secret: null,
-                grantTypes: new List<string> {
-                    OpenIddictConstants.GrantTypes.AuthorizationCode,
-                    OpenIddictConstants.GrantTypes.Password,
-                    OpenIddictConstants.GrantTypes.ClientCredentials,
-                    OpenIddictConstants.GrantTypes.RefreshToken,
-                    "LinkLogin",
-                    "Impersonation"
-                },
-                scopes: commonScopes,
-                redirectUris: new List<string> { consoleAndAngularClientRootUrl },
-                postLogoutRedirectUris: new List<string> { consoleAndAngularClientRootUrl },
-                clientUri: consoleAndAngularClientRootUrl,
-                logoUri: "/images/clients/angular.svg"
-            );
+            if (!consoleAndAngularClientRootUrl.IsNullOrWhiteSpace())
+            {
+                await CreateOrUpdateApplicationAsync(
+                    applicationType: OpenIddictConstants.ApplicationTypes.Web,
+                    name: consoleAndAngularClientId!,
+                    type: OpenIddictConstants.ClientTypes.Public,
+                    consentType: OpenIddictConstants.ConsentTypes.Implicit,
+                    displayName: "Console Test / Angular Application",
+                    secret: null,
+                    grantTypes: new List<string> {
+                        OpenIddictConstants.GrantTypes.AuthorizationCode,
+                        OpenIddictConstants.GrantTypes.Password,
+                        OpenIddictConstants.GrantTypes.ClientCredentials,
+                        OpenIddictConstants.GrantTypes.RefreshToken,
+                        "LinkLogin",
+                        "Impersonation"
+                    },
+                    scopes: commonScopes,
+                    redirectUris: new List<string> { consoleAndAngularClientRootUrl },
+                    postLogoutRedirectUris: new List<string> { consoleAndAngularClientRootUrl },
+                    clientUri: consoleAndAngularClientRootUrl,
+                    logoUri: "/images/clients/angular.svg"
+                );
+            }
         }
 
         
@@ -97,20 +100,22 @@ public class OpenIddictDataSeedContributor : OpenIddictDataSeedContributorBase, 
         if (!swaggerClientId.IsNullOrWhiteSpace())
         {
             var swaggerRootUrl = configurationSection["GestionCourrierAbp_Swagger:RootUrl"]?.TrimEnd('/');
-
-            await CreateOrUpdateApplicationAsync(
-                applicationType: OpenIddictConstants.ApplicationTypes.Web,
-                name: swaggerClientId!,
-                type: OpenIddictConstants.ClientTypes.Public,
-                consentType: OpenIddictConstants.ConsentTypes.Implicit,
-                displayName: "Swagger Application",
-                secret: null,
-                grantTypes: new List<string> { OpenIddictConstants.GrantTypes.AuthorizationCode, },
-                scopes: commonScopes,
-                redirectUris: new List<string> { $"{swaggerRootUrl}/swagger/oauth2-redirect.html" },
-                clientUri: swaggerRootUrl.EnsureEndsWith('/') + "swagger",
-                logoUri: "/images/clients/swagger.svg"
-            );
+            if (!swaggerRootUrl.IsNullOrWhiteSpace())
+            {
+                await CreateOrUpdateApplicationAsync(
+                    applicationType: OpenIddictConstants.ApplicationTypes.Web,
+                    name: swaggerClientId!,
+                    type: OpenIddictConstants.ClientTypes.Public,
+                    consentType: OpenIddictConstants.ConsentTypes.Implicit,
+                    displayName: "Swagger Application",
+                    secret: null,
+                    grantTypes: new List<string> { OpenIddictConstants.GrantTypes.AuthorizationCode, },
+                    scopes: commonScopes,
+                    redirectUris: new List<string> { $"{swaggerRootUrl}/swagger/oauth2-redirect.html" },
+                    clientUri: swaggerRootUrl.EnsureEndsWith('/') + "swagger",
+                    logoUri: "/images/clients/swagger.svg"
+                );
+            }
         }
 
 

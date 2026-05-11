@@ -20,13 +20,13 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     public async Task<CourrierAdministratifDto> GetAsync(int id)
     {
-        var query = await _repository.WithDetailsAsync(x => x.Service);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!))!;
         return ToDto(await AsyncExecuter.FirstAsync(query.Where(x => x.Id == id)));
     }
 
     public async Task<PagedResultDto<CourrierAdministratifDto>> GetListAsync(PagedAndSortedResultRequestDto input)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service)).Where(x => !x.EstArchive);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!))!.Where(x => !x.EstArchive);
         var total = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date).Skip(input.SkipCount).Take(input.MaxResultCount));
         return new PagedResultDto<CourrierAdministratifDto>(total, items.Select(ToDto).ToList());
@@ -56,7 +56,7 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     public async Task<List<CourrierAdministratifDto>> SearchAsync(string? motCle)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service)).Where(x => !x.EstArchive);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!))!.Where(x => !x.EstArchive);
         if (!string.IsNullOrWhiteSpace(motCle))
         {
             var value = motCle.Trim();
@@ -74,7 +74,7 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     public async Task<List<CourrierAdministratifDto>> GetWaridatAsync()
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service))
+        var query = (await _repository.WithDetailsAsync(x => x.Service!))!
             .Where(x => !x.EstArchive && x.TypeRegistre == "Waridat");
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date));
         return items.Select(ToDto).ToList();
