@@ -345,6 +345,8 @@
   "erreur_enregistrer_circulation": "Impossible d'enregistrer la circulation.",
   "erreur_supprimer_circulation": "Impossible de supprimer la circulation.",
   "erreur_document_id_requis": "L'ID du document est obligatoire.",
-  "erreur_champs_obligatoires": "Veuillez remplir tous les champs obligatoires."
+  "erreur_champs_obligatoires": "Veuillez remplir tous les champs obligatoires.",
+  "gestion_copies": "Gestion des copies",
+  "gestion_copies_desc": "Rechercher, consulter et imprimer les copies"
 
 }

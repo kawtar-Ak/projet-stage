@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import { useAuth } from '../context/AuthContext';
+import AdminDashboard from '../dashboards/AdminDashboard';
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -22,6 +23,8 @@ function Dashboard() {
     const isArchiveService = serviceId === 13;
     const isGreffeService = serviceId === 2;
     const isOpeningFilesService = serviceId === 3;
+    const isAdminService = serviceId === 1 || serviceId === 5 || user?.readOnly;
+    const isNotificationCopiesService = serviceId === 7;
     const handlesIncomingRequests = !isGreffeService;
 
     useEffect(() => {
@@ -30,8 +33,12 @@ function Dashboard() {
     }, []);
 
     useEffect(() => {
+        if (isAdminService) {
+            setLoading(false);
+            return;
+        }
         fetchData();
-    }, [hiddenIds, serviceId]);
+    }, [hiddenIds, serviceId, isAdminService]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -139,6 +146,7 @@ function Dashboard() {
         cancelled: completed.filter(tx => isCancelled(tx.statut)).length,
     };
 
+    if (isAdminService) return <AdminDashboard />;
     if (loading) return <div className="loading">{t('chargement')}</div>;
     if (error) return <div className="error-message">{error}</div>;
 
@@ -161,7 +169,28 @@ function Dashboard() {
                 </p>
             </div>
 
-            {isOpeningFilesService ? (
+            {isNotificationCopiesService ? (
+                <div className="quick-links-grid">
+                    <QuickLink
+                        icon="D"
+                        label={t('mes_entites')}
+                        description={t('quick_link_desc')}
+                        onClick={() => navigate('/mes-entites')}
+                    />
+                    <QuickLink
+                        icon="CR"
+                        label={translate(t, 'gestion_copies', 'Gestion des copies')}
+                        description={translate(t, 'gestion_copies_desc', 'Rechercher, consulter et imprimer les copies')}
+                        onClick={() => navigate('/gestion-copies')}
+                    />
+                    <QuickLink
+                        icon="NT"
+                        label={t('notifications')}
+                        description={t('notification_transaction')}
+                        onClick={() => navigate('/notifications')}
+                    />
+                </div>
+            ) : isOpeningFilesService ? (
                 <div className="quick-links-grid">
                     <QuickLink
                         icon="OD"
@@ -176,7 +205,7 @@ function Dashboard() {
                         onClick={() => navigate('/notifications')}
                     />
                 </div>
-            ) : !isGreffeService && !isArchiveService && (
+            ) : !isAdminService && !isGreffeService && !isArchiveService && (
                 <div className="quick-links-grid">
                     <>
                         <QuickLink

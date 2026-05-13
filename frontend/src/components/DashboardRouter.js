@@ -12,7 +12,7 @@ function DashboardRouter() {
   const serviceName = user.nomService.toLowerCase();
 
   // Adapter ces conditions aux noms réels de vos services
-  if (serviceName.includes('admin') || serviceName.includes('informatique')) {
+  if (user.readOnly || user.idService === 5 || serviceName.includes('admin') || serviceName.includes('informatique') || serviceName.includes('chef de service')) {
     return <AdminDashboard />;
   }
   if (user.idService === 2 || serviceName.includes('greffe') || serviceName.includes('bureau') || serviceName.includes('مكتب الضبط')) {

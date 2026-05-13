@@ -134,9 +134,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
         if (parsedNumbers.Length == 3 && parsedNumbers.All(x => x.HasValue))
         {
-            var annee = parsedNumbers[0]!.Value;
-            var nombre = parsedNumbers[1]!.Value;
-            var sujet = parsedNumbers[2]!.Value;
+            var parsed = ParseNumeroDossierParts(parsedNumbers.Select(x => x!.Value).ToArray());
             return query.Where(x =>
                 x.Sujet.Contains(value) ||
                 x.TribunalSource.Contains(value) ||
@@ -144,9 +142,24 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
                 x.Emplacement.Contains(value) ||
                 x.EtatArchive.Contains(value) ||
                 (x.IdBureauOrdre != null && x.IdBureauOrdre.Contains(value)) ||
-                (x.NumeroDossierAnnee == annee &&
-                    x.NumeroDossierNombre == nombre &&
-                    x.NumeroDossierSujet == sujet));
+                (x.NumeroDossierAnnee == parsed.annee &&
+                    x.NumeroDossierNombre == parsed.nombre &&
+                    x.NumeroDossierSujet == parsed.sujet) ||
+                (x.NumeroDossierAnnee == parsed.annee &&
+                    x.NumeroDossierNombre == parsed.sujet &&
+                    x.NumeroDossierSujet == parsed.nombre) ||
+                (x.NumeroDossierAnnee == parsed.nombre &&
+                    x.NumeroDossierNombre == parsed.annee &&
+                    x.NumeroDossierSujet == parsed.sujet) ||
+                (x.NumeroDossierAnnee == parsed.nombre &&
+                    x.NumeroDossierNombre == parsed.sujet &&
+                    x.NumeroDossierSujet == parsed.annee) ||
+                (x.NumeroDossierAnnee == parsed.sujet &&
+                    x.NumeroDossierNombre == parsed.annee &&
+                    x.NumeroDossierSujet == parsed.nombre) ||
+                (x.NumeroDossierAnnee == parsed.sujet &&
+                    x.NumeroDossierNombre == parsed.nombre &&
+                    x.NumeroDossierSujet == parsed.annee));
         }
 
         if (parsedNumbers.Length == 1 && parsedNumbers[0].HasValue)
@@ -248,12 +261,31 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
         var parts = input.NumeroDossier?.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts?.Length == 3 &&
-            int.TryParse(parts[0], out var annee) &&
-            int.TryParse(parts[1], out var nombre) &&
-            int.TryParse(parts[2], out var sujet))
-            return (annee, nombre, sujet);
+            int.TryParse(parts[0], out var first) &&
+            int.TryParse(parts[1], out var second) &&
+            int.TryParse(parts[2], out var third))
+            return ParseNumeroDossierParts(new[] { first, second, third });
 
         return (null, null, null);
+    }
+
+    private static (int? annee, int? nombre, int? sujet) ParseNumeroDossierParts(int[] parts)
+    {
+        if (parts.Length != 3) return (null, null, null);
+
+        var yearIndex = Array.FindIndex(parts, IsLikelyYear);
+        if (yearIndex >= 0)
+        {
+            var others = parts.Where((_, index) => index != yearIndex).ToArray();
+            return (parts[yearIndex], others[0], others[1]);
+        }
+
+        return (parts[0], parts[1], parts[2]);
+    }
+
+    private static bool IsLikelyYear(int value)
+    {
+        return value >= 1900 && value <= 2100;
     }
 
     private static bool HasCompleteNumeroDossier((int? annee, int? nombre, int? sujet) numero)

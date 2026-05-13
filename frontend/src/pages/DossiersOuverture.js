@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
+import { DEFAULT_SERVICES } from '../constants/defaultServices';
 
 const OUVERTURE_DOSSIERS_SERVICE_ID = 3;
 
@@ -10,8 +11,11 @@ function DossiersOuverture() {
   const currentServiceId = Number(localStorage.getItem('idService') || 0);
   const [dossiers, setDossiers] = useState([]);
   const [pendingIds, setPendingIds] = useState([]);
+  const [services, setServices] = useState([]);
   const [numberTarget, setNumberTarget] = useState(null);
   const [numeroDossierInput, setNumeroDossierInput] = useState('');
+  const [transferTarget, setTransferTarget] = useState(null);
+  const [transferForm, setTransferForm] = useState(getInitialTransferForm());
   const [motCle, setMotCle] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
@@ -46,6 +50,7 @@ function DossiersOuverture() {
 
   useEffect(() => {
     fetchData();
+    fetchServices();
   }, []);
 
   const fetchData = async () => {
@@ -67,6 +72,15 @@ function DossiersOuverture() {
       setError(getErrorMessage(err, t('erreur_chargement_dossiers_acceptes')));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchServices = async () => {
+    try {
+      const response = await axios.get('/api/services');
+      setServices(response.data?.length > 0 ? response.data : DEFAULT_SERVICES);
+    } catch {
+      setServices(DEFAULT_SERVICES);
     }
   };
 
@@ -135,6 +149,59 @@ function DossiersOuverture() {
     });
   };
 
+  const openTransferModal = (dossier) => {
+    setTransferTarget(dossier);
+    setTransferForm(getInitialTransferForm());
+    setError('');
+    setSuccess('');
+  };
+
+  const closeTransferModal = () => {
+    setTransferTarget(null);
+    setTransferForm(getInitialTransferForm());
+  };
+
+  const handleTransferChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setTransferForm((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleTransferSubmit = async (event) => {
+    event.preventDefault();
+    if (!transferTarget || !transferForm.serviceId) {
+      setError(t('service_destinataire_requis'));
+      return;
+    }
+
+    if (!hasCompleteNumeroDossier(transferTarget.numeroDossier)) {
+      setError(t('erreur_numero_dossier_requis'));
+      return;
+    }
+
+    try {
+      await axios.post('/api/transactions', {
+        documentId: transferTarget.id,
+        documentType: 'Judiciaire',
+        sourceServiceId: OUVERTURE_DOSSIERS_SERVICE_ID,
+        destinationServiceId: Number(transferForm.serviceId),
+        destinationUserId: null,
+        doitRevenir: transferForm.doitRevenir,
+        dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
+        message: transferForm.message.trim()
+      });
+
+      setSuccess(t('transaction_envoyee'));
+      setError('');
+      closeTransferModal();
+      await fetchData();
+    } catch (err) {
+      setError(getErrorMessage(err, t('erreur_transaction')));
+    }
+  };
+
   if (currentServiceId !== OUVERTURE_DOSSIERS_SERVICE_ID) {
     return (
       <div className="page-container">
@@ -182,6 +249,7 @@ function DossiersOuverture() {
           savingId={savingId}
           t={t}
           onOpenNumberModal={openNumberModal}
+          onOpenTransferModal={openTransferModal}
           onConsult={handleConsult}
         />
       </section>
@@ -225,6 +293,74 @@ function DossiersOuverture() {
         </>
       )}
 
+      {transferTarget && (
+        <>
+          <div className="modal-overlay" onClick={closeTransferModal} />
+          <div className="modal form-card transfer-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="registry-panel-header">
+              <div>
+                <h3>{t('transferer_dossier')}</h3>
+                <p>{transferTarget.numeroDossier || '-'} - {transferTarget.sujet || '-'}</p>
+              </div>
+              <button type="button" className="btn-secondary" onClick={closeTransferModal}>{t('fermer')}</button>
+            </div>
+
+            <form onSubmit={handleTransferSubmit}>
+              <div className="form-grid">
+                <div className="form-field">
+                  <label>{t('service_destinataire')} *</label>
+                  <select name="serviceId" value={transferForm.serviceId} onChange={handleTransferChange} required>
+                    <option value="">--</option>
+                    {services
+                      .filter((service) => Number(service.idService) !== OUVERTURE_DOSSIERS_SERVICE_ID)
+                      .map((service) => (
+                        <option key={service.idService} value={service.idService}>
+                          {service.nomService}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label>{t('date')} *</label>
+                  <input
+                    type="date"
+                    name="dateEnvoi"
+                    value={transferForm.dateEnvoi}
+                    onChange={handleTransferChange}
+                    required
+                  />
+                </div>
+                <div className="form-field">
+                  <label className="checkbox-field">
+                    <input
+                      type="checkbox"
+                      name="doitRevenir"
+                      checked={transferForm.doitRevenir}
+                      onChange={handleTransferChange}
+                    />
+                    {t('doit_revenir')}
+                  </label>
+                </div>
+                <div className="form-field full-width">
+                  <label>{t('message')}</label>
+                  <textarea
+                    name="message"
+                    value={transferForm.message}
+                    onChange={handleTransferChange}
+                    rows="3"
+                  />
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="btn-primary">{t('envoyer')}</button>
+                <button type="button" className="btn-secondary" onClick={closeTransferModal}>{t('annuler')}</button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
       {consultedDocument && (
         <DocumentModal
           document={consultedDocument}
@@ -235,7 +371,7 @@ function DossiersOuverture() {
   );
 }
 
-function DossiersTable({ dossiers, savingId, t, onOpenNumberModal, onConsult }) {
+function DossiersTable({ dossiers, savingId, t, onOpenNumberModal, onOpenTransferModal, onConsult }) {
   return (
     <div className="data-table-wrapper">
       <table className="modern-table">
@@ -274,6 +410,13 @@ function DossiersTable({ dossiers, savingId, t, onOpenNumberModal, onConsult }) 
                     >
                       {isComplete ? t('modifier_numero') : t('attribuer_numero')}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenTransferModal(dossier)}
+                      disabled={!isComplete}
+                    >
+                      {t('transferer')}
+                    </button>
                   </td>
                 </tr>
               );
@@ -283,6 +426,15 @@ function DossiersTable({ dossiers, savingId, t, onOpenNumberModal, onConsult }) 
       </table>
     </div>
   );
+}
+
+function getInitialTransferForm() {
+  return {
+    serviceId: '',
+    dateEnvoi: new Date().toISOString().slice(0, 10),
+    doitRevenir: false,
+    message: ''
+  };
 }
 
 function normalizeNumeroDossier(value) {

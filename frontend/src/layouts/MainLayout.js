@@ -28,6 +28,8 @@ function MainLayout({ children }) {
   const getMenuItems = () => {
     const serviceName = user?.nomService?.toLowerCase() || '';
     const serviceId = user?.idService;
+    const isServiceChief = user?.readOnly || serviceId === 5 || serviceName.includes('chef de service');
+    const isNotificationCopies = serviceId === 7 || serviceName.includes('notification') || serviceName.includes('copies');
 
     const commonLinks = [
       { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
@@ -39,6 +41,30 @@ function MainLayout({ children }) {
       { labelKey: 'notifications', icon: 'bell', path: '/notifications' }
     ];
 
+    const adminLinks = [
+      ...commonLinks,
+      { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
+      { labelKey: 'gestion_copies', icon: 'folder', path: '/gestion-copies' },
+      { labelKey: 'equipements', icon: 'settings', path: '/equipements' },
+      { labelKey: 'services', icon: 'service', path: '/services' },
+      { labelKey: 'utilisateurs', icon: 'users', path: '/utilisateurs' }
+    ];
+
+    if (isServiceChief || serviceId === 1 || serviceName.includes('informatique')) {
+      return adminLinks;
+    }
+
+    if (isNotificationCopies) {
+      return [
+        { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
+        { labelKey: 'circulations', icon: 'send', path: '/circulations' },
+        { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' },
+        { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
+        { labelKey: 'gestion_copies', icon: 'folder', path: '/gestion-copies' }
+      ];
+    }
+
     if (serviceId === 13 || serviceName.includes('archivage') || serviceName.includes('archive')) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
@@ -48,7 +74,7 @@ function MainLayout({ children }) {
       ];
     }
 
-    if (serviceId === 3 || serviceName.includes('ouverture') || serviceName.includes('فتح الملفات')) {
+    if (serviceId === 3 || serviceName.includes('ouverture')) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
@@ -57,23 +83,7 @@ function MainLayout({ children }) {
       ];
     }
 
-    if (serviceId === 1 || serviceName.includes('خلية المعلومات')) {
-      return [
-        ...commonLinks,
-        { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
-        { labelKey: 'equipements', icon: 'settings', path: '/equipements' },
-        { labelKey: 'services', icon: 'service', path: '/services' },
-        { labelKey: 'utilisateurs', icon: 'users', path: '/utilisateurs' }
-      ];
-    }
-
-    if (
-      serviceName.includes('الحفظ') ||
-      serviceName.includes('رئيس المصلحة') ||
-      serviceName.includes('مكتب الضبط') ||
-      serviceName.includes('فتح الملفات') ||
-      [2, 3, 5, 13].includes(serviceId)
-    ) {
+    if ([2, 3, 13].includes(serviceId) || serviceName.includes('bureau') || serviceName.includes('greffe')) {
       if (serviceId === 2 || serviceName.includes('bureau') || serviceName.includes('greffe')) {
         return [
           ...commonLinks,
@@ -90,9 +100,10 @@ function MainLayout({ children }) {
   const menuItems = getMenuItems();
   const displayName = user?.nomComplet || user?.login || t('administrateur');
   const serviceLabel = user?.nomService || 'IT';
+  const layoutClassName = `app-layout${user?.readOnly ? ' read-only-mode' : ''}`;
 
   return (
-    <div className="app-layout">
+    <div className={layoutClassName}>
       <aside className="sidebar">
         <div className="sidebar-brand" aria-label="Justice">
           <div className="brand-mark">⚖</div>
@@ -137,7 +148,14 @@ function MainLayout({ children }) {
         </button>
       </aside>
 
-      <main className="main-content">{children}</main>
+      <main className="main-content">
+        {user?.readOnly && (
+          <div className="read-only-banner">
+            Mode consultation: ce compte ne peut pas ajouter, modifier ou supprimer.
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

@@ -1,16 +1,18 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-function RoleDashboard({ titleKey, eyebrowKey = 'dashboard', actions = [] }) {
+function RoleDashboard({ titleKey, eyebrowKey = 'dashboard', subtitle, actions = [], variant = '' }) {
   const { t } = useTranslation();
   const visibleActions = actions.filter(Boolean);
+  const className = ['role-dashboard', variant].filter(Boolean).join(' ');
 
   return (
-    <div className="role-dashboard">
+    <div className={className}>
       <div className="role-dashboard-header">
         <div>
           <span className="role-dashboard-eyebrow">{t(eyebrowKey)}</span>
           <h1>{t(titleKey)}</h1>
+          {subtitle && <p>{subtitle}</p>}
         </div>
         <div className="role-dashboard-count">
           <strong>{visibleActions.length}</strong>
@@ -26,7 +28,7 @@ function RoleDashboard({ titleKey, eyebrowKey = 'dashboard', actions = [] }) {
             </span>
             <span className="role-action-content">
               <strong>{t(action.labelKey)}</strong>
-              <small>{action.descriptionKey ? t(action.descriptionKey) : t('ouvrir')}</small>
+              <small>{action.description || (action.descriptionKey ? t(action.descriptionKey) : t('ouvrir'))}</small>
             </span>
           </Link>
         ))}

@@ -16,10 +16,13 @@ export const AuthProvider = ({ children }) => {
     const nomService = localStorage.getItem('nomService');
     const idService = localStorage.getItem('idService');
     const nomComplet = localStorage.getItem('nomComplet');
+    const readOnly = localStorage.getItem('readOnly') === 'true';
+
     if (token && login) {
-      setUser({ token, login, nomComplet, nomService, idService: parseInt(idService) });
+      setUser({ token, login, nomComplet, nomService, idService: parseInt(idService, 10), readOnly });
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     }
+
     setLoading(false);
   }, []);
 
@@ -29,6 +32,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('nomComplet');
     localStorage.removeItem('nomService');
     localStorage.removeItem('idService');
+    localStorage.removeItem('readOnly');
     delete axios.defaults.headers.common['Authorization'];
 
     const body = new URLSearchParams({
@@ -46,24 +50,43 @@ export const AuthProvider = ({ children }) => {
 
     const token = response.data.access_token;
     const userLogin = login.trim();
+    const normalizedLogin = userLogin.toLowerCase();
 
     localStorage.setItem('token', token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
     const profile = await getBusinessUserProfile(userLogin);
-    const isArchiveLogin = userLogin.toLowerCase() === 'archive';
-    const isGreffeLogin = userLogin.toLowerCase() === 'bureauordre';
-    const isOpeningFilesLogin = userLogin.toLowerCase() === 'ouverturedossiers';
+    const isArchiveLogin = normalizedLogin === 'archive';
+    const isGreffeLogin = normalizedLogin === 'bureauordre';
+    const isOpeningFilesLogin = normalizedLogin === 'ouverturedossiers';
+    const isServiceChiefLogin = normalizedLogin === 'chefservice';
+    const isNotificationCopiesLogin = normalizedLogin === 'notificationcopies';
+    const profileServiceId = Number(profile?.idService || profile?.serviceId || 0);
+    const readOnly = isServiceChiefLogin || profileServiceId === 5;
+
     const nomComplet = profile?.nomComplet ||
-      (isArchiveLogin ? 'Service Archive' : isGreffeLogin ? "Greffier - Bureau d'ordre" : isOpeningFilesLogin ? "Bureau d'ouverture des dossiers" : userLogin);
-    const idService = Number(profile?.idService || profile?.serviceId || (isArchiveLogin ? 13 : isGreffeLogin ? 2 : isOpeningFilesLogin ? 3 : 1));
-    const nomService = profile?.serviceNom || profile?.nomService || (isArchiveLogin ? 'الحفظ' : isGreffeLogin ? 'مكتب الضبط' : isOpeningFilesLogin ? 'فتح الملفات' : 'ABP');
+      (isArchiveLogin ? 'Service Archive' :
+        isGreffeLogin ? "Greffier - Bureau d'ordre" :
+          isOpeningFilesLogin ? "Bureau d'ouverture des dossiers" :
+            isServiceChiefLogin ? 'Chef de service' :
+              isNotificationCopiesLogin ? 'Notification et remise des copies' :
+              userLogin);
+    const idService = Number(profile?.idService || profile?.serviceId ||
+      (isArchiveLogin ? 13 : isGreffeLogin ? 2 : isOpeningFilesLogin ? 3 : isServiceChiefLogin ? 5 : isNotificationCopiesLogin ? 7 : 1));
+    const nomService = profile?.serviceNom || profile?.nomService ||
+      (isArchiveLogin ? 'Archivage' :
+        isGreffeLogin ? "Bureau d'ordre" :
+          isOpeningFilesLogin ? 'Ouverture des dossiers' :
+            isServiceChiefLogin ? 'Chef de service' :
+              isNotificationCopiesLogin ? 'Notification et remise des copies' :
+              'ABP');
 
     localStorage.setItem('login', userLogin);
     localStorage.setItem('nomComplet', nomComplet);
     localStorage.setItem('nomService', nomService);
     localStorage.setItem('idService', idService);
-    setUser({ token, login: userLogin, nomComplet, idService, nomService });
+    localStorage.setItem('readOnly', readOnly ? 'true' : 'false');
+    setUser({ token, login: userLogin, nomComplet, idService, nomService, readOnly });
     return response.data;
   };
 

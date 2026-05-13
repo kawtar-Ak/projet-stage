@@ -56,26 +56,26 @@ SET IDENTITY_INSERT [AppServices] OFF;");
     {
         return new List<ServiceSeedItem>
         {
-            new(1, "خلية المعلوميات", "Cellule informatique", "2ème"),
-            new(2, "مكتب الضبط", "Greffe", "1er"),
-            new(3, "فتح الملفات", "Ouverture des dossiers", "RDC"),
-            new(4, "التوزيع", "Distribution", "2ème"),
-            new(5, "رئيس المصلحة", "Chef de service", "2ème"),
-            new(6, "مدير النظام", "Admin système", "2ème"),
-            new(7, "التبليغ", "Notification", "1er"),
-            new(8, "خبرة", "Expertise", "1er"),
-            new(9, "النقض", "Cassation", "2ème"),
-            new(10, "تسليم النسخ", "Remise des copies", "RDC"),
-            new(11, "الكتابة الخاصة", "Secrétariat particulier", "2ème"),
-            new(12, "الجلسات", "Audiences", "1er"),
-            new(13, "الحفظ", "Archivage", "Sous-sol"),
-            new(14, "الإجراءات", "Procédures", "1er"),
-            new(15, "المستشار المقرر", "Conseiller rapporteur", "2ème"),
-            new(16, "الاستعجالي", "Référé", "1er"),
-            new(17, "قضاء الموضوع", "Jugement au fond", "2ème"),
-            new(18, "المفوض الملكي", "Commissaire royal", "2ème"),
-            new(19, "الرئيس الأول", "Premier président", "3ème"),
-            new(20, "تدبير السحب", "Gestion de retrait", "1er")
+            new(1, "Cellule informatique", "Cellule informatique", "2eme"),
+            new(2, "Bureau d'ordre", "Greffe", "1er"),
+            new(3, "Ouverture des dossiers", "Ouverture des dossiers", "RDC"),
+            new(4, "Distribution", "Distribution", "2eme"),
+            new(5, "Chef de service", "Chef de service", "2eme"),
+            new(6, "Admin systeme", "Admin systeme", "2eme"),
+            new(7, "Notification et remise des copies", "Notification et remise des copies", "1er"),
+            new(8, "Expertise", "Expertise", "1er"),
+            new(9, "Cassation", "Cassation", "2eme"),
+            new(10, "Remise des copies (fusionne)", "Service fusionne avec Notification", "RDC"),
+            new(11, "Secretariat particulier", "Secretariat particulier", "2eme"),
+            new(12, "Audiences", "Audiences", "1er"),
+            new(13, "Archivage", "Archivage", "Sous-sol"),
+            new(14, "Procedures", "Procedures", "1er"),
+            new(15, "Conseiller rapporteur", "Conseiller rapporteur", "2eme"),
+            new(16, "Refere", "Refere", "1er"),
+            new(17, "Jugement au fond", "Jugement au fond", "2eme"),
+            new(18, "Commissaire royal", "Commissaire royal", "2eme"),
+            new(19, "Premier president", "Premier president", "3eme"),
+            new(20, "Gestion de retrait", "Gestion de retrait", "1er")
         };
     }
 

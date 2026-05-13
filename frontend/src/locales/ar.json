@@ -372,4 +372,7 @@
   "erreur_supprimer_circulation": "تعذر حذف الحركة.",
   "erreur_document_id_requis": "معرف الوثيقة إجباري.",
   "erreur_champs_obligatoires": "يرجى ملء جميع الحقول الإجبارية."
+,
+  "gestion_copies": "تدبير النسخ",
+  "gestion_copies_desc": "البحث في النسخ والاطلاع عليها وطباعتها"
 }

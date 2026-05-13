@@ -767,6 +767,7 @@ function GererCourriersJuridiques({ embedded = false }) {
             <thead>
               <tr>
                 <th>{t("date")}</th>
+                <th>{t("numero_bureau_ordre")}</th>
                 <th>{t("tribunal_source")}</th>
                 <th>{t("numero_dossier_appel")}</th>
                 <th>{t("objet")}</th>
@@ -781,11 +782,12 @@ function GererCourriersJuridiques({ embedded = false }) {
             </thead>
             <tbody>
               {filteredCourriers.length === 0 ? (
-                <tr><td colSpan="11" style={{ textAlign: "center" }}>{t("aucun_courrier_judiciaire")}</td></tr>
+                <tr><td colSpan="12" style={{ textAlign: "center" }}>{t("aucun_courrier_judiciaire")}</td></tr>
               ) : (
                 filteredCourriers.map((courrier) => (
                   <tr key={courrier.id}>
                     <td>{formatDate(courrier.date)}</td>
+                    <td>{courrier.idBureauOrdre || "-"}</td>
                     <td>{courrier.tribunalSource || "-"}</td>
                     <td>{courrier.numeroDossier || "-"}</td>
                     <td>{courrier.sujet || "-"}</td>

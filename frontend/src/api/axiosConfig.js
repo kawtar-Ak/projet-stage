@@ -27,6 +27,10 @@ axios.interceptors.request.use(config => {
   config.params = mapLegacyParamsToAbp(config.url, config.params);
   config.data = mapLegacyPayloadToAbp(config.url, config.data);
 
+  if (isReadOnlyWriteRequest(config)) {
+    return Promise.reject(new Error('Compte en mode consultation: modification interdite.'));
+  }
+
   return config;
 });
 
@@ -75,6 +79,14 @@ function normalizeLocalAbpUrl(url) {
 
 function normalizeBaseUrl(url) {
   return String(url || '').trim().replace(/\/+$/, '');
+}
+
+function isReadOnlyWriteRequest(config) {
+  const method = String(config.method || 'get').toLowerCase();
+  const readOnly = localStorage.getItem('readOnly') === 'true';
+  const allowedMethods = ['get', 'head', 'options'];
+
+  return readOnly && !allowedMethods.includes(method) && config.url !== '/connect/token';
 }
 
 function mapLegacyUrlToAbp(url = '') {
