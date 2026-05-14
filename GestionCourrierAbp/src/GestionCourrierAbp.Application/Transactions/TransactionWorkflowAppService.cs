@@ -207,6 +207,8 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             SourceServiceId = input.SourceServiceId,
             DestinationServiceId = input.DestinationServiceId,
             DestinationUserId = input.DestinationUserId,
+            SenderUserName = input.SenderUserName?.Trim(),
+            SenderServiceName = input.SenderServiceName?.Trim() ?? await GetServiceNameAsync(input.SourceServiceId),
             DoitRevenir = input.DoitRevenir,
             Message = input.Message?.Trim() ?? string.Empty,
             Statut = WorkflowStatus.EnAttente.ToStorageValue(),
@@ -243,7 +245,13 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         var transaction = await _repository.GetAsync(id);
 
         // Traitement de l’acceptation ou du refus via le service workflow
-        await _workflowService.RespondAsync(transaction, input.Accepte, input.Message);
+        await _workflowService.RespondAsync(
+            transaction,
+            input.Accepte,
+            input.Message,
+            input.ResponderUserName,
+            input.ResponderServiceId ?? transaction.DestinationServiceId,
+            input.ResponderServiceName ?? await GetServiceNameAsync(transaction.DestinationServiceId));
 
         return await ToDtoAsync(transaction);
     }
@@ -437,6 +445,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
                 // Sujet du document concerné
                 DocumentSujet = documentInfo.Sujet,
+                NumeroBureauOrdre = documentInfo.NumeroBureauOrdre,
                 NumeroCourrier = documentInfo.NumeroCourrier,
                 NumeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
                 CurrentServiceId = documentInfo.CurrentServiceId,
@@ -454,13 +463,18 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
                 // Utilisateur destinataire
                 DestinationUserId = transaction.DestinationUserId,
                 DestinationUserName = await GetUserNameAsync(transaction.DestinationUserId),
+                SenderUserName = transaction.SenderUserName,
+                SenderServiceName = transaction.SenderServiceName,
 
                 DoitRevenir = transaction.DoitRevenir,
                 DateEnvoi = transaction.DateEnvoi,
                 DateReponse = transaction.DateReponse,
                 Statut = transaction.Statut,
                 Message = transaction.Message,
-                MessageReponse = transaction.MessageReponse
+                MessageReponse = transaction.MessageReponse,
+                ResponderUserName = transaction.ResponderUserName,
+                ResponderServiceId = transaction.ResponderServiceId,
+                ResponderServiceName = transaction.ResponderServiceName
             });
         }
 
@@ -483,6 +497,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             var serviceName = await GetServiceNameAsync(document.ServiceId);
             return new DocumentInfo(
                 document.Sujet,
+                document.IdBureauOrdre,
                 document.NumeroDeCourrier,
                 null,
                 document.ServiceId,
@@ -505,6 +520,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
             return new DocumentInfo(
                 document.Sujet,
+                document.IdBureauOrdre,
                 null,
                 BuildNumeroDossierJudiciaire(document),
                 document.ServiceId,
@@ -614,6 +630,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             DocumentId = transaction.DocumentId,
             DocumentType = transaction.DocumentType,
             DocumentSujet = documentInfo.Sujet,
+            NumeroBureauOrdre = documentInfo.NumeroBureauOrdre,
             NumeroCourrier = documentInfo.NumeroCourrier,
             NumeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
             CurrentServiceId = documentInfo.CurrentServiceId,
@@ -625,12 +642,17 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             DestinationServiceNom = await GetServiceNameAsync(transaction.DestinationServiceId),
             DestinationUserId = transaction.DestinationUserId,
             DestinationUserName = await GetUserNameAsync(transaction.DestinationUserId),
+            SenderUserName = transaction.SenderUserName,
+            SenderServiceName = transaction.SenderServiceName,
             DoitRevenir = transaction.DoitRevenir,
             Message = transaction.Message,
             Statut = transaction.Statut,
             DateEnvoi = transaction.DateEnvoi,
             DateReponse = transaction.DateReponse,
             MessageReponse = transaction.MessageReponse,
+            ResponderUserName = transaction.ResponderUserName,
+            ResponderServiceId = transaction.ResponderServiceId,
+            ResponderServiceName = transaction.ResponderServiceName,
 
             // Champs d’audit ABP
             CreationTime = transaction.CreationTime,
@@ -642,12 +664,13 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
     private sealed record DocumentInfo(
         string Sujet,
+        string? NumeroBureauOrdre,
         string? NumeroCourrier,
         string? NumeroDossierJudiciaire,
         int? CurrentServiceId,
         string CurrentServiceNom,
         string CurrentLocation)
     {
-        public static DocumentInfo Empty { get; } = new(string.Empty, null, null, null, string.Empty, string.Empty);
+        public static DocumentInfo Empty { get; } = new(string.Empty, null, null, null, null, string.Empty, string.Empty);
     }
 }

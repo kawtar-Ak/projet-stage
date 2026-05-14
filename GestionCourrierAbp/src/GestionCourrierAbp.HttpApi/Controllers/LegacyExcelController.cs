@@ -369,6 +369,8 @@ public class LegacyExcelController : ControllerBase
             "Service destinataire",
             "Date envoi",
             "Date reponse",
+            "Traite par",
+            "Service traitant",
             "Message",
             "Reponse"
         });
@@ -385,8 +387,10 @@ public class LegacyExcelController : ControllerBase
             ws.Cell(row, 6).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
             ws.Cell(row, 7).Value = transaction.DateReponse;
             ws.Cell(row, 7).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
-            ws.Cell(row, 8).Value = transaction.Message;
-            ws.Cell(row, 9).Value = transaction.MessageReponse;
+            ws.Cell(row, 8).Value = transaction.ResponderUserName;
+            ws.Cell(row, 9).Value = transaction.ResponderServiceName;
+            ws.Cell(row, 10).Value = transaction.Message;
+            ws.Cell(row, 11).Value = transaction.MessageReponse;
             row++;
         }
 

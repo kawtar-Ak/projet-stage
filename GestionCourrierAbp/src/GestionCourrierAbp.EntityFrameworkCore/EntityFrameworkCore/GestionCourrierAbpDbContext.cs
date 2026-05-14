@@ -130,6 +130,11 @@ public class GestionCourrierAbpDbContext :
             b.Property(x => x.Message).HasMaxLength(2048);
             b.Property(x => x.Statut).IsRequired().HasMaxLength(64);
             b.Property(x => x.MessageReponse).HasMaxLength(2048);
+            b.Ignore(x => x.SenderUserName);
+            b.Ignore(x => x.SenderServiceName);
+            b.Ignore(x => x.ResponderUserName);
+            b.Ignore(x => x.ResponderServiceId);
+            b.Ignore(x => x.ResponderServiceName);
 
             b.HasOne(x => x.SourceService)
                 .WithMany()
@@ -205,6 +210,8 @@ public class GestionCourrierAbpDbContext :
             b.Property(x => x.EmetteurService).HasMaxLength(256);
             b.Property(x => x.Etat).HasMaxLength(64);
             b.Property(x => x.Notes).HasMaxLength(2048);
+            b.Ignore(x => x.RecepteurUserName);
+            b.Ignore(x => x.EmetteurUserName);
             b.HasIndex(x => new { x.DocumentId, x.DocumentType });
         });
 

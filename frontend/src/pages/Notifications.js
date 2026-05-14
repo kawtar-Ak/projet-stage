@@ -82,7 +82,7 @@ function Notifications() {
     const handleRespond = async (id, accepte) => {
         const message = responseMsg[id] || '';
         try {
-            await axios.post(`/api/transactions/${id}/respond`, { accepte, message });
+            await axios.post(`/api/transactions/${id}/respond`, buildResponsePayload(accepte, message));
             await fetchNotificationData();
             setSuccess(accepte ? t('acceptees') : t('refusees'));
             setError('');
@@ -112,10 +112,7 @@ function Notifications() {
         try {
             const responseMessage = responseMsg[transferTarget.id] || transferForm.message || '';
 
-            await axios.post(`/api/transactions/${transferTarget.id}/respond`, {
-                accepte: true,
-                message: responseMessage
-            });
+            await axios.post(`/api/transactions/${transferTarget.id}/respond`, buildResponsePayload(true, responseMessage));
 
             await axios.post('/api/transactions', {
                 documentId: transferTarget.documentId,
@@ -224,19 +221,23 @@ function Notifications() {
                                 <th>{t('document')}</th>
                                 <th>{t('service_destinataire')}</th>
                                 <th>{t('etat')}</th>
+                                <th>{translate(t, 'traite_par', 'Traité par')}</th>
+                                <th>{translate(t, 'service_traitant', 'Service traitant')}</th>
                                 <th>{t('traite_le')}</th>
                                 <th>{t('reponse_note')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {processedTransactions.length === 0 ? (
-                                <tr><td colSpan="5" style={{ textAlign: 'center' }}>{t('aucune_transaction')}</td></tr>
+                                <tr><td colSpan="7" style={{ textAlign: 'center' }}>{t('aucune_transaction')}</td></tr>
                             ) : (
                                 processedTransactions.map(tx => (
                                     <tr key={tx.id}>
                                         <td>{getDocumentLabel(tx)}</td>
                                         <td>{tx.destinationServiceNom || '-'}</td>
                                         <td>{formatStatus(tx.statut, t)}</td>
+                                        <td>{tx.responderUserName || '-'}</td>
+                                        <td>{tx.responderServiceName || tx.destinationServiceNom || '-'}</td>
                                         <td>{formatDateTime(tx.dateReponse || tx.dateEnvoi)}</td>
                                         <td>{tx.messageReponse || '-'}</td>
                                     </tr>
@@ -405,6 +406,16 @@ function getInitialTransferForm() {
         dateEnvoi: new Date().toISOString().slice(0, 10),
         doitRevenir: false,
         message: ''
+    };
+}
+
+function buildResponsePayload(accepte, message) {
+    return {
+        accepte,
+        message,
+        responderUserName: localStorage.getItem('nomComplet') || localStorage.getItem('login') || '',
+        responderServiceId: Number(localStorage.getItem('idService') || 0) || null,
+        responderServiceName: localStorage.getItem('nomService') || ''
     };
 }
 

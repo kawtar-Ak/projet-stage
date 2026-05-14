@@ -19,6 +19,10 @@ public class CreateTransactionDto
 
     public int? DestinationUserId { get; set; }
 
+    public string? SenderUserName { get; set; }
+
+    public string? SenderServiceName { get; set; }
+
     public bool DoitRevenir { get; set; }
 
     public DateTime? DateEnvoi { get; set; }

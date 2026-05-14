@@ -28,7 +28,13 @@ public class TransactionWorkflowService : DomainService
         _serviceRepository = serviceRepository;
     }
 
-    public async Task RespondAsync(Transaction transaction, bool accepted, string? message)
+    public async Task RespondAsync(
+        Transaction transaction,
+        bool accepted,
+        string? message,
+        string? responderUserName,
+        int? responderServiceId,
+        string? responderServiceName)
     {
         if (!transaction.Statut.IsSameAs(WorkflowStatus.EnAttente))
         {
@@ -41,6 +47,9 @@ public class TransactionWorkflowService : DomainService
             : WorkflowStatus.Refuse.ToStorageValue();
         transaction.DateReponse = DateTime.Now;
         transaction.MessageReponse = message;
+        transaction.ResponderUserName = responderUserName?.Trim();
+        transaction.ResponderServiceId = responderServiceId;
+        transaction.ResponderServiceName = responderServiceName?.Trim();
 
         if (accepted)
         {

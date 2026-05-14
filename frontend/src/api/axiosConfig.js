@@ -181,7 +181,9 @@ function mapLegacyPayloadToAbp(url = '', data) {
       dateDeReception: data.dateDeReception,
       dateEnvoi: data.dateEnvoi || null,
       recepteur: data.recepteur,
+      recepteurUserName: data.recepteurUserName || '',
       emetteurService: data.emetteurService,
+      emetteurUserName: data.emetteurUserName || localStorage.getItem('nomComplet') || localStorage.getItem('login') || '',
       sourceServiceId: data.sourceServiceId ?? null,
       destinationServiceId: data.destinationServiceId ?? null,
       etat: data.etat || null,
@@ -196,6 +198,8 @@ function mapLegacyPayloadToAbp(url = '', data) {
       sourceServiceId: data.sourceServiceId ?? Number(localStorage.getItem('idService') || 0),
       destinationServiceId: data.destinationServiceId,
       destinationUserId: data.destinationUserId,
+      senderUserName: data.senderUserName || localStorage.getItem('nomComplet') || localStorage.getItem('login') || '',
+      senderServiceName: data.senderServiceName || localStorage.getItem('nomService') || '',
       doitRevenir: data.doitRevenir,
       dateEnvoi: data.dateEnvoi,
       message: data.message || ''

@@ -4,6 +4,7 @@ using GestionCourrierAbp.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Volo.Abp.EntityFrameworkCore;
 
@@ -12,9 +13,11 @@ using Volo.Abp.EntityFrameworkCore;
 namespace GestionCourrierAbp.Migrations
 {
     [DbContext(typeof(GestionCourrierAbpDbContext))]
-    partial class GestionCourrierAbpDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260513094203_AddTransactionResponderTracking")]
+    partial class AddTransactionResponderTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -69,10 +72,6 @@ namespace GestionCourrierAbp.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
-                    b.Property<string>("EmetteurUserName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
                     b.Property<string>("Etat")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -98,10 +97,6 @@ namespace GestionCourrierAbp.Migrations
 
                     b.Property<string>("Recepteur")
                         .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("RecepteurUserName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
@@ -707,14 +702,6 @@ namespace GestionCourrierAbp.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("ResponderUserName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("SenderServiceName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("SenderUserName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 

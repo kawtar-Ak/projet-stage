@@ -52,6 +52,7 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
             var serviceName = await GetServiceNameAsync(document.ServiceId);
             return new DocumentInfo(
                 document.Sujet,
+                document.IdBureauOrdre,
                 document.NumeroDeCourrier,
                 null,
                 document.ServiceId,
@@ -74,6 +75,7 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
 
             return new DocumentInfo(
                 document.Sujet,
+                document.IdBureauOrdre,
                 null,
                 BuildNumeroDossierJudiciaire(document),
                 document.ServiceId,
@@ -227,6 +229,7 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
 
                 // Récupération du sujet du document à partir de son type et de son ID
                 DocumentSujet = documentInfo.Subject,
+                NumeroBureauOrdre = documentInfo.NumeroBureauOrdre,
                 NumeroCourrier = documentInfo.NumeroCourrier,
                 NumeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
                 CurrentServiceId = documentInfo.CurrentServiceId,
@@ -250,6 +253,8 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
 
                 // Récupération du nom complet de l'utilisateur destinataire
                 DestinationUserName = await GetUserNameAsync(transaction.DestinationUserId),
+                SenderUserName = transaction.SenderUserName,
+                SenderServiceName = transaction.SenderServiceName,
 
                 // Indique si le document doit revenir au service source
                 DoitRevenir = transaction.DoitRevenir,
@@ -265,7 +270,10 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
                 Message = transaction.Message,
 
                 // Message de réponse du service destinataire
-                MessageReponse = transaction.MessageReponse
+                MessageReponse = transaction.MessageReponse,
+                ResponderUserName = transaction.ResponderUserName,
+                ResponderServiceId = transaction.ResponderServiceId,
+                ResponderServiceName = transaction.ResponderServiceName
             });
         }
 
@@ -333,12 +341,13 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
 
     private sealed record DocumentInfo(
         string Subject,
+        string? NumeroBureauOrdre,
         string? NumeroCourrier,
         string? NumeroDossierJudiciaire,
         int? CurrentServiceId,
         string CurrentServiceNom,
         string CurrentLocation)
     {
-        public static DocumentInfo Empty { get; } = new(string.Empty, null, null, null, string.Empty, string.Empty);
+        public static DocumentInfo Empty { get; } = new(string.Empty, null, null, null, null, string.Empty, string.Empty);
     }
 }

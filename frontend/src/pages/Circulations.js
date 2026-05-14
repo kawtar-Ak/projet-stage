@@ -17,7 +17,8 @@ const emptyForm = {
 
 function Circulations() {
   const { t, i18n } = useTranslation();
-  const locale = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar') ? 'ar-MA' : 'fr-FR';
+  const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
+  const locale = isArabic ? 'ar-MA' : 'fr-FR';
   const [circulations, setCirculations] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
@@ -68,7 +69,9 @@ function Circulations() {
         dateDeReception: form.dateDeReception,
         dateEnvoi: form.dateEnvoi || null,
         recepteur: form.recepteur.trim(),
+        recepteurUserName: null,
         emetteurService: form.emetteurService.trim(),
+        emetteurUserName: localStorage.getItem('nomComplet') || localStorage.getItem('login') || '',
         sourceServiceId: nullableNumber(form.sourceServiceId),
         destinationServiceId: nullableNumber(form.destinationServiceId),
         etat: form.etat.trim() || null,
@@ -201,36 +204,44 @@ function Circulations() {
         </form>
       </div>
 
-      <div className="data-table-wrapper">
+      <div className="data-table-wrapper" dir={isArabic ? 'rtl' : 'ltr'}>
         <table className="modern-table">
           <thead>
             <tr>
               <th>{t('id')}</th>
               <th>{t('document_id')}</th>
               <th>{t('type_document')}</th>
+              <th>{t('numero_bureau_ordre')}</th>
+              <th>{t('numero_dossier_appel')}</th>
               <th>{t('date_reception')}</th>
               <th>{t('date_envoi')}</th>
               <th>{t('recepteur')}</th>
               <th>{t('emetteur_service')}</th>
+              <th>{translate(t, 'envoye_par', 'Envoyé par')}</th>
+              <th>{translate(t, 'traite_par', 'Traité par')}</th>
               <th>{t('etat')}</th>
               <th>{t('actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="9">{t('chargement')}</td></tr>
+              <tr><td colSpan="13">{t('chargement')}</td></tr>
             ) : filteredCirculations.length === 0 ? (
-              <tr><td colSpan="9">{searchTerm ? translate(t, 'aucun_resultat', 'Aucun résultat trouvé') : t('aucune_circulation')}</td></tr>
+              <tr><td colSpan="13">{searchTerm ? translate(t, 'aucun_resultat', 'Aucun résultat trouvé') : t('aucune_circulation')}</td></tr>
             ) : (
               filteredCirculations.map(item => (
                 <tr key={item.id}>
                   <td>{item.id}</td>
                   <td>{item.documentId}</td>
                   <td>{item.documentType || '-'}</td>
+                  <td>{item.numeroBureauOrdre || item.numeroCourrier || '-'}</td>
+                  <td>{item.numeroDossierJudiciaire || '-'}</td>
                   <td>{formatDateTime(item.dateDeReception, locale)}</td>
                   <td>{formatDateTime(item.dateEnvoi, locale)}</td>
                   <td>{item.recepteur || '-'}</td>
                   <td>{item.emetteurService || '-'}</td>
+                  <td>{formatActor(item.emetteurUserName, item.emetteurService)}</td>
+                  <td>{formatActor(item.recepteurUserName, item.recepteur)}</td>
                   <td>{item.etat || '-'}</td>
                   <td className="action-icons">
                     <button type="button" onClick={() => handleEdit(item)}>{t('modifier')}</button>
@@ -264,6 +275,13 @@ function formatDateTime(value, locale) {
   return date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function formatActor(value, serviceValue) {
+  const userName = String(value || '').trim();
+  const serviceName = String(serviceValue || '').trim();
+  if (userName && userName !== serviceName) return userName;
+  return serviceName || '-';
+}
+
 function matchesSearch(item, searchTerm, locale) {
   const term = searchTerm.trim().toLowerCase();
   if (!term) return true;
@@ -272,8 +290,13 @@ function matchesSearch(item, searchTerm, locale) {
     item.id,
     item.documentId,
     item.documentType,
+    item.numeroBureauOrdre,
+    item.numeroCourrier,
+    item.numeroDossierJudiciaire,
     item.recepteur,
     item.emetteurService,
+    item.emetteurUserName,
+    item.recepteurUserName,
     item.sourceServiceId,
     item.destinationServiceId,
     item.etat,

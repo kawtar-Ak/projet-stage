@@ -185,6 +185,10 @@ function AdminDashboard() {
                       <b>Dernier mouvement</b>
                       <small>{formatMovement(transaction)}</small>
                     </span>
+                    <span>
+                      <b>Traité par</b>
+                      <small>{formatResponder(transaction)}</small>
+                    </span>
                   </span>
                 </button>
               );
@@ -301,6 +305,11 @@ function formatMovement(transaction) {
   const from = transaction.sourceServiceNom || '-';
   const to = transaction.destinationServiceNom || transaction.currentServiceNom || '-';
   return `${from} -> ${to}`;
+}
+
+function formatResponder(transaction) {
+  if (!transaction?.responderUserName && !transaction?.responderServiceName) return '-';
+  return [transaction.responderUserName, transaction.responderServiceName].filter(Boolean).join(' | ');
 }
 
 function formatStatus(value) {
