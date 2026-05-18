@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
 import MainLayout from './layouts/MainLayout';
@@ -26,7 +27,7 @@ import './theme.css';
 // ... autres imports
 
 function AppRoutes() {
-  const { user } = useAuth();
+  useAuth();
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -59,11 +60,25 @@ function AppRoutes() {
   );
 }
 
+function LanguageDocumentSync({ children }) {
+  const { i18n } = useTranslation();
+  const currentLanguage = (i18n.resolvedLanguage || i18n.language || 'fr').split('-')[0];
+
+  useEffect(() => {
+    document.documentElement.dir = currentLanguage === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = currentLanguage;
+  }, [currentLanguage]);
+
+  return children;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <LanguageDocumentSync>
+          <AppRoutes />
+        </LanguageDocumentSync>
       </AuthProvider>
     </BrowserRouter>
   );

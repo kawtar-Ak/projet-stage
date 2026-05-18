@@ -1,13 +1,13 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div>Chargement...</div>;
+  const { t } = useTranslation();
+
+  if (loading) return <div>{t('chargement')}</div>;
   return user ? children : <Navigate to="/login" />;
 }
-function MyComponent() {
-  const { t } = useTranslation();
-  return <h1>{t('dashboard')}</h1>;
-}
+
 export default PrivateRoute;

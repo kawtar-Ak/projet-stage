@@ -3,9 +3,15 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
+import {
+    formatLocalizedDateTime,
+    getLocalizedResponseMessage,
+    getLocalizedServiceName,
+    getLocalizedStatus
+} from '../utils/localization';
 
 function Notifications() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const serviceId = Number(localStorage.getItem('idService') || 0);
     const serviceName = String(localStorage.getItem('nomService') || '').toLowerCase();
     const isArchiveAccount = serviceId === 13 || serviceName.includes('archive') || serviceName.includes('archivage');
@@ -172,7 +178,7 @@ function Notifications() {
                                 <div className="notification-details">
                                     <div className="detail-row">
                                         <span className="detail-label">{t('de')} :</span>
-                                        <span className="detail-value">{n.sourceServiceNom}</span>
+                                        <span className="detail-value">{getLocalizedServiceName({ idService: n.sourceServiceId, nomService: n.sourceServiceNom }, i18n)}</span>
                                     </div>
                                     <div className="detail-row">
                                         <span className="detail-label">{t('message')} :</span>
@@ -180,7 +186,7 @@ function Notifications() {
                                     </div>
                                     <div className="detail-row">
                                         <span className="detail-label">{t('recu_le')} :</span>
-                                        <span className="detail-value">{formatDateTime(n.dateEnvoi)}</span>
+                                        <span className="detail-value">{formatLocalizedDateTime(n.dateEnvoi, i18n)}</span>
                                     </div>
                                 </div>
                                 <textarea
@@ -234,12 +240,12 @@ function Notifications() {
                                 processedTransactions.map(tx => (
                                     <tr key={tx.id}>
                                         <td>{getDocumentLabel(tx)}</td>
-                                        <td>{tx.destinationServiceNom || '-'}</td>
+                                        <td>{getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</td>
                                         <td>{formatStatus(tx.statut, t)}</td>
                                         <td>{tx.responderUserName || '-'}</td>
-                                        <td>{tx.responderServiceName || tx.destinationServiceNom || '-'}</td>
-                                        <td>{formatDateTime(tx.dateReponse || tx.dateEnvoi)}</td>
-                                        <td>{tx.messageReponse || '-'}</td>
+                                        <td>{getLocalizedServiceName({ idService: tx.responderServiceId || tx.destinationServiceId, nomService: tx.responderServiceName || tx.destinationServiceNom }, i18n)}</td>
+                                        <td>{formatLocalizedDateTime(tx.dateReponse || tx.dateEnvoi, i18n)}</td>
+                                        <td>{getLocalizedResponseMessage(tx.messageReponse, t)}</td>
                                     </tr>
                                 ))
                             )}
@@ -269,8 +275,8 @@ function Notifications() {
                                 pendingReturns.map(tx => (
                                     <tr key={tx.id}>
                                         <td>{getDocumentLabel(tx)}</td>
-                                        <td>{tx.destinationServiceNom || '-'}</td>
-                                        <td>{formatDateTime(tx.dateEnvoi)}</td>
+                                        <td>{getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</td>
+                                        <td>{formatLocalizedDateTime(tx.dateEnvoi, i18n)}</td>
                                         <td className="action-icons">
                                             <button type="button" onClick={() => handleConsult(tx)}>{t('consulter')}</button>
                                             <button type="button" className="btn-primary" onClick={() => handleMarkReturned(tx)}>
@@ -302,7 +308,7 @@ function Notifications() {
                                 >
                                     <option value="">--</option>
                                     {services.filter(s => s.idService !== transferTarget.destinationServiceId).map(s => (
-                                        <option key={s.idService} value={s.idService}>{s.nomService}</option>
+                                        <option key={s.idService} value={s.idService}>{getLocalizedServiceName(s, i18n)}</option>
                                     ))}
                                 </select>
                             </div>
@@ -373,21 +379,8 @@ function getTime(value) {
     return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
-function formatDateTime(value) {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString();
-}
-
 function formatStatus(value, t) {
-    const status = String(value || '').toLowerCase();
-    if (status.includes('attente')) return t('en_attente');
-    if (status.includes('accept')) return t('acceptees');
-    if (status.includes('retourn')) return translate(t, 'retourne', 'Retourne');
-    if (status.includes('refus')) return t('refusees');
-    if (status.includes('annul')) return t('annulees');
-    return value || '-';
+    return getLocalizedStatus(value, t);
 }
 
 function getDocumentLabel(transaction) {

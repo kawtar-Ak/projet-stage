@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import { getLocalizedServiceName } from '../utils/localization';
 
 function GererServices() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [services, setServices] = useState([]);
     const [form, setForm] = useState({ idService: '', nomService: '', description: '', etage: '' });
     const [editingId, setEditingId] = useState(null);
@@ -130,7 +131,7 @@ function GererServices() {
     };
 
     return (
-        <div className="page-container" dir="rtl">
+        <div className="page-container">
             <h1 className="page-title">{t('gerer_services')}</h1>
             {error && <div className="error-message">{error}</div>}
             <div className="filters">
@@ -177,8 +178,8 @@ function GererServices() {
                             <tr key={s.idService}>
                                 <td><input type="checkbox" checked={selectedIds.includes(s.idService)} onChange={() => handleSelectOne(s.idService)} /></td>
                                 <td>{s.idService}</td>
-                                <td>{s.nomService}</td>
-                                <td>{s.description || '—'}</td>
+                                <td>{getLocalizedServiceName(s, i18n)}</td>
+                                <td>{getServiceDescription(s, i18n)}</td>
                                 <td>{s.etage || '—'}</td>
                                 <td className="action-icons"><button onClick={() => handleEdit(s)}>✏️</button><button onClick={() => handleDelete(s.idService)}>🗑️</button></td>
                               </tr>
@@ -197,6 +198,21 @@ function getErrorMessage(error, fallback) {
     if (data?.error?.message) return data.error.message;
     if (data?.message) return data.message;
     return fallback;
+}
+
+function getServiceDescription(service, i18n) {
+    const description = String(service.description || '').trim();
+    if (!description || description === '-' || description === '—') return '—';
+
+    const localizedName = getLocalizedServiceName(service, i18n);
+    const alternateName = getLocalizedServiceName(service, i18n?.resolvedLanguage?.startsWith('ar') ? 'fr' : 'ar');
+
+    if ([localizedName, alternateName].some((value) => sameText(value, description))) return '—';
+    return description;
+}
+
+function sameText(first, second) {
+    return String(first || '').trim().toLowerCase() === String(second || '').trim().toLowerCase();
 }
 
 export default GererServices;

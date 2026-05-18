@@ -99,8 +99,9 @@ function MainLayout({ children }) {
 
   const menuItems = getMenuItems();
   const displayName = user?.nomComplet || user?.login || t('administrateur');
-  const serviceLabel = user?.nomService || 'IT';
-  const layoutClassName = `app-layout${user?.readOnly ? ' read-only-mode' : ''}`;
+  const serviceLabel = user?.nomService || t('service_informatique');
+  const menuPositionClass = currentLanguage === 'ar' ? 'menu-right' : 'menu-left';
+  const layoutClassName = `app-layout ${menuPositionClass}${user?.readOnly ? ' read-only-mode' : ''}`;
 
   return (
     <div className={layoutClassName}>
@@ -125,7 +126,7 @@ function MainLayout({ children }) {
           </button>
           <button onClick={() => changeLanguage('ar')} className={currentLanguage === 'ar' ? 'active' : ''}>
             <strong>AR</strong>
-            <span>SA</span>
+            <span>AR</span>
           </button>
         </div>
 
@@ -151,7 +152,7 @@ function MainLayout({ children }) {
       <main className="main-content">
         {user?.readOnly && (
           <div className="read-only-banner">
-            Mode consultation: ce compte ne peut pas ajouter, modifier ou supprimer.
+            {t('mode_consultation_banniere')}
           </div>
         )}
         {children}

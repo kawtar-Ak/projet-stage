@@ -5,12 +5,18 @@ import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import { useAuth } from '../context/AuthContext';
 import AdminDashboard from '../dashboards/AdminDashboard';
+import JudicialSearch from '../components/JudicialSearch';
+import {
+    formatLocalizedDateTime,
+    getLocalizedResponseMessage,
+    getLocalizedServiceName,
+    getLocalizedStatus
+} from '../utils/localization';
 
 function Dashboard() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { t, i18n } = useTranslation();
-    const locale = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar') ? 'ar-MA' : 'fr-FR';
     const [pending, setPending] = useState([]);
     const [completed, setCompleted] = useState([]);
     const [pendingReturns, setPendingReturns] = useState([]);
@@ -249,6 +255,8 @@ function Dashboard() {
                 </div>
             </div>
 
+            <JudicialSearch />
+
             <Section title={t('demandes_attente')}>
                 {pending.length === 0 ? (
                     <p className="text-muted">{t('aucune_demande')}</p>
@@ -259,7 +267,7 @@ function Dashboard() {
                                 key={tx.id}
                                 tx={tx}
                                 badge={t('en_attente')}
-                                locale={locale}
+                                i18n={i18n}
                                 t={t}
                                 actions={handlesIncomingRequests ? [
                                     <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
@@ -285,9 +293,9 @@ function Dashboard() {
                                 key={tx.id}
                                 tx={tx}
                                 badge={translateStatus(tx.statut, t)}
-                                locale={locale}
+                                i18n={i18n}
                                 t={t}
-                                note={tx.messageReponse || t('non_renseigne')}
+                                note={getLocalizedResponseMessage(tx.messageReponse, t)}
                                 date={tx.dateReponse}
                                 dateLabel={t('traite_le')}
                                 actions={[
@@ -310,7 +318,7 @@ function Dashboard() {
                                 key={tx.id}
                                 tx={tx}
                                 badge={t('en_attente_retour')}
-                                locale={locale}
+                                i18n={i18n}
                                 t={t}
                                 actions={[
                                     <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
@@ -352,7 +360,7 @@ function Section({ title, children }) {
     );
 }
 
-function TransactionItem({ tx, badge, locale, t, actions, note, date, dateLabel }) {
+function TransactionItem({ tx, badge, i18n, t, actions, note, date, dateLabel }) {
     return (
         <div className="transaction-item">
             <div className="transaction-header">
@@ -360,19 +368,14 @@ function TransactionItem({ tx, badge, locale, t, actions, note, date, dateLabel 
                 <span className="transaction-badge badge-pending">{badge}</span>
             </div>
             <div className="transaction-details">
-                <span>{t('service_destinataire')} : {tx.destinationServiceNom}</span>
-                <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {tx.currentServiceNom || tx.currentLocation || '-'}</span>
+                <span>{t('service_destinataire')} : {getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</span>
+                <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {getLocalizedServiceName({ idService: tx.currentServiceId, nomService: tx.currentServiceNom || tx.currentLocation }, i18n)}</span>
                 <span>{note ? `${t('note')} : ${note}` : `${t('message')} : ${tx.message || t('non_renseigne')}`}</span>
-                <span>{dateLabel || t('envoye_le')} : {formatDate(date || tx.dateEnvoi, locale)}</span>
+                <span>{dateLabel || t('envoye_le')} : {formatLocalizedDateTime(date || tx.dateEnvoi, i18n)}</span>
             </div>
             <div className="transaction-actions">{actions}</div>
         </div>
     );
-}
-
-function formatDate(value, locale) {
-    if (!value) return '-';
-    return new Date(value).toLocaleDateString(locale);
 }
 
 function normalizeStatus(value) {
@@ -399,11 +402,7 @@ function isCancelled(value) {
 }
 
 function translateStatus(value, t) {
-    if (isAccepted(value)) return t('acceptees');
-    if (isRejected(value)) return t('refusees');
-    if (isCancelled(value)) return t('annulees');
-    if (isPending(value)) return t('en_attente');
-    return value || '-';
+    return getLocalizedStatus(value, t);
 }
 
 function translate(t, key, fallback) {

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import JudicialSearch from '../components/JudicialSearch';
 
 function RoleDashboard({ titleKey, eyebrowKey = 'dashboard', subtitle, actions = [], variant = '' }) {
   const { t } = useTranslation();
@@ -33,6 +34,8 @@ function RoleDashboard({ titleKey, eyebrowKey = 'dashboard', subtitle, actions =
           </Link>
         ))}
       </div>
+
+      <JudicialSearch />
     </div>
   );
 }

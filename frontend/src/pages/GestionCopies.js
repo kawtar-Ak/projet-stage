@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const DB_NAME = 'gestion-courrier-folders';
 const STORE_NAME = 'handles';
@@ -6,6 +7,7 @@ const ROOT_HANDLE_KEY = 'copies-root';
 const SUPPORTED_EXTENSIONS = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'tif', 'tiff'];
 
 function GestionCopies() {
+  const { t } = useTranslation();
   const [directoryHandle, setDirectoryHandle] = useState(null);
   const [directoryName, setDirectoryName] = useState(localStorage.getItem('copiesDirectoryName') || '');
   const [documents, setDocuments] = useState([]);
@@ -56,10 +58,10 @@ function GestionCopies() {
       if (permission) {
         await scanDirectory(savedHandle);
       } else {
-        setStatus('Dossier conserve. Cliquez sur Actualiser pour autoriser l acces et recharger les fichiers.');
+        setStatus(t('dossier_conserve_actualiser'));
       }
     } catch {
-      setStatus('Le dossier enregistre ne peut pas etre restaure. Choisissez-le de nouveau.');
+      setStatus(t('dossier_enregistre_non_restaure'));
     }
   };
 
@@ -80,7 +82,7 @@ function GestionCopies() {
       await scanDirectory(handle);
     } catch (error) {
       if (error.name !== 'AbortError') {
-        setStatus('Impossible de selectionner le dossier.');
+        setStatus(t('impossible_selectionner_dossier'));
       }
     }
   };
@@ -93,7 +95,7 @@ function GestionCopies() {
 
     const allowed = await verifyPermission(directoryHandle, true);
     if (!allowed) {
-      setStatus('Autorisation refusee pour ce dossier.');
+      setStatus(t('autorisation_refusee_dossier'));
       return;
     }
 
@@ -116,10 +118,10 @@ function GestionCopies() {
       .sort(sortDocuments);
 
     setDocuments(mapped);
-    setDirectoryName(files[0]?.webkitRelativePath?.split('/')[0] || 'Dossier selectionne');
+    setDirectoryName(files[0]?.webkitRelativePath?.split('/')[0] || t('dossier_selectionne'));
     setDirectoryHandle(null);
     setSelectedDocument(null);
-    setStatus('Mode compatible: le dossier reste disponible pendant cette session uniquement.');
+    setStatus(t('mode_compatible_dossier_session'));
   };
 
   const scanDirectory = async (handle) => {
@@ -139,9 +141,9 @@ function GestionCopies() {
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl('');
       }
-      setStatus(`${items.length} document(s) charge(s).`);
+      setStatus(t('documents_charges', { count: items.length }));
     } catch {
-      setStatus('Erreur pendant la lecture du dossier.');
+      setStatus(t('erreur_lecture_dossier'));
     } finally {
       setLoading(false);
     }
@@ -160,7 +162,7 @@ function GestionCopies() {
       setPreviewUrl(URL.createObjectURL(file));
     } catch {
       setPreviewUrl('');
-      setStatus('Impossible d ouvrir ce fichier.');
+      setStatus(t('impossible_ouvrir_fichier'));
     }
   };
 
@@ -172,24 +174,24 @@ function GestionCopies() {
       const url = URL.createObjectURL(file);
       printBlobUrl(url);
     } catch {
-      setStatus('Impossible d imprimer ce document.');
+      setStatus(t('impossible_imprimer_document'));
     }
   };
 
   return (
-    <div className="copies-page" dir="rtl">
+    <div className="copies-page">
       <div className="copies-header">
         <div>
-          <span className="copies-eyebrow">Service notification et remise des copies</span>
-          <h1>Gestion des copies</h1>
-          <p>{directoryName ? `Dossier actif : ${directoryName}` : 'Choisissez un dossier pour commencer la recherche.'}</p>
+          <span className="copies-eyebrow">{t('service_notification_copies')}</span>
+          <h1>{t('gestion_copies')}</h1>
+          <p>{directoryName ? t('dossier_actif', { name: directoryName }) : t('choisir_dossier_commencer')}</p>
         </div>
         <div className="copies-header-actions">
           <button type="button" className="btn-secondary" onClick={refreshDirectory} disabled={loading}>
-            Actualiser
+            {t('actualiser')}
           </button>
           <button type="button" className="btn-primary" onClick={chooseDirectory} disabled={loading}>
-            Choisir le dossier
+            {t('choisir_dossier')}
           </button>
           <input
             ref={fallbackInputRef}
@@ -207,13 +209,13 @@ function GestionCopies() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Rechercher par nom de fichier, numero ou dossier..."
+          placeholder={t('placeholder_recherche_copies')}
         />
         <div className="copies-chips">
-          <span>{filteredDocuments.length} resultat(s)</span>
-          <span>{stats.total} document(s)</span>
+          <span>{t('resultats_count', { count: filteredDocuments.length })}</span>
+          <span>{t('documents_count', { count: stats.total })}</span>
           <span>{stats.pdf} PDF</span>
-          <span>{stats.images} image(s)</span>
+          <span>{t('images_count', { count: stats.images })}</span>
         </div>
       </div>
 
@@ -223,13 +225,13 @@ function GestionCopies() {
         <aside className="copies-list">
           <div className="copies-list-title">
             <div>
-              <strong>Documents du dossier</strong>
-              <small>{loading ? 'Lecture en cours...' : `${filteredDocuments.length} fichier(s)`}</small>
+              <strong>{t('documents_du_dossier')}</strong>
+              <small>{loading ? t('lecture_en_cours') : t('fichiers_count', { count: filteredDocuments.length })}</small>
             </div>
           </div>
 
           {filteredDocuments.length === 0 ? (
-            <div className="copies-empty">Aucun document trouve.</div>
+            <div className="copies-empty">{t('aucun_document_trouve')}</div>
           ) : (
             filteredDocuments.map((document) => (
               <button
@@ -258,17 +260,17 @@ function GestionCopies() {
                 </div>
                 <div className="copies-preview-actions">
                   <button type="button" className="btn-primary" onClick={() => printDocument()}>
-                    Imprimer
+                    {t('imprimer')}
                   </button>
                 </div>
               </div>
 
-              <DocumentPreview document={selectedDocument} previewUrl={previewUrl} />
+              <DocumentPreview document={selectedDocument} previewUrl={previewUrl} t={t} />
             </>
           ) : (
             <div className="copies-preview-empty">
-              <h2>Aucun document selectionne</h2>
-              <p>Choisissez un dossier puis selectionnez un document dans la liste.</p>
+              <h2>{t('aucun_document_selectionne')}</h2>
+              <p>{t('selectionner_document_liste')}</p>
             </div>
           )}
         </section>
@@ -277,9 +279,9 @@ function GestionCopies() {
   );
 }
 
-function DocumentPreview({ document, previewUrl }) {
+function DocumentPreview({ document, previewUrl, t }) {
   if (!previewUrl) {
-    return <div className="copies-preview-empty">Cliquez sur un document pour afficher l apercu.</div>;
+    return <div className="copies-preview-empty">{t('cliquer_document_apercu')}</div>;
   }
 
   if (document.extension === 'pdf') {
@@ -292,8 +294,8 @@ function DocumentPreview({ document, previewUrl }) {
 
   return (
     <div className="copies-preview-empty">
-      <h2>Apercu non disponible</h2>
-      <p>Ce type de fichier ne peut pas etre affiche directement dans cette zone.</p>
+      <h2>{t('apercu_non_disponible')}</h2>
+      <p>{t('type_fichier_non_affichable')}</p>
     </div>
   );
 }
