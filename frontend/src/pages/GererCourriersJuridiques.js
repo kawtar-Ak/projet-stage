@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_SERVICES } from "../constants/defaultServices";
@@ -7,6 +7,10 @@ import DocumentModal from "../components/DocumentModal";
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 const BUREAU_ORDRE_SERVICE_ID = 2;
 const OUVERTURE_DOSSIERS_SERVICE_ID = 3;
+const JUDICIAL_RECORD_DOSSIER = "Dossier";
+const JUDICIAL_RECORD_DOCUMENT_LIE = "DocumentLie";
+const DEFAULT_JUDICIAL_DESTINATAIRE = "Ù…Ø­ÙƒÙ…Ø© Ø§Ù„Ø§Ø³ØªØ¦Ù†Ø§Ù Ø§Ù„Ø¥Ø¯Ø§Ø±ÙŠØ© ÙØ§Ø³";
+const JUDICIAL_DOCUMENT_TYPES = [];
 
 function GererCourriersJuridiques({ embedded = false }) {
   const { t } = useTranslation();
@@ -28,18 +32,36 @@ function GererCourriersJuridiques({ embedded = false }) {
   const [retraitMotCle, setRetraitMotCle] = useState("");
   const [retraitDate, setRetraitDate] = useState("");
   const [form, setForm] = useState(getInitialForm());
+  const [judicialFormMode, setJudicialFormMode] = useState(JUDICIAL_RECORD_DOSSIER);
+  const [linkedDossierSearch, setLinkedDossierSearch] = useState("");
   const [selectedArchiveItem, setSelectedArchiveItem] = useState(null);
   const [retraitForm, setRetraitForm] = useState(getInitialRetraitForm());
   const [selectedTransferItem, setSelectedTransferItem] = useState(null);
   const [transferForm, setTransferForm] = useState(getInitialTransferForm());
+  const courriersRegistre = useMemo(
+    () => enrichJudicialCourriers(courriers),
+    [courriers]
+  );
   const filteredCourriers = useMemo(
-    () => filterCourriersJudiciaires(courriers, motCle, dateRecherche),
-    [courriers, motCle, dateRecherche]
+    () => filterCourriersJudiciaires(courriersRegistre, motCle, dateRecherche),
+    [courriersRegistre, motCle, dateRecherche]
   );
   const filteredArchiveRetraits = useMemo(
     () => filterRetraits(selectedArchiveItem?.retraits || [], retraitMotCle, retraitDate),
     [selectedArchiveItem, retraitMotCle, retraitDate]
   );
+  const dossiersJudiciaires = useMemo(
+    () => courriersRegistre.filter((courrier) =>
+      courrier.typeEnregistrementJudiciaire !== JUDICIAL_RECORD_DOCUMENT_LIE &&
+      hasCompleteNumeroDossier(courrier.numeroDossier)
+    ),
+    [courriersRegistre]
+  );
+  const linkedDossierResults = useMemo(
+    () => filterDossiersJudiciaires(dossiersJudiciaires, linkedDossierSearch).slice(0, 8),
+    [dossiersJudiciaires, linkedDossierSearch]
+  );
+  const isLinkedJudicialDocument = isLinkedJudicialForm(form, judicialFormMode);
 
   useEffect(() => {
     fetchCourriers();
@@ -126,12 +148,41 @@ function GererCourriersJuridiques({ embedded = false }) {
     }
   };
 
+  const handleFormModeChange = (mode) => {
+    setJudicialFormMode(mode);
+    setEditingId(null);
+    setIsEditModalOpen(false);
+    setForm(getInitialForm(services, currentServiceId, mode));
+    setLinkedDossierSearch("");
+    setError("");
+    setSuccess("");
+  };
+
+  const handleLinkedDossierSearchChange = (event) => {
+    setLinkedDossierSearch(event.target.value);
+    setForm((prev) => ({
+      ...prev,
+      courrierJudiciaireParentId: "",
+      typeEnregistrementJudiciaire: JUDICIAL_RECORD_DOCUMENT_LIE,
+    }));
+  };
+
+  const selectLinkedDossier = (dossier) => {
+    setForm((prev) => ({
+      ...prev,
+      courrierJudiciaireParentId: dossier.id,
+      numeroDossier: dossier.numeroDossier || "",
+      typeEnregistrementJudiciaire: JUDICIAL_RECORD_DOCUMENT_LIE,
+    }));
+    setLinkedDossierSearch(formatDossierJudiciaireOption(dossier));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
     setSuccess("");
 
-    const validationError = validateForm(form, t, isOuvertureDossiersService);
+    const validationError = validateForm(form, t, isOuvertureDossiersService, isLinkedJudicialDocument);
     if (validationError) {
       setError(validationError);
       return;
@@ -148,11 +199,16 @@ function GererCourriersJuridiques({ embedded = false }) {
       etatArchive: form.etatArchive,
       emplacement: form.emplacement.trim(),
       lienPdf: form.lienPdf.trim(),
+      typeDocumentJudiciaire: isLinkedJudicialDocument ? form.typeDocumentJudiciaire.trim() : "",
       idService: Number(form.idService),
-      numeroDossier: isBureauOrdreService ? "" : form.numeroDossier.trim(),
-      estTransmissible: isOuvertureDossiersService
+      typeEnregistrementJudiciaire: isLinkedJudicialDocument ? JUDICIAL_RECORD_DOCUMENT_LIE : JUDICIAL_RECORD_DOSSIER,
+      courrierJudiciaireParentId: isLinkedJudicialDocument ? Number(form.courrierJudiciaireParentId) : null,
+      numeroDossier: isLinkedJudicialDocument || isBureauOrdreService ? "" : form.numeroDossier.trim(),
+      estTransmissible: isLinkedJudicialDocument
+        ? Boolean(form.estTransmissible)
+        : isOuvertureDossiersService
         ? hasCompleteNumeroDossier(form.numeroDossier)
-        : Boolean(form.estTransmissible) && !isBureauOrdreService && hasCompleteNumeroDossier(form.numeroDossier),
+        : Boolean(form.estTransmissible) && !isLinkedJudicialDocument && !isBureauOrdreService && hasCompleteNumeroDossier(form.numeroDossier),
     };
 
     try {
@@ -172,6 +228,13 @@ function GererCourriersJuridiques({ embedded = false }) {
   };
 
   const handleEdit = (courrier) => {
+    const mode = courrier.typeEnregistrementJudiciaire || JUDICIAL_RECORD_DOSSIER;
+    setJudicialFormMode(mode);
+    setLinkedDossierSearch(
+      mode === JUDICIAL_RECORD_DOCUMENT_LIE
+        ? courrier.dossierParentNumero || courrier.numeroDossier || ""
+        : ""
+    );
     setEditingId(courrier.id);
     setIsEditModalOpen(true);
     setForm({
@@ -181,11 +244,14 @@ function GererCourriersJuridiques({ embedded = false }) {
       numeroDossier: courrier.numeroDossier || "",
       sujet: courrier.sujet || "",
       direction: courrier.direction || "Entrant",
-      destinataire: courrier.destinataire || "",
+      destinataire: courrier.destinataire || (mode === JUDICIAL_RECORD_DOCUMENT_LIE ? DEFAULT_JUDICIAL_DESTINATAIRE : ""),
       description: courrier.description || "",
       etatArchive: courrier.etatArchive || "Nouveau",
       emplacement: courrier.emplacement || "",
       lienPdf: courrier.lienPdf || "",
+      typeDocumentJudiciaire: courrier.typeDocumentJudiciaire || "",
+      typeEnregistrementJudiciaire: mode,
+      courrierJudiciaireParentId: courrier.courrierJudiciaireParentId || "",
       idService: courrier.idService || getDefaultServiceId(services),
       estTransmissible: Boolean(courrier.estTransmissible),
     });
@@ -202,7 +268,10 @@ function GererCourriersJuridiques({ embedded = false }) {
       description: courrier.description,
       numeroCourrier: courrier.idBureauOrdre,
       numeroDossierJudiciaire: courrier.numeroDossier,
+      typeEnregistrementJudiciaire: courrier.typeEnregistrementJudiciaire,
+      dossierParentNumero: courrier.dossierParentNumero,
       etatArchive: courrier.etatArchive,
+      typeDocumentJudiciaire: courrier.typeDocumentJudiciaire,
     });
   };
 
@@ -247,7 +316,9 @@ function GererCourriersJuridiques({ embedded = false }) {
 
   const openCreateModal = () => {
     setEditingId(null);
-    setForm(getInitialForm(services, currentServiceId));
+    setJudicialFormMode(JUDICIAL_RECORD_DOSSIER);
+    setLinkedDossierSearch("");
+    setForm(getInitialForm(services, currentServiceId, JUDICIAL_RECORD_DOSSIER));
     setIsCreateModalOpen(true);
     setError("");
     setSuccess("");
@@ -333,35 +404,35 @@ function GererCourriersJuridiques({ embedded = false }) {
     setEditingId(null);
     setIsEditModalOpen(false);
     setIsCreateModalOpen(false);
-    setForm(getInitialForm(services, currentServiceId));
+    setJudicialFormMode(JUDICIAL_RECORD_DOSSIER);
+    setLinkedDossierSearch("");
+    setForm(getInitialForm(services, currentServiceId, JUDICIAL_RECORD_DOSSIER));
     setError("");
   };
 
   const exportToExcel = async () => {
     try {
-      const response = await axios.get("/api/acteursjudiciaires/export/excel", { responseType: "blob" });
-      downloadBlob(response.data, "courriers-juridiques.xlsx");
-    } catch (err) {
-      setError(t("erreur_export"));
-    }
-    return;
+      const response = await axios.get("/api/acteursjudiciaires/export/registre-modele", {
+        responseType: "blob",
+      });
 
-    fetch(`/api/acteursjudiciaires/export/excel`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-      .then((response) => {
-        if (!response.ok) throw new Error(t("erreur_export"));
-        return response.blob();
-      })
-      .then((blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "courriers-juridiques.xlsx";
-        a.click();
-        window.URL.revokeObjectURL(url);
-      })
-      .catch(() => setError(t("erreur_export")));
+      downloadBlob(response.data, "registre-judiciaire.xlsx");
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_export")));
+    }
+  };
+
+  const exportRegistreModele = async () => {
+    try {
+      const response = await axios.get(
+        "/api/acteursjudiciaires/export/registre-modele",
+        { responseType: "blob" }
+      );
+
+      downloadBlob(response.data, "registre-judiciaire-modele.xlsx");
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_export")));
+    }
   };
 
   const downloadBlob = (blob, filename) => {
@@ -416,11 +487,63 @@ function GererCourriersJuridiques({ embedded = false }) {
         className={isFormModal ? "modal form-card edit-modal" : "form-card"}
         onClick={isFormModal ? (event) => event.stopPropagation() : undefined}
       >
-        <h3>{editingId ? t("modifier") : t("ajouter")} {t("courrier_judiciaire")}</h3>
+        <h3>
+          {editingId ? t("modifier") : t("ajouter")}{" "}
+          {isLinkedJudicialDocument ? t("document_lie_dossier_judiciaire") : t("courrier_judiciaire")}
+        </h3>
+
+        {!editingId && (
+          <div className="registry-choice compact-choice">
+            <button
+              type="button"
+              className={judicialFormMode === JUDICIAL_RECORD_DOSSIER ? "choice-pill active" : "choice-pill"}
+              onClick={() => handleFormModeChange(JUDICIAL_RECORD_DOSSIER)}
+            >
+              {t("ajouter")} {t("courrier_judiciaire")}
+            </button>
+            <button
+              type="button"
+              className={isLinkedJudicialDocument ? "choice-pill active" : "choice-pill"}
+              onClick={() => handleFormModeChange(JUDICIAL_RECORD_DOCUMENT_LIE)}
+            >
+              {t("document_lie_dossier_judiciaire")}
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
-            {!isBureauOrdreService && (
+            {isLinkedJudicialDocument ? (
+              <div className="form-field linked-dossier-field">
+                <label>{t("dossier_judiciaire_lie")} *</label>
+                <input
+                  value={linkedDossierSearch}
+                  onChange={handleLinkedDossierSearchChange}
+                  placeholder={t("rechercher_dossier_judiciaire_lie")}
+                  required
+                />
+                <input type="hidden" name="courrierJudiciaireParentId" value={form.courrierJudiciaireParentId} />
+                {linkedDossierSearch.trim() && !form.courrierJudiciaireParentId && (
+                  <div className="linked-dossier-results">
+                    {linkedDossierResults.length === 0 ? (
+                      <div className="linked-dossier-empty">{t("aucun_dossier_judiciaire_trouve")}</div>
+                    ) : (
+                      linkedDossierResults.map((dossier) => (
+                        <button
+                          key={dossier.id}
+                          type="button"
+                          className="linked-dossier-option"
+                          onClick={() => selectLinkedDossier(dossier)}
+                        >
+                          <strong>{dossier.numeroDossier}</strong>
+                          <span>{dossier.sujet || dossier.tribunalSource || "-"}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : !isBureauOrdreService && (
               <div className="form-field">
                 <label>{t("numero_dossier_appel")}{isOuvertureDossiersService ? " *" : ""}</label>
                 <input
@@ -442,6 +565,22 @@ function GererCourriersJuridiques({ embedded = false }) {
               <label>{t("tribunal_source")} *</label>
               <input name="tribunalSource" value={form.tribunalSource} onChange={handleChange} required />
             </div>
+
+            {isLinkedJudicialDocument && (
+              <div className="form-field">
+                <label>{t("type_document_lie_dossier")}</label>
+                <select
+                  name="typeDocumentJudiciaire"
+                  value={form.typeDocumentJudiciaire}
+                  onChange={handleChange}
+                >
+                  <option value="">{t("selectionner_type_document_judiciaire")}</option>
+                  {JUDICIAL_DOCUMENT_TYPES.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="form-field">
               <label>{t("numero_bureau_ordre")}</label>
@@ -738,21 +877,37 @@ function GererCourriersJuridiques({ embedded = false }) {
           <button type="button" className="choice-pill" onClick={openCreateModal}>
             {t("ajouter")} {t("courrier_judiciaire")}
           </button>
+          <button type="button" className="choice-pill" onClick={() => {
+            setEditingId(null);
+            setJudicialFormMode(JUDICIAL_RECORD_DOCUMENT_LIE);
+            setLinkedDossierSearch("");
+            setForm(getInitialForm(services, currentServiceId, JUDICIAL_RECORD_DOCUMENT_LIE));
+            setIsCreateModalOpen(true);
+            setError("");
+            setSuccess("");
+          }}>
+            {t("document_lie_dossier_judiciaire")}
+          </button>
         </div>
       )}
+      <div className="registry-tools">
+  <button type="button" className="btn-primary" onClick={exportToExcel}>
+    {t("exporter_excel")}
+  </button>
 
-      <div className="registry-panel">
-        <div className="registry-panel-header">
-          <h3>{t("recherche_registre")}</h3>
-          <div className="registry-tools">
-            <button type="button" className="btn-primary" onClick={exportToExcel}>{t("exporter_excel")}</button>
-            <label className="btn-secondary import-label">
-              {importing ? t("import_en_cours") : t("importer_excel")}
-              <input type="file" accept=".xlsx" onChange={handleImportExcel} />
-            </label>
-          </div>
-        </div>
-
+  <button
+    type="button"
+    className="btn-secondary"
+    onClick={exportRegistreModele}
+  >
+    تصدير نموذج السجل
+  </button>
+  <label className="btn-secondary import-label">
+    {importing ? t("import_en_cours") : t("importer_excel")}
+    <input type="file" accept=".xlsx" onChange={handleImportExcel} />
+  </label>
+</div>
+<div>
         <div className="filters">
           <input value={motCle} onChange={(e) => setMotCle(e.target.value)} placeholder={t("rechercher_courriers_judiciaires")} />
           <input type="date" value={dateRecherche} onChange={(e) => setDateRecherche(e.target.value)} />
@@ -769,6 +924,9 @@ function GererCourriersJuridiques({ embedded = false }) {
                 <th>{t("date")}</th>
                 <th>{t("numero_bureau_ordre")}</th>
                 <th>{t("tribunal_source")}</th>
+                <th>{t("type_enregistrement")}</th>
+                <th>{t("type_document_judiciaire")}</th>
+                <th>{t("dossier_judiciaire_lie")}</th>
                 <th>{t("numero_dossier_appel")}</th>
                 <th>{t("objet")}</th>
                 <th>{t("destinataire")}</th>
@@ -782,14 +940,21 @@ function GererCourriersJuridiques({ embedded = false }) {
             </thead>
             <tbody>
               {filteredCourriers.length === 0 ? (
-                <tr><td colSpan="12" style={{ textAlign: "center" }}>{t("aucun_courrier_judiciaire")}</td></tr>
+                <tr><td colSpan="15" style={{ textAlign: "center" }}>{t("aucun_courrier_judiciaire")}</td></tr>
               ) : (
                 filteredCourriers.map((courrier) => (
                   <tr key={courrier.id}>
                     <td>{formatDate(courrier.date)}</td>
                     <td>{courrier.idBureauOrdre || "-"}</td>
                     <td>{courrier.tribunalSource || "-"}</td>
-                    <td>{courrier.numeroDossier || "-"}</td>
+                    <td>
+                      <span className={getJudicialRecordBadgeClass(courrier)}>
+                        {formatJudicialRecordType(courrier.typeEnregistrementJudiciaire, t)}
+                      </span>
+                    </td>
+                    <td>{courrier.typeDocumentJudiciaire || "-"}</td>
+                    <td>{isLinkedJudicialRecord(courrier) ? getDisplayNumeroDossier(courrier) : "-"}</td>
+                    <td>{getDisplayNumeroDossier(courrier)}</td>
                     <td>{courrier.sujet || "-"}</td>
                     <td>{courrier.destinataire || "-"}</td>
                     <td>{courrier.serviceNom || courrier.idService || "-"}</td>
@@ -822,7 +987,7 @@ function GererCourriersJuridiques({ embedded = false }) {
   );
 }
 
-function getInitialForm(services = [], currentServiceId = 0) {
+function getInitialForm(services = [], currentServiceId = 0, mode = JUDICIAL_RECORD_DOSSIER) {
   return {
     idBureauOrdre: "",
     date: "",
@@ -830,11 +995,14 @@ function getInitialForm(services = [], currentServiceId = 0) {
     numeroDossier: "",
     sujet: "",
     direction: "Entrant",
-    destinataire: "",
+    destinataire: mode === JUDICIAL_RECORD_DOCUMENT_LIE ? DEFAULT_JUDICIAL_DESTINATAIRE : "",
     description: "",
     etatArchive: "Nouveau",
     emplacement: "",
     lienPdf: "",
+    typeDocumentJudiciaire: "",
+    typeEnregistrementJudiciaire: mode,
+    courrierJudiciaireParentId: "",
     idService: currentServiceId || getDefaultServiceId(services),
     estTransmissible: false,
   };
@@ -862,11 +1030,19 @@ function getDefaultServiceId(services) {
   return services.length > 0 ? services[0].idService : "";
 }
 
-function validateForm(form, t, requireNumeroDossier = false) {
+function isLinkedJudicialForm(form, mode) {
+  return mode === JUDICIAL_RECORD_DOCUMENT_LIE ||
+    form?.typeEnregistrementJudiciaire === JUDICIAL_RECORD_DOCUMENT_LIE ||
+    Boolean(form?.courrierJudiciaireParentId);
+}
+
+function validateForm(form, t, requireNumeroDossier = false, isLinkedJudicialDocument = false) {
+  if (isLinkedJudicialDocument && !form.courrierJudiciaireParentId) return t("erreur_dossier_judiciaire_lie_requis");
+  if (isLinkedJudicialDocument && Number(form.courrierJudiciaireParentId) <= 0) return t("erreur_dossier_judiciaire_lie_requis");
   if (!form.date) return t("erreur_date_requise");
   if (!form.tribunalSource.trim()) return t("erreur_tribunal_requis");
-  if (requireNumeroDossier && !form.numeroDossier.trim()) return t("erreur_numero_dossier_requis");
-  if (form.numeroDossier.trim() && !/^\d+(\/\d+){2}$/.test(form.numeroDossier.trim())) {
+  if (!isLinkedJudicialDocument && requireNumeroDossier && !form.numeroDossier.trim()) return t("erreur_numero_dossier_requis");
+  if (!isLinkedJudicialDocument && form.numeroDossier.trim() && !/^\d+(\/\d+){2}$/.test(form.numeroDossier.trim())) {
     return t("erreur_numero_dossier_format");
   }
   if (!form.sujet.trim()) return t("erreur_objet_requis");
@@ -893,6 +1069,27 @@ function getDefaultTransferServiceId(courrier) {
     : "";
 }
 
+function enrichJudicialCourriers(courriers) {
+  const parentById = new Map(courriers.map((courrier) => [String(courrier.id), courrier]));
+
+  return courriers.map((courrier) => {
+    const parentId = courrier.courrierJudiciaireParentId;
+    const parent = parentId ? parentById.get(String(parentId)) : null;
+    const isLinked = Boolean(parentId) || courrier.typeEnregistrementJudiciaire === JUDICIAL_RECORD_DOCUMENT_LIE;
+    const parentNumero = courrier.dossierParentNumero || parent?.numeroDossier || "";
+    const numeroDossier = isLinked
+      ? courrier.numeroDossier || parentNumero
+      : courrier.numeroDossier;
+
+    return {
+      ...courrier,
+      typeEnregistrementJudiciaire: isLinked ? JUDICIAL_RECORD_DOCUMENT_LIE : JUDICIAL_RECORD_DOSSIER,
+      dossierParentNumero: isLinked ? parentNumero || numeroDossier || "" : "",
+      numeroDossier: numeroDossier || ""
+    };
+  });
+}
+
 function filterCourriersJudiciaires(courriers, motCle, dateRecherche) {
   const keyword = normalizeSearchText(motCle);
 
@@ -903,6 +1100,7 @@ function filterCourriersJudiciaires(courriers, motCle, dateRecherche) {
       [
         courrier.id,
         courrier.idBureauOrdre,
+        getDisplayNumeroDossier(courrier),
         courrier.numeroDossier,
         courrier.numeroDossierAnnee,
         courrier.numeroDossierNombre,
@@ -911,6 +1109,10 @@ function filterCourriersJudiciaires(courriers, motCle, dateRecherche) {
         courrier.sujet,
         courrier.destinataire,
         courrier.description,
+        courrier.typeEnregistrementJudiciaire,
+        courrier.typeDocumentJudiciaire,
+        courrier.dossierParentNumero,
+        courrier.courrierJudiciaireParentId,
         courrier.etatArchive,
         courrier.emplacement,
         courrier.serviceNom,
@@ -944,6 +1146,42 @@ function filterRetraits(retraits, motCle, dateRecherche) {
 
     return matchesDate && matchesKeyword;
   });
+}
+
+function filterDossiersJudiciaires(dossiers, motCle) {
+  const keyword = normalizeSearchText(motCle);
+  if (!keyword) return dossiers.slice(0, 8);
+
+  return dossiers.filter((dossier) =>
+    [
+      dossier.id,
+      dossier.numeroDossier,
+      dossier.idBureauOrdre,
+      dossier.tribunalSource,
+      dossier.sujet,
+      dossier.destinataire,
+      dossier.serviceNom
+    ].some((value) => normalizeSearchText(value).includes(keyword))
+  );
+}
+
+function formatDossierJudiciaireOption(dossier) {
+  return [dossier.numeroDossier, dossier.sujet || dossier.tribunalSource]
+    .filter(Boolean)
+    .join(" - ");
+}
+
+function isLinkedJudicialRecord(courrier) {
+  return Boolean(courrier?.courrierJudiciaireParentId) ||
+    courrier?.typeEnregistrementJudiciaire === JUDICIAL_RECORD_DOCUMENT_LIE;
+}
+
+function getDisplayNumeroDossier(courrier) {
+  const value = isLinkedJudicialRecord(courrier)
+    ? courrier.numeroDossier || courrier.dossierParentNumero
+    : courrier.numeroDossier;
+
+  return value || "-";
 }
 
 function normalizeSearchText(value) {
@@ -990,6 +1228,17 @@ function formatEtat(value, t) {
   return t("etat_nouveau");
 }
 
+function formatJudicialRecordType(value, t) {
+  if (value === JUDICIAL_RECORD_DOCUMENT_LIE) return t("document_lie_dossier_judiciaire");
+  return t("dossier_judiciaire");
+}
+
+function getJudicialRecordBadgeClass(courrier) {
+  return isLinkedJudicialRecord(courrier)
+    ? "record-type-badge linked-document"
+    : "record-type-badge judicial-file";
+}
+
 function getErrorMessage(error, fallback) {
   if (typeof error.response?.data === "string") return error.response.data;
   if (error.response?.data?.message) return error.response.data.message;
@@ -998,3 +1247,4 @@ function getErrorMessage(error, fallback) {
 }
 
 export default GererCourriersJuridiques;
+

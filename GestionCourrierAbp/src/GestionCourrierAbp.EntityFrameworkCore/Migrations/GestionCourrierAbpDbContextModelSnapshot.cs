@@ -292,6 +292,9 @@ namespace GestionCourrierAbp.Migrations
                     b.Property<string>("IdBureauOrdre")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("CourrierJudiciaireParentId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("LastModificationTime")
                         .HasColumnType("datetime2")
                         .HasColumnName("LastModificationTime");
@@ -327,9 +330,21 @@ namespace GestionCourrierAbp.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
+                    b.Property<string>("TypeEnregistrementJudiciaire")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TypeDocumentJudiciaire")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ServiceId");
+
+                    b.HasIndex("CourrierJudiciaireParentId");
 
                     b.ToTable("AppCourriersJudiciaires", (string)null);
                 });
@@ -2688,11 +2703,18 @@ namespace GestionCourrierAbp.Migrations
 
             modelBuilder.Entity("GestionCourrierAbp.Courriers.CourrierJudiciaire", b =>
                 {
+                    b.HasOne("GestionCourrierAbp.Courriers.CourrierJudiciaire", "CourrierJudiciaireParent")
+                        .WithMany("DocumentsLies")
+                        .HasForeignKey("CourrierJudiciaireParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("GestionCourrierAbp.Services.Service", "Service")
                         .WithMany()
                         .HasForeignKey("ServiceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("CourrierJudiciaireParent");
 
                     b.Navigation("Service");
                 });

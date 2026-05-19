@@ -28,6 +28,12 @@ const MODE_LIEE = "Liee";                       // Morasalat liée à une Warida
 const MODE_INDEPENDANTE = "Independante";       // Morasalat indépendante
 const CORRESPONDANCE_SORTANTE = "Sortante";     // مراسلة صادرة
 const CORRESPONDANCE_ENTRANTE = "Entrante";     // مراسلة واردة
+const DESTINATAIRE_WARIDAT_DEFAULT = "محكمة الاستئناف الإدارية فاس";
+const WARIDAT_SOURCES = [
+  "المحكمة الابتدائية فاس",
+  "المحكمة الابتدائية وجدة",
+  "آخر"
+];
 
 
 // ==========================================================
@@ -80,6 +86,7 @@ function GererCourriers() {
   // Numéro de bureau d'ordre utilisé dans la recherche.
   // Date utilisée dans la recherche.
   const [dateRecherche, setDateRecherche] = useState("");
+  const [registreFilter, setRegistreFilter] = useState("all");
 
 
   // ==========================================================
@@ -129,17 +136,19 @@ function GererCourriers() {
 
   // Vérifie si le type actuel est Morasalat.
   const isMorasalat = form.typeRegistre === TYPE_MORASALAT;
+  const isMorasalatResponseMode = isMorasalat && form.typeCorrespondance === CORRESPONDANCE_ENTRANTE;
+  const isStructuredAdminForm = form.typeRegistre === TYPE_WARIDAT || isMorasalat;
 
   // Vérifie si c'est une Morasalat liée à une Warida.
   const isLinkedMorasalat = isMorasalat && form.morasalatMode === MODE_LIEE;
 
   // Vérifie si une recherche est active.
   const hasActiveSearch = Boolean(
-    motCle.trim() || dateRecherche
+    motCle.trim() || dateRecherche || registreFilter !== "all"
   );
   const filteredCourriers = useMemo(
-    () => filterCourriers(allCourriers, motCle, dateRecherche),
-    [allCourriers, motCle, dateRecherche]
+    () => filterCourriers(allCourriers, motCle, dateRecherche, registreFilter),
+    [allCourriers, motCle, dateRecherche, registreFilter]
   );
 
   // Si la Morasalat est liée, on ne saisit pas le numéro de bureau d'ordre,
@@ -249,6 +258,7 @@ function GererCourriers() {
     setForm((prev) => ({
       ...getInitialForm(services),
       idService: prev.idService || getDefaultServiceId(services),
+      destinataire: prev.destinataire || DESTINATAIRE_WARIDAT_DEFAULT,
       typeRegistre: TYPE_WARIDAT,
       morasalatMode: MODE_INDEPENDANTE,
       parentLocked: false,
@@ -272,6 +282,7 @@ function GererCourriers() {
     setForm((prev) => ({
       ...getInitialForm(services),
       idService: prev.idService || getDefaultServiceId(services),
+      destinataire: prev.destinataire || DESTINATAIRE_WARIDAT_DEFAULT,
       typeRegistre: TYPE_MORASALAT,
       morasalatMode: MODE_INDEPENDANTE,
       parentLocked: false,
@@ -281,6 +292,39 @@ function GererCourriers() {
     }));
     setError("");
     setSuccess("");
+  };
+
+  const showMorasalatResponseFields = () => {
+    setIsEditModalOpen(true);
+    setForm((prev) => ({
+      ...prev,
+      typeRegistre: TYPE_MORASALAT,
+      typeCorrespondance: CORRESPONDANCE_ENTRANTE,
+      direction: "Interne",
+      idBureauOrdre: prev.idBureauOrdre,
+      date: prev.date || "",
+      dateMessage: "",
+      dateArrivee: "",
+      destinataire: prev.destinataire || DESTINATAIRE_WARIDAT_DEFAULT,
+      source: prev.source || DESTINATAIRE_WARIDAT_DEFAULT,
+      sujet: prev.sujet || "",
+    }));
+  };
+
+  const openFichiersAdministratifs = () => {
+    setActiveRegistre("juridique");
+    setError("");
+    setSuccess("");
+  };
+
+  const openWaridatAdministratives = () => {
+    setActiveRegistre("administratif");
+    selectWaridat();
+  };
+
+  const openMorasalatAdministratives = () => {
+    setActiveRegistre("administratif");
+    selectMorasalat();
   };
 
 
@@ -385,13 +429,17 @@ function GererCourriers() {
       throw new Error(validationError);
     }
 
+    const effectiveIdBureauOrdre = isLinkedMorasalat
+      ? (displayedIdBureauOrdre || form.parentIdBureauOrdre || "").trim()
+      : form.idBureauOrdre.trim();
+
     const dataToSend = {
       // Si la Morasalat est liée, le numéro de bureau d'ordre vient de la Warida.
       // Sinon, on envoie le numéro saisi dans le formulaire.
-      idBureauOrdre: isLinkedMorasalat ? "" : form.idBureauOrdre.trim(),
+      idBureauOrdre: effectiveIdBureauOrdre,
 
       // Conversion de la date en format ISO pour le backend.
-      date: new Date(form.date).toISOString(),
+      date: new Date(getEffectiveDate(form)).toISOString(),
 
       source: form.source.trim(),
       sujet: form.sujet.trim(),
@@ -496,6 +544,8 @@ function GererCourriers() {
     setForm({
       idBureauOrdre: courrier.idBureauOrdre || "",
       date: courrier.date ? courrier.date.slice(0, 10) : "",
+      dateMessage: courrier.dateMessage || "",
+      dateArrivee: courrier.date ? courrier.date.slice(0, 10) : "",
       source: courrier.source || "",
       sujet: courrier.sujet || "",
       destinataire: courrier.destinataire || "",
@@ -545,10 +595,11 @@ function GererCourriers() {
     }
 
     setEditingId(null);
+    setIsEditModalOpen(true);
 
     setForm({
       ...getInitialForm(services, TYPE_MORASALAT, CORRESPONDANCE_SORTANTE),
-      idBureauOrdre: "",
+      idBureauOrdre: warida.idBureauOrdre || "",
       parentId,
       parentLocked: true,
       parentIdBureauOrdre: warida.idBureauOrdre || "",
@@ -561,7 +612,40 @@ function GererCourriers() {
 
     setError("");
     setSuccess("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleAddMorasalatResponse = (morasala) => {
+    const parentId = morasala.id || morasala.idEntite;
+
+    if (!parentId) {
+      setError(t("erreur_warida_liee_introuvable"));
+      return;
+    }
+
+    setEditingId(null);
+    setIsEditModalOpen(true);
+
+    setForm({
+      ...getInitialForm(services, TYPE_MORASALAT, CORRESPONDANCE_ENTRANTE),
+      idBureauOrdre: morasala.idBureauOrdre || "",
+      parentId,
+      parentLocked: true,
+      parentIdBureauOrdre: morasala.idBureauOrdre || "",
+      morasalatMode: MODE_LIEE,
+      typeRegistre: TYPE_MORASALAT,
+      typeCorrespondance: CORRESPONDANCE_ENTRANTE,
+      direction: "Interne",
+      date: "",
+      dateMessage: "",
+      dateArrivee: "",
+      source: morasala.destinataire || DESTINATAIRE_WARIDAT_DEFAULT,
+      destinataire: morasala.source || DESTINATAIRE_WARIDAT_DEFAULT,
+      sujet: "",
+      idService: morasala.idService || getDefaultServiceId(services),
+    });
+
+    setError("");
+    setSuccess("");
   };
 
 
@@ -818,8 +902,12 @@ function GererCourriers() {
           ) : (
             filteredCourriers.map((courrier) => (
               <tr key={courrier.id}>
-                <td>{courrier.idBureauOrdre || "-"}</td>
-                <td>{formatRegistre(courrier, t)}</td>
+                <td>{getDisplayIdBureauOrdre(courrier, allCourriers)}</td>
+                <td>
+                  <span className={getRegistreBadgeClass(courrier)}>
+                    {formatRegistre(courrier, t)}
+                  </span>
+                </td>
                 <td>{courrier.parentId ? t("detail_lie") : t("ligne_principale")}</td>
                 <td>
                   {courrier.date
@@ -855,8 +943,22 @@ function GererCourriers() {
                       type="button"
                       onClick={() => handleAddMorasalat(courrier)}
                       title={t("ajouter_morasalat")}
+                      aria-label={t("ajouter_morasalat")}
+                      className="action-icon action-link-record"
                     >
-                      {t("ajouter_morasalat")}
+                      <span aria-hidden="true">▤+</span>
+                    </button>
+                  )}
+
+                  {isMainMorasalat(courrier) && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddMorasalatResponse(courrier)}
+                      title={t("ajouter_reponse")}
+                      aria-label={t("ajouter_reponse")}
+                      className="action-icon action-reply"
+                    >
+                      <span aria-hidden="true">✉+</span>
                     </button>
                   )}
 
@@ -864,32 +966,40 @@ function GererCourriers() {
                     type="button"
                     onClick={() => handleConsult(courrier)}
                     title={t("consulter")}
+                    aria-label={t("consulter")}
+                    className="action-icon action-view"
                   >
-                    {t("consulter")}
+                    <span aria-hidden="true">⌕</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleEdit(courrier)}
                     title={t("modifier")}
+                    aria-label={t("modifier")}
+                    className="action-icon action-edit"
                   >
-                    {t("modifier")}
+                    <span aria-hidden="true">✎</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleArchive(courrier.id)}
                     title={t("archiver")}
+                    aria-label={t("archiver")}
+                    className="action-icon action-archive"
                   >
-                    {t("archiver")}
+                    <span aria-hidden="true">▣</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleDelete(courrier.id)}
                     title={t("supprimer")}
+                    aria-label={t("supprimer")}
+                    className="action-icon action-delete"
                   >
-                    {t("supprimer")}
+                    <span aria-hidden="true">×</span>
                   </button>
                 </td>
               </tr>
@@ -915,18 +1025,26 @@ function GererCourriers() {
         <div className="registry-choice">
           <button
             type="button"
-            className="choice-pill"
-            onClick={() => setActiveRegistre("administratif")}
+            className="choice-pill active"
+            onClick={openFichiersAdministratifs}
           >
-            {t("gestion_courriers_admin")}
+            {t("fichiers_administratifs")}
           </button>
 
           <button
             type="button"
-            className="choice-pill active"
-            onClick={() => setActiveRegistre("juridique")}
+            className="choice-pill"
+            onClick={openWaridatAdministratives}
           >
-            {t("courriers_judiciaires")}
+            {t("waridat_administratives")}
+          </button>
+
+          <button
+            type="button"
+            className="choice-pill"
+            onClick={openMorasalatAdministratives}
+          >
+            {t("morasalat_administratives")}
           </button>
         </div>
 
@@ -953,29 +1071,12 @@ function GererCourriers() {
       <div className="registry-choice">
         <button
           type="button"
-          className="choice-pill active"
-          onClick={() => setActiveRegistre("administratif")}
-        >
-          {t("gestion_courriers_admin")}
-        </button>
-
-        <button
-          type="button"
           className="choice-pill"
-          onClick={() => setActiveRegistre("juridique")}
+          onClick={openFichiersAdministratifs}
         >
-          {t("courriers_judiciaires")}
+          {t("fichiers_administratifs")}
         </button>
-      </div>
 
-      <h2 className="page-title">{t("gestion_courriers_admin")}</h2>
-
-      {/* Affichage des messages d'erreur et de succès */}
-      {error && <div className="error-message">{error}</div>}
-      {success && <div className="success-message">{success}</div>}
-
-      {/* Choix entre Waridat et Morasalat */}
-      <div className="registry-choice">
         <button
           type="button"
           className={
@@ -983,9 +1084,9 @@ function GererCourriers() {
               ? "choice-pill active"
               : "choice-pill"
           }
-          onClick={selectWaridat}
+          onClick={openWaridatAdministratives}
         >
-          {t("waridat")}
+          {t("waridat_administratives")}
         </button>
 
         <button
@@ -995,57 +1096,43 @@ function GererCourriers() {
               ? "choice-pill active"
               : "choice-pill"
           }
-          onClick={selectMorasalat}
+          onClick={openMorasalatAdministratives}
         >
-          {t("morasalat")}
+          {t("morasalat_administratives")}
         </button>
       </div>
 
-      {/* Si le type est Morasalat, on affiche le choix Sortante/Entrante */}
-      {isMorasalat && (
-        <div className="registry-choice sub-choice">
-          <button
-            type="button"
-            className={
-              form.typeCorrespondance === CORRESPONDANCE_SORTANTE
-                ? "choice-pill active"
-                : "choice-pill"
-            }
-            onClick={() => selectCorrespondance(CORRESPONDANCE_SORTANTE)}
-          >
-            {t("morasalat_sortantes")}
-          </button>
+      <h2 className="page-title">{formatFormTitle(form, t)}</h2>
 
-          <button
-            type="button"
-            className={
-              form.typeCorrespondance === CORRESPONDANCE_ENTRANTE
-                ? "choice-pill active"
-                : "choice-pill"
-            }
-            onClick={() => selectCorrespondance(CORRESPONDANCE_ENTRANTE)}
-          >
-            {t("morasalat_entrantes")}
-          </button>
-        </div>
-      )}
+      {/* Affichage des messages d'erreur et de succès */}
+      {error && <div className="error-message">{error}</div>}
+      {success && <div className="success-message">{success}</div>}
 
       {/* ======================================================
           FORMULAIRE D'AJOUT / MODIFICATION
       ====================================================== */}
-      {editingId && isEditModalOpen && <div className="modal-overlay" onClick={resetForm} />}
+      {isEditModalOpen && <div className="modal-overlay" onClick={resetForm} />}
       <div
-        className={editingId && isEditModalOpen ? "modal form-card edit-modal" : "form-card"}
-        onClick={editingId && isEditModalOpen ? (event) => event.stopPropagation() : undefined}
+        className={isEditModalOpen ? "modal form-card edit-modal" : "form-card"}
+        onClick={isEditModalOpen ? (event) => event.stopPropagation() : undefined}
       >
         <h3>
           {editingId ? t("modifier") : t("ajouter")} {formatFormTitle(form, t)}
         </h3>
 
         <form onSubmit={handleSubmit}>
-          <div className="form-grid">
+          <div className={isMorasalatResponseMode ? "form-grid morasalat-response-grid" : isStructuredAdminForm ? "form-grid waridat-grid" : "form-grid"}>
             {/* Numéro de bureau d'ordre */}
-            {showIdBureauOrdreInput ? (
+            {isMorasalatResponseMode ? (
+              <div className="form-field response-id-field">
+                <label>{t("numero_bureau_ordre")} *</label>
+                <input
+                  type="text"
+                  value={displayedIdBureauOrdre || t("numero_pris_depuis_warida")}
+                  readOnly
+                />
+              </div>
+            ) : showIdBureauOrdreInput ? (
               <div className="form-field">
                 <label>{t("numero_bureau_ordre")} *</label>
                 <input
@@ -1070,44 +1157,118 @@ function GererCourriers() {
               </div>
             )}
 
+            {isStructuredAdminForm && !isMorasalatResponseMode && (
+              <div className="form-field">
+                <label>{t("numero_initial")}</label>
+                <input
+                  type="text"
+                  name="numeroDeCourrier"
+                  value={form.numeroDeCourrier}
+                  onChange={handleChange}
+                />
+              </div>
+            )}
+
             {/* Date */}
-            <div className="form-field">
-              <label>{t("date")} *</label>
-              <input
-                type="date"
-                name="date"
-                value={form.date}
-                onChange={handleChange}
-                required
-              />
-            </div>
+            {isMorasalatResponseMode ? (
+              <div className="form-field response-date-field">
+                <label>{t("date")} *</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={form.date}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            ) : isStructuredAdminForm ? (
+              <>
+                <div className="form-field">
+                  <label>{t("date_message")} *</label>
+                  <input
+                    type="date"
+                    name="dateMessage"
+                    value={form.dateMessage}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                {form.typeRegistre === TYPE_WARIDAT && (
+                  <div className="form-field">
+                    <label>{t("date_arrivee")} *</label>
+                    <input
+                      type="date"
+                      name="dateArrivee"
+                      value={form.dateArrivee}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="form-field">
+                <label>{t("date")} *</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={form.date}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            )}
+
+            {isMorasalatResponseMode && (
+              <div className="form-field response-destinataire-field">
+                <label>{t("destinataire")}</label>
+                <input
+                  type="text"
+                  name="destinataire"
+                  value={form.destinataire}
+                  onChange={handleChange}
+                  placeholder={t("placeholder_destinataire")}
+                />
+              </div>
+            )}
 
             {/* Source */}
-            <div className="form-field">
+            {!isMorasalatResponseMode && (
+            <div className={isStructuredAdminForm ? "form-field waridat-source-field" : "form-field"}>
               <label>
-                {isMorasalat &&
-                form.typeCorrespondance === CORRESPONDANCE_SORTANTE
-                  ? t("expediteur")
-                  : t("source")}{" "}
+                {isMorasalat || form.typeRegistre === TYPE_WARIDAT ? t("expediteur") : t("source")}{" "}
                 *
               </label>
-              <input
-                type="text"
-                name="source"
-                value={form.source}
-                onChange={handleChange}
-                placeholder={t("placeholder_source")}
-                required
-              />
+              {isStructuredAdminForm ? (
+                <select
+                  name="source"
+                  value={form.source}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">{t("choisir")}</option>
+                  {WARIDAT_SOURCES.map((source) => (
+                    <option key={source} value={source}>{source}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  name="source"
+                  value={form.source}
+                  onChange={handleChange}
+                  placeholder={t("placeholder_source")}
+                  required
+                />
+              )}
             </div>
+            )}
 
             {/* Sujet */}
-            <div className="form-field">
+            <div className={isMorasalatResponseMode ? "form-field response-result-field" : isStructuredAdminForm ? "form-field waridat-sujet-field" : "form-field"}>
               <label>
-                {isMorasalat &&
-                form.typeCorrespondance === CORRESPONDANCE_ENTRANTE
-                  ? t("reponse_objet")
-                  : t("objet")}{" "}
+                {isMorasalatResponseMode ? t("reponse_resultat") : t("objet")}{" "}
                 *
               </label>
               <input
@@ -1121,7 +1282,8 @@ function GererCourriers() {
             </div>
 
             {/* Destinataire */}
-            <div className="form-field">
+            {!isMorasalatResponseMode && (
+            <div className={isStructuredAdminForm ? "form-field waridat-destinataire-field" : "form-field"}>
               <label>{t("destinataire")}</label>
               <input
                 type="text"
@@ -1131,9 +1293,11 @@ function GererCourriers() {
                 placeholder={t("placeholder_destinataire")}
               />
             </div>
+            )}
 
             {/* Service */}
-            <div className="form-field">
+            {!isMorasalatResponseMode && (
+            <div className={isStructuredAdminForm ? "form-field waridat-service-field" : "form-field"}>
               <label>{t("service_concerne")} *</label>
               <select
                 name="idService"
@@ -1150,9 +1314,11 @@ function GererCourriers() {
                 ))}
               </select>
             </div>
+            )}
 
             {/* État */}
-            <div className="form-field">
+            {!isMorasalatResponseMode && (
+            <div className={isStructuredAdminForm ? "form-field waridat-etat-field" : "form-field"}>
               <label>{t("etat")}</label>
               <select name="etat" value={form.etat} onChange={handleChange}>
                 <option value="Nouveau">{t("etat_nouveau")}</option>
@@ -1161,9 +1327,10 @@ function GererCourriers() {
                 <option value="Archive">{t("etat_archive")}</option>
               </select>
             </div>
+            )}
 
             {/* Numéro interne */}
-            <div className="form-field">
+            <div className={isStructuredAdminForm ? "form-field waridat-numero-hidden" : "form-field"}>
               <label>{t("numero_interne")}</label>
               <input
                 type="text"
@@ -1174,6 +1341,7 @@ function GererCourriers() {
             </div>
 
             {/* Document PDF / Word */}
+            {!isMorasalatResponseMode && (
             <div className="form-field full-width">
               <label>{t("document_pdf_word")}</label>
 
@@ -1233,9 +1401,11 @@ function GererCourriers() {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Transmissible */}
-            <div className="form-field">
+            {!isMorasalatResponseMode && (
+            <div className={isStructuredAdminForm ? "form-field waridat-transmissible-field" : "form-field"}>
               <label>{t("transmissible")}</label>
 
               <label className="checkbox-field">
@@ -1248,8 +1418,10 @@ function GererCourriers() {
                 {t("transmissible")}
               </label>
             </div>
+            )}
 
             {/* Description */}
+            {!isMorasalatResponseMode && (
             <div className="form-field full-width">
               <label>{t("note")}</label>
 
@@ -1261,6 +1433,7 @@ function GererCourriers() {
                 placeholder={t("placeholder_notes")}
               />
             </div>
+            )}
           </div>
 
           {/* Boutons du formulaire */}
@@ -1280,7 +1453,17 @@ function GererCourriers() {
               </button>
             )}
 
-            {editingId && (
+            {isMorasalat && !isMorasalatResponseMode && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={showMorasalatResponseFields}
+              >
+                {t("ajouter_reponse")}
+              </button>
+            )}
+
+            {(editingId || isEditModalOpen) && (
               <button
                 type="button"
                 className="btn-secondary"
@@ -1338,10 +1521,27 @@ function GererCourriers() {
 
             <button
               type="button"
+              className={registreFilter === TYPE_WARIDAT ? "btn-primary" : "btn-secondary"}
+              onClick={() => setRegistreFilter((prev) => prev === TYPE_WARIDAT ? "all" : TYPE_WARIDAT)}
+            >
+              {t("waridat_administratives")}
+            </button>
+
+            <button
+              type="button"
+              className={registreFilter === TYPE_MORASALAT ? "btn-primary" : "btn-secondary"}
+              onClick={() => setRegistreFilter((prev) => prev === TYPE_MORASALAT ? "all" : TYPE_MORASALAT)}
+            >
+              {t("morasalat_administratives")}
+            </button>
+
+            <button
+              type="button"
               className="btn-secondary"
               onClick={() => {
                 setMotCle("");
                 setDateRecherche("");
+                setRegistreFilter("all");
                 fetchCourriers();
               }}
             >
@@ -1377,9 +1577,11 @@ function getInitialForm(
   return {
     idBureauOrdre: "",
     date: "",
+    dateMessage: "",
+    dateArrivee: "",
     source: "",
     sujet: "",
-    destinataire: "",
+    destinataire: [TYPE_WARIDAT, TYPE_MORASALAT].includes(typeRegistre) ? DESTINATAIRE_WARIDAT_DEFAULT : "",
     description: "",
     etat: "Nouveau",
     lienPdf: "",
@@ -1431,7 +1633,7 @@ function validateForm(form, isLinkedMorasalat, t) {
     return t("erreur_warida_liee_requise");
   }
 
-  if (!form.date) return t("erreur_date_requise");
+  if (!getEffectiveDate(form)) return t("erreur_date_requise");
   if (!form.source.trim()) return t("erreur_source_requise");
   if (!form.sujet.trim()) return t("erreur_objet_requis");
   if (!form.idService) return t("erreur_service_concerne_requis");
@@ -1456,6 +1658,21 @@ function getDirection(form) {
     : "Interne";
 }
 
+function getEffectiveDate(form) {
+  if (
+    form.typeRegistre === TYPE_MORASALAT &&
+    form.typeCorrespondance === CORRESPONDANCE_ENTRANTE
+  ) {
+    return form.date || form.dateArrivee || form.dateMessage;
+  }
+
+  if ([TYPE_WARIDAT, TYPE_MORASALAT].includes(form.typeRegistre)) {
+    return form.dateArrivee || form.dateMessage || form.date;
+  }
+
+  return form.date;
+}
+
 
 // ==========================================================
 // BLOC 33 : TITRE DU FORMULAIRE
@@ -1463,17 +1680,17 @@ function getDirection(form) {
 // Retourne le titre affiché dans le formulaire.
 
 function formatFormTitle(form, t) {
-  if (form.typeRegistre === TYPE_WARIDAT) return t("waridat");
+  if (form.typeRegistre === TYPE_WARIDAT) return t("waridat_administratives");
 
-  return form.typeCorrespondance === CORRESPONDANCE_ENTRANTE
-    ? t("morasalat_entrantes")
-    : t("morasalat_sortantes");
+  return t("morasalat_administratives");
 }
 
-function filterCourriers(courriers, motCle, dateRecherche) {
+function filterCourriers(courriers, motCle, dateRecherche, registreFilter = "all") {
   const keyword = normalizeSearchText(motCle);
 
   return courriers.filter((courrier) => {
+    const matchesRegistre =
+      registreFilter === "all" || courrier.typeRegistre === registreFilter;
     const matchesDate = !dateRecherche || toDateInputValue(courrier.date) === dateRecherche;
     const matchesKeyword =
       !keyword ||
@@ -1495,7 +1712,7 @@ function filterCourriers(courriers, motCle, dateRecherche) {
         courrier.parentId
       ].some((value) => normalizeSearchText(value).includes(keyword));
 
-    return matchesDate && matchesKeyword;
+    return matchesRegistre && matchesDate && matchesKeyword;
   });
 }
 
@@ -1526,6 +1743,16 @@ function formatRegistre(courrier, t) {
   return t("waridat");
 }
 
+function getRegistreBadgeClass(courrier) {
+  if (courrier.typeRegistre === TYPE_MORASALAT) {
+    return courrier.typeCorrespondance === CORRESPONDANCE_ENTRANTE
+      ? "registre-badge registre-badge-reponse"
+      : "registre-badge registre-badge-morasalat";
+  }
+
+  return "registre-badge registre-badge-waridat";
+}
+
 
 // ==========================================================
 // BLOC 35 : FORMATAGE DE L'ÉTAT
@@ -1552,6 +1779,35 @@ function isMainWaridat(courrier) {
     courrier.typeRegistre || (courrier.parentId ? TYPE_MORASALAT : TYPE_WARIDAT);
 
   return typeRegistre === TYPE_WARIDAT && !courrier.parentId;
+}
+
+function isMainMorasalat(courrier) {
+  const typeRegistre =
+    courrier.typeRegistre || (courrier.parentId ? TYPE_MORASALAT : TYPE_WARIDAT);
+
+  return (
+    typeRegistre === TYPE_MORASALAT &&
+    courrier.typeCorrespondance !== CORRESPONDANCE_ENTRANTE
+  );
+}
+
+function getDisplayIdBureauOrdre(courrier, courriers = []) {
+  if (courrier.idBureauOrdre) return courrier.idBureauOrdre;
+
+  let current = courrier;
+  const visited = new Set();
+
+  while (current?.parentId && !visited.has(String(current.id))) {
+    visited.add(String(current.id));
+    const parent = courriers.find((item) => String(item.id) === String(current.parentId));
+
+    if (!parent) return "-";
+    if (parent.idBureauOrdre) return parent.idBureauOrdre;
+
+    current = parent;
+  }
+
+  return "-";
 }
 
 

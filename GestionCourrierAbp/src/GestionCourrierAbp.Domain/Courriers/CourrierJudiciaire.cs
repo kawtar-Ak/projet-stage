@@ -11,6 +11,8 @@ public class CourrierJudiciaire : AuditedAggregateRoot<int>
     public string? IdBureauOrdre { get; set; }
     public DateTime Date { get; set; }
     public string TribunalSource { get; set; } = string.Empty;
+    public string TypeEnregistrementJudiciaire { get; set; } = "Dossier";
+    public string TypeDocumentJudiciaire { get; set; } = string.Empty;
     public string Sujet { get; set; } = string.Empty;
     public string Direction { get; set; } = "Entrant";
     public string Destinataire { get; set; } = string.Empty;
@@ -24,6 +26,9 @@ public class CourrierJudiciaire : AuditedAggregateRoot<int>
     public int? NumeroDossierAnnee { get; set; }
     public int? NumeroDossierNombre { get; set; }
     public int? NumeroDossierSujet { get; set; }
+    public int? CourrierJudiciaireParentId { get; set; }
     public Service? Service { get; set; }
+    public CourrierJudiciaire? CourrierJudiciaireParent { get; set; }
+    public ICollection<CourrierJudiciaire> DocumentsLies { get; set; } = new List<CourrierJudiciaire>();
     public ICollection<RetraitJudiciaire> Retraits { get; set; } = new List<RetraitJudiciaire>();
 }

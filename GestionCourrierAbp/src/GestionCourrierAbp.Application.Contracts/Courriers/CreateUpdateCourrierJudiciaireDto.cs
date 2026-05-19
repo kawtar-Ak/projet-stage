@@ -9,6 +9,8 @@ public class CreateUpdateCourrierJudiciaireDto
     public DateTime Date { get; set; }
     [Required]
     public string TribunalSource { get; set; } = string.Empty;
+    public string? TypeEnregistrementJudiciaire { get; set; }
+    public string? TypeDocumentJudiciaire { get; set; }
     [Required]
     public string Sujet { get; set; } = string.Empty;
     public string? Direction { get; set; }
@@ -24,4 +26,5 @@ public class CreateUpdateCourrierJudiciaireDto
     public int? NumeroDossierAnnee { get; set; }
     public int? NumeroDossierNombre { get; set; }
     public int? NumeroDossierSujet { get; set; }
+    public int? CourrierJudiciaireParentId { get; set; }
 }

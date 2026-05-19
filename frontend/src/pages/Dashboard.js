@@ -137,7 +137,10 @@ function Dashboard() {
         try {
             await axios.post(`/api/transactions/${id}/respond`, {
                 accepte,
-                message: accepte ? t('acceptees') : t('refusees')
+                message: accepte ? t('acceptees') : t('refusees'),
+                responderUserName: localStorage.getItem('nomComplet') || localStorage.getItem('login') || '',
+                responderServiceId: Number(localStorage.getItem('idService') || 0) || null,
+                responderServiceName: localStorage.getItem('nomService') || ''
             });
             fetchData();
         } catch (err) {

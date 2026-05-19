@@ -130,11 +130,10 @@ public class GestionCourrierAbpDbContext :
             b.Property(x => x.Message).HasMaxLength(2048);
             b.Property(x => x.Statut).IsRequired().HasMaxLength(64);
             b.Property(x => x.MessageReponse).HasMaxLength(2048);
-            b.Ignore(x => x.SenderUserName);
-            b.Ignore(x => x.SenderServiceName);
-            b.Ignore(x => x.ResponderUserName);
-            b.Ignore(x => x.ResponderServiceId);
-            b.Ignore(x => x.ResponderServiceName);
+            b.Property(x => x.SenderUserName).HasMaxLength(256);
+            b.Property(x => x.SenderServiceName).HasMaxLength(256);
+            b.Property(x => x.ResponderUserName).HasMaxLength(256);
+            b.Property(x => x.ResponderServiceName).HasMaxLength(256);
 
             b.HasOne(x => x.SourceService)
                 .WithMany()
@@ -176,6 +175,8 @@ public class GestionCourrierAbpDbContext :
             b.ToTable(GestionCourrierAbpConsts.DbTablePrefix + "CourriersJudiciaires", GestionCourrierAbpConsts.DbSchema);
             b.ConfigureByConvention();
             b.Property(x => x.TribunalSource).IsRequired().HasMaxLength(512);
+            b.Property(x => x.TypeEnregistrementJudiciaire).IsRequired().HasMaxLength(64);
+            b.Property(x => x.TypeDocumentJudiciaire).HasMaxLength(128);
             b.Property(x => x.Sujet).IsRequired().HasMaxLength(512);
             b.Property(x => x.Direction).HasMaxLength(64);
             b.Property(x => x.Destinataire).HasMaxLength(512);
@@ -185,6 +186,10 @@ public class GestionCourrierAbpDbContext :
             b.HasOne(x => x.Service)
                 .WithMany()
                 .HasForeignKey(x => x.ServiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.CourrierJudiciaireParent)
+                .WithMany(x => x.DocumentsLies)
+                .HasForeignKey(x => x.CourrierJudiciaireParentId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

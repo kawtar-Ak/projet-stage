@@ -9,6 +9,8 @@ public class CourrierJudiciaireDto : AuditedEntityDto<int>
     public string? IdBureauOrdre { get; set; }
     public DateTime Date { get; set; }
     public string TribunalSource { get; set; } = string.Empty;
+    public string TypeEnregistrementJudiciaire { get; set; } = "Dossier";
+    public string TypeDocumentJudiciaire { get; set; } = string.Empty;
     public string Sujet { get; set; } = string.Empty;
     public string Direction { get; set; } = string.Empty;
     public string Destinataire { get; set; } = string.Empty;
@@ -24,6 +26,8 @@ public class CourrierJudiciaireDto : AuditedEntityDto<int>
     public int? NumeroDossierAnnee { get; set; }
     public int? NumeroDossierNombre { get; set; }
     public int? NumeroDossierSujet { get; set; }
+    public int? CourrierJudiciaireParentId { get; set; }
+    public string? DossierParentNumero { get; set; }
     public int RetraitsCount { get; set; }
     public List<RetraitJudiciaireDto> Retraits { get; set; } = new();
 }

@@ -12,6 +12,8 @@ namespace GestionCourrierAbp.Courriers;
 public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourrierJudiciaireAppService
 {
     private const int OpeningFilesServiceId = 3;
+    private const string JudicialRecordDossier = "Dossier";
+    private const string JudicialRecordDocumentLie = "DocumentLie";
 
     private readonly IRepository<CourrierJudiciaire, int> _repository;
     private readonly IRepository<RetraitJudiciaire, int> _retraitRepository;
@@ -26,13 +28,13 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<CourrierJudiciaireDto> GetAsync(int id)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits))!;
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits, x => x.CourrierJudiciaireParent!))!;
         return ToDto(await AsyncExecuter.FirstAsync(query.Where(x => x.Id == id)));
     }
 
     public async Task<PagedResultDto<CourrierJudiciaireDto>> GetListAsync(PagedAndSortedResultRequestDto input)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits))!.Where(x => !x.EstArchive);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits, x => x.CourrierJudiciaireParent!))!.Where(x => !x.EstArchive);
         var total = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date).Skip(input.SkipCount).Take(input.MaxResultCount));
         return new PagedResultDto<CourrierJudiciaireDto>(total, items.Select(ToDto).ToList());
@@ -41,6 +43,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
     public async Task<CourrierJudiciaireDto> CreateAsync(CreateUpdateCourrierJudiciaireDto input)
     {
         // Verifie avant la creation que le numero d'ordre et le numero juridique ne sont pas deja utilises.
+        await ApplyLinkedJudicialFileAsync(input);
         await ValidateUniqueNumbersAsync(input);
         var entity = await _repository.InsertAsync(Map(new CourrierJudiciaire(), input), autoSave: true);
         return await GetAsync(entity.Id);
@@ -50,6 +53,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
     {
         var entity = await _repository.GetAsync(id);
         // Verifie les doublons en ignorant le dossier en cours de modification.
+        await ApplyLinkedJudicialFileAsync(input, id);
         await ValidateUniqueNumbersAsync(input, id);
         await _repository.UpdateAsync(Map(entity, input), autoSave: true);
         return await GetAsync(id);
@@ -62,7 +66,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<List<CourrierJudiciaireDto>> SearchAsync(string? motCle)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits))!.Where(x => !x.EstArchive);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits, x => x.CourrierJudiciaireParent!))!.Where(x => !x.EstArchive);
         query = ApplySearch(query, motCle);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date));
         return items.Select(ToDto).ToList();
@@ -70,7 +74,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<List<CourrierJudiciaireDto>> GetArchivesAsync(string? motCle)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits))!.Where(x => x.EstArchive);
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits, x => x.CourrierJudiciaireParent!))!.Where(x => x.EstArchive);
         query = ApplySearch(query, motCle);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date));
         return items.Select(ToDto).ToList();
@@ -138,6 +142,8 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             return query.Where(x =>
                 x.Sujet.Contains(value) ||
                 x.TribunalSource.Contains(value) ||
+                x.TypeEnregistrementJudiciaire.Contains(value) ||
+                x.TypeDocumentJudiciaire.Contains(value) ||
                 x.Destinataire.Contains(value) ||
                 x.Emplacement.Contains(value) ||
                 x.EtatArchive.Contains(value) ||
@@ -168,6 +174,8 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             return query.Where(x =>
                 x.Sujet.Contains(value) ||
                 x.TribunalSource.Contains(value) ||
+                x.TypeEnregistrementJudiciaire.Contains(value) ||
+                x.TypeDocumentJudiciaire.Contains(value) ||
                 x.Destinataire.Contains(value) ||
                 x.Emplacement.Contains(value) ||
                 x.EtatArchive.Contains(value) ||
@@ -180,6 +188,8 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         return query.Where(x =>
             x.Sujet.Contains(value) ||
             x.TribunalSource.Contains(value) ||
+            x.TypeEnregistrementJudiciaire.Contains(value) ||
+            x.TypeDocumentJudiciaire.Contains(value) ||
             x.Destinataire.Contains(value) ||
             x.Emplacement.Contains(value) ||
             x.EtatArchive.Contains(value) ||
@@ -191,6 +201,12 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         entity.IdBureauOrdre = NormalizeNumber(input.IdBureauOrdre);
         entity.Date = input.Date == default ? DateTime.Now : input.Date;
         entity.TribunalSource = input.TribunalSource.Trim();
+        entity.TypeEnregistrementJudiciaire = IsLinkedJudicialDocument(input)
+            ? JudicialRecordDocumentLie
+            : NormalizeRecordType(input.TypeEnregistrementJudiciaire);
+        entity.TypeDocumentJudiciaire = entity.TypeEnregistrementJudiciaire == JudicialRecordDocumentLie
+            ? input.TypeDocumentJudiciaire?.Trim() ?? string.Empty
+            : string.Empty;
         entity.Sujet = input.Sujet.Trim();
         entity.Direction = input.Direction?.Trim() ?? "Entrant";
         entity.Destinataire = input.Destinataire?.Trim() ?? string.Empty;
@@ -199,12 +215,17 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         entity.Emplacement = input.Emplacement?.Trim() ?? string.Empty;
         entity.LienPdf = input.LienPdf?.Trim() ?? string.Empty;
         entity.ServiceId = input.IdService;
+        entity.CourrierJudiciaireParentId = IsLinkedJudicialDocument(input)
+            ? input.CourrierJudiciaireParentId
+            : null;
         var parsed = ParseNumeroDossier(input);
         entity.NumeroDossierAnnee = parsed.annee;
         entity.NumeroDossierNombre = parsed.nombre;
         entity.NumeroDossierSujet = parsed.sujet;
-        entity.EstTransmissible = input.EstTransmissible || HasCompleteNumeroDossier(parsed);
-        if (entity.ServiceId == OpeningFilesServiceId && HasCompleteNumeroDossier(parsed))
+        entity.EstTransmissible = IsLinkedJudicialDocument(input)
+            ? input.EstTransmissible
+            : input.EstTransmissible || HasCompleteNumeroDossier(parsed);
+        if (!IsLinkedJudicialDocument(input) && entity.ServiceId == OpeningFilesServiceId && HasCompleteNumeroDossier(parsed))
         {
             entity.EstTransmissible = true;
         }
@@ -232,6 +253,11 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             }
         }
 
+        if (IsLinkedJudicialDocument(input))
+        {
+            return;
+        }
+
         // Controle l'unicite du numero juridique compose de annee/nombre/sujet.
         var parsed = ParseNumeroDossier(input);
         if (parsed.annee.HasValue && parsed.nombre.HasValue && parsed.sujet.HasValue)
@@ -252,6 +278,45 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
                 throw new UserFriendlyException("Le numéro juridique existe déjà. Veuillez saisir un numéro unique.");
             }
         }
+    }
+
+    private async Task ApplyLinkedJudicialFileAsync(CreateUpdateCourrierJudiciaireDto input, int? currentId = null)
+    {
+        if (!IsLinkedJudicialDocument(input)) return;
+
+        if (!input.CourrierJudiciaireParentId.HasValue)
+        {
+            throw new UserFriendlyException("Veuillez choisir le dossier judiciaire lie.");
+        }
+
+        if (currentId.HasValue && input.CourrierJudiciaireParentId.Value == currentId.Value)
+        {
+            throw new UserFriendlyException("Une document lie ne peut pas etre lie a lui-meme.");
+        }
+
+        var parent = await _repository.GetAsync(input.CourrierJudiciaireParentId.Value);
+        if (parent.TypeEnregistrementJudiciaire == JudicialRecordDocumentLie)
+        {
+            throw new UserFriendlyException("La document lie doit etre rattache a un dossier judiciaire principal.");
+        }
+
+        input.NumeroDossierAnnee = parent.NumeroDossierAnnee;
+        input.NumeroDossierNombre = parent.NumeroDossierNombre;
+        input.NumeroDossierSujet = parent.NumeroDossierSujet;
+        input.NumeroDossier = null;
+    }
+
+    private static bool IsLinkedJudicialDocument(CreateUpdateCourrierJudiciaireDto input)
+    {
+        return input.CourrierJudiciaireParentId.HasValue ||
+            NormalizeRecordType(input.TypeEnregistrementJudiciaire) == JudicialRecordDocumentLie;
+    }
+
+    private static string NormalizeRecordType(string? value)
+    {
+        return string.Equals(value?.Trim(), JudicialRecordDocumentLie, StringComparison.OrdinalIgnoreCase)
+            ? JudicialRecordDocumentLie
+            : JudicialRecordDossier;
     }
 
     private static (int? annee, int? nombre, int? sujet) ParseNumeroDossier(CreateUpdateCourrierJudiciaireDto input)
@@ -299,11 +364,24 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
-    private static CourrierJudiciaireDto ToDto(CourrierJudiciaire entity)
+    private static string? BuildNumeroDossier(CourrierJudiciaire? entity)
     {
-        var numero = entity.NumeroDossierAnnee.HasValue && entity.NumeroDossierNombre.HasValue && entity.NumeroDossierSujet.HasValue
+        return entity?.NumeroDossierAnnee.HasValue == true &&
+            entity.NumeroDossierNombre.HasValue &&
+            entity.NumeroDossierSujet.HasValue
             ? $"{entity.NumeroDossierAnnee}/{entity.NumeroDossierNombre}/{entity.NumeroDossierSujet}"
             : null;
+    }
+
+    private static CourrierJudiciaireDto ToDto(CourrierJudiciaire entity)
+    {
+        var typeEnregistrement = entity.CourrierJudiciaireParentId.HasValue
+            ? JudicialRecordDocumentLie
+            : NormalizeRecordType(entity.TypeEnregistrementJudiciaire);
+        var parentNumero = BuildNumeroDossier(entity.CourrierJudiciaireParent);
+        var numero = typeEnregistrement == JudicialRecordDocumentLie
+            ? BuildNumeroDossier(entity) ?? parentNumero
+            : BuildNumeroDossier(entity);
 
         return new CourrierJudiciaireDto
         {
@@ -311,6 +389,8 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             IdBureauOrdre = entity.IdBureauOrdre,
             Date = entity.Date,
             TribunalSource = entity.TribunalSource,
+            TypeEnregistrementJudiciaire = typeEnregistrement,
+            TypeDocumentJudiciaire = entity.TypeDocumentJudiciaire,
             Sujet = entity.Sujet,
             Direction = entity.Direction,
             Destinataire = entity.Destinataire,
@@ -326,6 +406,10 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             NumeroDossierAnnee = entity.NumeroDossierAnnee,
             NumeroDossierNombre = entity.NumeroDossierNombre,
             NumeroDossierSujet = entity.NumeroDossierSujet,
+            CourrierJudiciaireParentId = entity.CourrierJudiciaireParentId,
+            DossierParentNumero = typeEnregistrement == JudicialRecordDocumentLie
+                ? parentNumero ?? BuildNumeroDossier(entity)
+                : null,
             RetraitsCount = entity.Retraits.Count,
             Retraits = entity.Retraits.OrderByDescending(x => x.DateDeRetrait).Select(r => new RetraitJudiciaireDto
             {

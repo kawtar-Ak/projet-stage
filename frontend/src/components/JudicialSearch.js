@@ -134,6 +134,7 @@ function JudicialSearch() {
           <div className="admin-search-empty">{t('aucun_dossier_trouve')}</div>
         ) : (
           results.map((dossier) => {
+            const transaction = dossier.latestTransaction;
             const currentService = getLocalizedServiceName(
               {
                 idService: transaction?.currentServiceId || transaction?.destinationServiceId || dossier.idService,
@@ -142,7 +143,6 @@ function JudicialSearch() {
               i18n,
               getCurrentServiceLabel(dossier, services, i18n)
             );
-            const transaction = dossier.latestTransaction;
             const location = dossier.emplacement || transaction?.currentLocation || '-';
             const trackingStatus = transaction?.statut || dossier.etatArchive || 'Nouveau';
 
@@ -177,7 +177,7 @@ function JudicialSearch() {
                   </span>
                   <span>
                     <b>{t('traite_par')}</b>
-                    <small>{formatResponder(transaction, i18n)}</small>
+                    <small>{formatResponder(transaction, i18n, t)}</small>
                   </span>
                 </span>
               </button>
@@ -298,12 +298,18 @@ function formatMovement(transaction, t) {
   return `${from} -> ${to}`;
 }
 
-function formatResponder(transaction, i18n) {
-  if (!transaction?.responderUserName && !transaction?.responderServiceName) return '-';
-  return [
+function formatResponder(transaction, i18n, t) {
+  if (!transaction) return '-';
+  const responderServiceName = transaction.responderServiceName || transaction.destinationServiceNom;
+  const responderServiceId = transaction.responderServiceId || transaction.destinationServiceId;
+  const responder = [
     transaction.responderUserName,
-    getLocalizedServiceName({ idService: transaction.responderServiceId, nomService: transaction.responderServiceName }, i18n, '')
+    getLocalizedServiceName({ idService: responderServiceId, nomService: responderServiceName }, i18n, '')
   ].filter(Boolean).join(' | ');
+
+  if (responder) return responder;
+
+  return transaction.statut ? formatStatus(transaction.statut, t) : '-';
 }
 
 function formatStatus(value, t) {

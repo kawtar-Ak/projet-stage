@@ -34,6 +34,7 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     public async Task<CourrierAdministratifDto> CreateAsync(CreateUpdateCourrierAdministratifDto input)
     {
+        await ApplyLinkedMorasalatNumberAsync(input);
         // Verifie avant la creation que le numero d'ordre et le numero de courrier ne sont pas deja utilises.
         await ValidateUniqueNumbersAsync(input);
         var entity = await _repository.InsertAsync(Map(new CourrierAdministratif(), input), autoSave: true);
@@ -43,6 +44,7 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
     public async Task<CourrierAdministratifDto> UpdateAsync(int id, CreateUpdateCourrierAdministratifDto input)
     {
         var entity = await _repository.GetAsync(id);
+        await ApplyLinkedMorasalatNumberAsync(input);
         // Verifie les doublons en ignorant le courrier en cours de modification.
         await ValidateUniqueNumbersAsync(input, id);
         await _repository.UpdateAsync(Map(entity, input), autoSave: true);
@@ -111,9 +113,13 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     private async Task ValidateUniqueNumbersAsync(CreateUpdateCourrierAdministratifDto input, int? currentId = null)
     {
+        var isLinkedMorasalat =
+            string.Equals(input.TypeRegistre?.Trim(), "Morasalat", StringComparison.OrdinalIgnoreCase) &&
+            input.ParentId.HasValue;
+
         // Controle l'unicite du numero d'ordre.
         var idBureauOrdre = NormalizeNumber(input.IdBureauOrdre);
-        if (!string.IsNullOrWhiteSpace(idBureauOrdre))
+        if (!isLinkedMorasalat && !string.IsNullOrWhiteSpace(idBureauOrdre))
         {
             var query = (await _repository.GetQueryableAsync())
                 .Where(x => x.IdBureauOrdre == idBureauOrdre);
@@ -146,6 +152,39 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
                 throw new UserFriendlyException("Le numéro de courrier existe déjà. Veuillez saisir un numéro unique.");
             }
         }
+    }
+
+    private async Task ApplyLinkedMorasalatNumberAsync(CreateUpdateCourrierAdministratifDto input)
+    {
+        var isLinkedMorasalat =
+            string.Equals(input.TypeRegistre?.Trim(), "Morasalat", StringComparison.OrdinalIgnoreCase) &&
+            input.ParentId.HasValue;
+
+        if (!isLinkedMorasalat)
+        {
+            return;
+        }
+
+        var parent = await _repository.FindAsync(input.ParentId!.Value);
+        if (parent == null)
+        {
+            throw new UserFriendlyException("La correspondance liée doit avoir une entrée administrative parente valide.");
+        }
+
+        var inheritedNumber = parent.IdBureauOrdre;
+        var visited = new HashSet<int>();
+        while (string.IsNullOrWhiteSpace(inheritedNumber) && parent.ParentId.HasValue && visited.Add(parent.Id))
+        {
+            parent = await _repository.FindAsync(parent.ParentId.Value);
+            if (parent == null)
+            {
+                break;
+            }
+
+            inheritedNumber = parent.IdBureauOrdre;
+        }
+
+        input.IdBureauOrdre = inheritedNumber;
     }
 
     private static string? NormalizeNumber(string? value)

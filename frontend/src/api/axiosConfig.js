@@ -36,7 +36,9 @@ axios.interceptors.request.use(config => {
 
 axios.interceptors.response.use(
   response => {
-    response.data = mapAbpResponseToLegacy(response.config.url, response.data);
+    if (response.config?.responseType !== 'blob' && response.config?.responseType !== 'arraybuffer') {
+      response.data = mapAbpResponseToLegacy(response.config.url, response.data);
+    }
     return response;
   },
   error => {
@@ -99,7 +101,7 @@ function mapLegacyUrlToAbp(url = '') {
     .replace(/^\/api\/courriers\/waridat$/, '/api/app/courrier-administratif/waridat')
     .replace(/^\/api\/courriers\/archiver\/(\d+)$/, '/api/app/courrier-administratif/$1/archiver')
     .replace(/^\/api\/courriers(\/\d+)?$/, match => match.replace('/api/courriers', '/api/app/courrier-administratif'))
-    .replace(/^\/api\/acteursjudiciaires\/(export\/excel|import\/excel|upload-pdf|upload-document)(\?.*)?$/, '/api/acteursjudiciaires/$1$2')
+    .replace(/^\/api\/acteursjudiciaires\/(export\/excel|export\/registre-modele|import\/excel|upload-pdf|upload-document)(\?.*)?$/, '/api/acteursjudiciaires/$1$2')
     .replace(/^\/api\/acteursjudiciaires\/(\d+)\/retraits\/export\/excel$/, '/api/acteursjudiciaires/$1/retraits/export/excel')
     .replace(/^\/api\/acteursjudiciaires\/search(\?.*)?$/, '/api/app/courrier-judiciaire/search$1')
     .replace(/^\/api\/acteursjudiciaires\/archives(\?.*)?$/, '/api/app/courrier-judiciaire/archives$1')
@@ -227,10 +229,14 @@ function mapLegacyPayloadToAbp(url = '', data) {
   }
 
   if (url?.startsWith('/api/app/courrier-judiciaire')) {
+    const parentId = Number(data.courrierJudiciaireParentId || 0) || null;
     return {
       idBureauOrdre: data.idBureauOrdre,
       date: data.date,
       tribunalSource: data.tribunalSource,
+      typeDocumentJudiciaire: data.typeDocumentJudiciaire || '',
+      typeEnregistrementJudiciaire: parentId ? 'DocumentLie' : data.typeEnregistrementJudiciaire || 'Dossier',
+      courrierJudiciaireParentId: parentId,
       sujet: data.sujet,
       direction: data.direction || 'Entrant',
       destinataire: data.destinataire || '',
@@ -334,10 +340,15 @@ function mapCourrierAdministratif(item) {
 }
 
 function mapCourrierJudiciaire(item) {
+  const parentId = item.courrierJudiciaireParentId || null;
   return {
     ...item,
     idService: item.idService ?? item.serviceId,
     nomService: item.nomService ?? item.serviceNom,
+    typeDocumentJudiciaire: item.typeDocumentJudiciaire || '',
+    typeEnregistrementJudiciaire: parentId ? 'DocumentLie' : item.typeEnregistrementJudiciaire || 'Dossier',
+    courrierJudiciaireParentId: parentId,
+    dossierParentNumero: item.dossierParentNumero || '',
     retraits: item.retraits || []
   };
 }
