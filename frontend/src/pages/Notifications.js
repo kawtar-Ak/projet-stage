@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
+import ActionIcon from '../components/ActionIcon';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
 import {
     formatLocalizedDateTime,
@@ -35,22 +36,37 @@ function Notifications() {
     const fetchNotificationData = async () => {
         setLoading(true);
         try {
-            const [incomingRes, outgoingRes, pendingReturnsRes] = await Promise.all([
+            const [incomingRes, outgoingRes, pendingReturnsRes, allTransactionsRes] = await Promise.all([
                 axios.get('/api/transactions/incoming'),
                 axios.get('/api/transactions/outgoing'),
-                axios.get('/api/transactions/pending-returns')
+                axios.get('/api/transactions/pending-returns'),
+                axios.get('/api/transactions', { params: { skipCount: 0, maxResultCount: 1000 } })
             ]);
 
             const incoming = toArray(incomingRes.data);
             const outgoing = toArray(outgoingRes.data);
             const returns = toArray(pendingReturnsRes.data);
+            const allTransactions = toArray(allTransactionsRes.data);
+            const fallbackIncoming = allTransactions.filter(tx =>
+                Number(tx.destinationServiceId) === serviceId &&
+                isPendingStatus(tx.statut)
+            );
 
-            setNotifications(incoming);
+            setNotifications(mergeTransactions(incoming, fallbackIncoming));
+            const fallbackProcessed = allTransactions.filter(tx =>
+                isProcessedStatus(tx.statut) &&
+                (
+                    Number(tx.sourceServiceId) === serviceId ||
+                    Number(tx.destinationServiceId) === serviceId ||
+                    Number(tx.currentServiceId) === serviceId
+                )
+            );
+
             setProcessedTransactions(
-                outgoing
+                mergeTransactions(outgoing, fallbackProcessed)
                     .filter(tx => isProcessedStatus(tx.statut))
                     .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi))
-                    .slice(0, 8)
+                    .slice(0, 20)
             );
             setPendingReturns(returns);
             setError('');
@@ -197,17 +213,17 @@ function Notifications() {
                                     rows="2"
                                 />
                                 <div className="notification-actions">
-                                    <button className="btn-secondary" onClick={() => handleConsult(n)}>
-                                        {t('consulter')}
+                                    <button type="button" className="action-icon action-view" onClick={() => handleConsult(n)} title={t('consulter')} aria-label={t('consulter')}>
+                                        <ActionIcon name="view" />
                                     </button>
-                                    <button className="btn-primary" onClick={() => handleRespond(n.id, true)}>
-                                        {isArchiveAccount ? t('archiver') : t('accepter')}
+                                    <button type="button" className={isArchiveAccount ? 'action-icon action-archive' : 'action-icon action-accept'} onClick={() => handleRespond(n.id, true)} title={isArchiveAccount ? t('archiver') : t('accepter')} aria-label={isArchiveAccount ? t('archiver') : t('accepter')}>
+                                        <ActionIcon name={isArchiveAccount ? 'archive' : 'accept'} />
                                     </button>
-                                    <button className="btn-secondary" onClick={() => handleRespond(n.id, false)}>
-                                        {t('refuser')}
+                                    <button type="button" className="action-icon action-cancel" onClick={() => handleRespond(n.id, false)} title={t('refuser')} aria-label={t('refuser')}>
+                                        <ActionIcon name="cancel" />
                                     </button>
-                                    <button className="btn-primary" onClick={() => openTransferModal(n)}>
-                                        {t('transferer')}
+                                    <button type="button" className="action-icon action-transfer" onClick={() => openTransferModal(n)} title={t('transferer')} aria-label={t('transferer')}>
+                                        <ActionIcon name="transfer" />
                                     </button>
                                 </div>
                             </div>
@@ -278,9 +294,11 @@ function Notifications() {
                                         <td>{getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</td>
                                         <td>{formatLocalizedDateTime(tx.dateEnvoi, i18n)}</td>
                                         <td className="action-icons">
-                                            <button type="button" onClick={() => handleConsult(tx)}>{t('consulter')}</button>
-                                            <button type="button" className="btn-primary" onClick={() => handleMarkReturned(tx)}>
-                                                {t('marquer_retourne')}
+                                            <button type="button" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')} className="action-icon action-view">
+                                                <ActionIcon name="view" />
+                                            </button>
+                                            <button type="button" onClick={() => handleMarkReturned(tx)} title={t('marquer_retourne')} aria-label={t('marquer_retourne')} className="action-icon action-return">
+                                                <ActionIcon name="return" />
                                             </button>
                                         </td>
                                     </tr>
@@ -366,12 +384,25 @@ function toArray(data) {
     return [];
 }
 
+function mergeTransactions(...groups) {
+    const byId = new Map();
+    groups.flat().forEach(item => {
+        if (item?.id) byId.set(item.id, item);
+    });
+    return Array.from(byId.values());
+}
+
 function isProcessedStatus(value) {
     const status = String(value || '').toLowerCase();
     return status.includes('accept') ||
         status.includes('refus') ||
         status.includes('annul') ||
         status.includes('retourn');
+}
+
+function isPendingStatus(value) {
+    const status = String(value || '').toLowerCase();
+    return status.includes('attente') || status.includes('pending');
 }
 
 function getTime(value) {

@@ -1,5 +1,6 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
+import ActionIcon from "../components/ActionIcon";
 
 function GererCourriers() {
   const [courriers, setCourriers] = useState([]);
@@ -111,7 +112,7 @@ function GererCourriers() {
     }
 
     if (!form.idService) {
-      setError("Le service concernÃ© est obligatoire.");
+      setError("Le service concerné est obligatoire.");
       return;
     }
 
@@ -140,7 +141,7 @@ function GererCourriers() {
       } else {
         // Administrative letter data
         if (!form.idBureauOrdre.trim()) {
-          setError("Le numÃ©ro du bureau d'ordre est obligatoire.");
+          setError("Le numéro du bureau d'ordre est obligatoire.");
           return;
         }
 
@@ -174,10 +175,10 @@ function GererCourriers() {
 
       if (editingId) {
         await axios.put(endpoint, dataToSend);
-        setSuccess("Courrier modifiÃ© avec succÃ¨s.");
+        setSuccess("Courrier modifié avec succès.");
       } else {
         await axios.post(endpoint, dataToSend);
-        setSuccess("Courrier ajoutÃ© avec succÃ¨s.");
+        setSuccess("Courrier ajouté avec succès.");
       }
 
       resetForm();
@@ -234,7 +235,7 @@ function GererCourriers() {
         ? `/api/courriers/judiciaires/${id}`
         : `/api/courriers/${id}`;
       await axios.delete(endpoint);
-      setSuccess("Courrier supprimÃ© avec succÃ¨s.");
+      setSuccess("Courrier supprimé avec succès.");
       fetchCourriers();
     } catch (err) {
       console.error(err);
@@ -259,7 +260,7 @@ function GererCourriers() {
         ? `/api/courriers/judiciaires/archiver/${id}`
         : `/api/courriers/archiver/${id}`;
       await axios.put(endpoint);
-      setSuccess("Courrier archivÃ© avec succÃ¨s.");
+      setSuccess("Courrier archivé avec succès.");
       fetchCourriers();
     } catch (err) {
       console.error(err);
@@ -332,7 +333,7 @@ function GererCourriers() {
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
             <div className="form-field">
-              <label>NumÃ©ro Bureau dâ€™ordre *</label>
+              <label>Numéro Bureau d’ordre *</label>
               <input
                 type="text"
                 name="idBureauOrdre"
@@ -369,13 +370,13 @@ function GererCourriers() {
             </div>
 
             <div className="form-field">
-              <label>Source / ExpÃ©diteur *</label>
+              <label>Source / Expéditeur *</label>
               <input
                 type="text"
                 name="source"
                 value={form.source}
                 onChange={handleChange}
-                placeholder="Ex : MinistÃ¨re, tribunal, service..."
+                placeholder="Ex : Ministère, tribunal, service..."
                 required
               />
             </div>
@@ -404,7 +405,7 @@ function GererCourriers() {
             </div>
 
             <div className="form-field">
-              <label>Service concernÃ© *</label>
+              <label>Service concerné *</label>
               <select
                 name="idService"
                 value={form.idService}
@@ -422,17 +423,17 @@ function GererCourriers() {
             </div>
 
             <div className="form-field">
-              <label>Ã‰tat</label>
+              <label>État</label>
               <select name="etat" value={form.etat} onChange={handleChange}>
                 <option value="Nouveau">Nouveau</option>
                 <option value="En cours">En cours</option>
-                <option value="TraitÃ©">TraitÃ©</option>
-                <option value="ArchivÃ©">ArchivÃ©</option>
+                <option value="Traité">Traité</option>
+                <option value="Archivé">Archivé</option>
               </select>
             </div>
 
             <div className="form-field">
-              <label>NumÃ©ro interne</label>
+              <label>Numéro interne</label>
               <input
                 type="number"
                 name="numeroDeCourrier"
@@ -487,7 +488,7 @@ function GererCourriers() {
             type="text"
             value={motCle}
             onChange={(e) => setMotCle(e.target.value)}
-            placeholder="Rechercher par numÃ©ro, source, objet, Ã©tat..."
+            placeholder="Rechercher par numéro, source, objet, état..."
           />
 
           <button type="submit" className="btn-primary">
@@ -502,7 +503,7 @@ function GererCourriers() {
               fetchCourriers();
             }}
           >
-            RÃ©initialiser
+            Réinitialiser
           </button>
         </form>
       </div>
@@ -513,14 +514,14 @@ function GererCourriers() {
         <table className="modern-table">
           <thead>
             <tr>
-              <th>NÂ° BO</th>
+              <th>N° BO</th>
               <th>Date</th>
               <th>Source</th>
               <th>Objet</th>
               <th>Direction</th>
               <th>Destinataire</th>
               <th>Service</th>
-              <th>Ã‰tat</th>
+              <th>État</th>
               <th>Observation</th>
               <th>PDF</th>
               <th>Actions</th>
@@ -531,7 +532,7 @@ function GererCourriers() {
             {courriers.length === 0 ? (
               <tr>
                 <td colSpan="11" style={{ textAlign: "center" }}>
-                  Aucun courrier trouvÃ©.
+                  Aucun courrier trouvé.
                 </td>
               </tr>
             ) : (
@@ -564,23 +565,11 @@ function GererCourriers() {
                     )}
                   </td>
                   <td className="action-icons">
-                    <button onClick={() => handleEdit(courrier)} title="Modifier">
-                      âœï¸
-                    </button>
+                    <button onClick={() => handleEdit(courrier)} title="Modifier" aria-label="Modifier" className="action-icon action-edit"><ActionIcon name="edit" /></button>
 
-                    <button
-                      onClick={() => handleArchive(courrier.id)}
-                      title="Archiver"
-                    >
-                      ðŸ“¦
-                    </button>
+                    <button onClick={() => handleArchive(courrier.id)} title="Archiver" aria-label="Archiver" className="action-icon action-archive"><ActionIcon name="archive" /></button>
 
-                    <button
-                      onClick={() => handleDelete(courrier.id)}
-                      title="Supprimer"
-                    >
-                      ðŸ—‘ï¸
-                    </button>
+                    <button onClick={() => handleDelete(courrier.id)} title="Supprimer" aria-label="Supprimer" className="action-icon action-delete"><ActionIcon name="delete" /></button>
                   </td>
                 </tr>
               ))
@@ -593,3 +582,4 @@ function GererCourriers() {
 }
 
 export default GererCourriers;
+

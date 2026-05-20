@@ -307,7 +307,7 @@
   "modifier": "Modifier",
   "expediteur": "Expéditeur",
   "reponse_objet": "Réponse / Objet",
-  "reponse_resultat": "Réponse / Résultat",
+  "resultat": "Résultat",
   "service_concerne": "Service concerné",
   "numero_interne": "Numéro interne",
   "numero_initial": "Numéro initial",
@@ -318,7 +318,7 @@
   "numero_pris_depuis_warida": "Le numéro sera repris depuis l'entrée liée",
   "placeholder_source": "Exemple : ministère, tribunal, service...",
   "placeholder_objet": "Objet de la correspondance",
-  "placeholder_destinataire": "Service ou personne destinataire",
+  "placeholder_resultat": "Exemple : acceptée, refusée, traitée...",
   "placeholder_lien_pdf": "Lien ou nom du fichier PDF",
   "placeholder_notes": "Notes...",
   "placeholder_recherche_courriers": "Mot-clé : source, objet, état...",
@@ -457,6 +457,16 @@
   "selectionner_document_liste": "Choisissez un dossier puis selectionnez un document dans la liste.",
   "cliquer_document_apercu": "Cliquez sur un document pour afficher l'apercu.",
   "apercu_non_disponible": "Apercu non disponible",
-  "type_fichier_non_affichable": "Ce type de fichier ne peut pas etre affiche directement dans cette zone."
-
+  "type_fichier_non_affichable": "Ce type de fichier ne peut pas etre affiche directement dans cette zone.",
+  "reponse_resultat": "Réponse / résultat",
+  "export_scope": "Portée de l’export",
+  "export_scope_all": "Tout le registre",
+  "export_scope_filtered": "Résultats recherchés",
+  "tous": "Tous",
+  "selection_tout_registre": "Sélectionner tout le registre",
+  "selection_resultats_recherche": "Sélectionner les résultats",
+  "effacer_selection": "Effacer la sélection",
+  "selection_count": "{{count}} sélectionné(s)",
+  "warida_judiciaire": "Entrée judiciaire",
+  "ajouter_warida_judiciaire": "Ajouter une entrée judiciaire"
 }

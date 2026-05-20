@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import ActionIcon from '../components/ActionIcon';
 
 function GererEquipements() {
     const { t } = useTranslation();
@@ -291,10 +292,18 @@ function GererEquipements() {
                                 <td className={eq.estCharge ? 'status-charge' : 'status-decharge'}>{eq.estCharge ? t('charge') : t('decharge')}</td>
                                 <td>{eq.dateDechargement ? new Date(eq.dateDechargement).toLocaleString() : '—'}</td>
                                 <td className="action-icons">
-                                    <button onClick={() => handleEdit(eq)}>✏️</button>
-                                    {!eq.estCharge && <button onClick={() => handleCharger(eq.id)} style={{ color: 'green' }}>{t('charger')}</button>}
-                                    {eq.estCharge && <button onClick={() => handleDecharger(eq.id)} style={{ color: 'orange' }}>{t('decharger')}</button>}
-                                    <button onClick={() => handleDelete(eq.id)}>🗑️</button>
+                                    <button type="button" onClick={() => handleEdit(eq)} title={t('modifier')} aria-label={t('modifier')} className="action-icon action-edit"><ActionIcon name="edit" /></button>
+                                    {!eq.estCharge && (
+                                        <button type="button" onClick={() => handleCharger(eq.id)} title={t('charger')} aria-label={t('charger')} className="action-icon action-transfer">
+                                            <ActionIcon name="transfer" />
+                                        </button>
+                                    )}
+                                    {eq.estCharge && (
+                                        <button type="button" onClick={() => handleDecharger(eq.id)} title={t('decharger')} aria-label={t('decharger')} className="action-icon action-return">
+                                            <ActionIcon name="return" />
+                                        </button>
+                                    )}
+                                    <button type="button" onClick={() => handleDelete(eq.id)} title={t('supprimer')} aria-label={t('supprimer')} className="action-icon action-delete"><ActionIcon name="delete" /></button>
                                   </td>
                               </tr>
                         ))}
@@ -306,3 +315,4 @@ function GererEquipements() {
 }
 
 export default GererEquipements;
+

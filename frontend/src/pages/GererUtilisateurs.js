@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import ActionIcon from '../components/ActionIcon';
 
 function GererUtilisateurs() {
     const { t } = useTranslation();
@@ -162,7 +163,11 @@ function GererUtilisateurs() {
             const res = await axios.post('/api/utilisateurs/import/preview', formData);
             setHeaders(res.data);
             setShowMapping(true);
-            setMapping({ nom: '', login: '', serviceId: '' });
+            setMapping({
+                nom: findHeader(res.data, ['Nom complet', 'Nom', 'الاسم الكامل']),
+                login: findHeader(res.data, ['Login', 'اسم الدخول']),
+                serviceId: findHeader(res.data, ['Service ID', 'Service', 'الخدمة']),
+            });
         } catch (err) {
             setError(t('erreur_lecture_fichier'));
         }
@@ -170,6 +175,11 @@ function GererUtilisateurs() {
 
     const executeImport = async () => {
         if (!importFile) return;
+        if (!mapping.nom || !mapping.login || !mapping.serviceId) {
+            setError(t('erreur_champs_utilisateur'));
+            return;
+        }
+
         const formData = new FormData();
         formData.append('file', importFile);
         const params = new URLSearchParams({
@@ -180,12 +190,15 @@ function GererUtilisateurs() {
         try {
             const res = await axios.post(`/api/utilisateurs/import/execute?${params.toString()}`, formData);
             const data = res.data;
+            const imported = Number(data.imported || 0);
+            const updated = Number(data.updated || 0);
+            const successMessage = data.message || `${imported} ${t('utilisateurs_importes')}, ${updated} ${t('utilisateurs_mis_a_jour')}`;
             if (data.errors && data.errors.length > 0) {
-                alert(`${data.imported} ${t('utilisateurs_importes')}\n${t('details_erreurs')} :\n${data.errors.join('\n')}`);
+                alert(`${successMessage}\n${t('details_erreurs')} :\n${data.errors.join('\n')}`);
             } else {
-                alert(`${data.imported} ${t('utilisateurs_importes_succes')}`);
+                alert(successMessage);
             }
-            if (data.imported > 0) fetchUsers();
+            if (imported > 0 || updated > 0) fetchUsers();
             setShowMapping(false);
             setImportFile(null);
             setMapping({ nom: '', login: '', serviceId: '' });
@@ -347,9 +360,15 @@ function GererUtilisateurs() {
                                 <td>{u.login}</td>
                                 <td>{u.nomService || `${t('service')} #${u.idService}`}</td>
                                 <td className="action-icons">
-                                    <button onClick={() => handleEdit(u)}>✏️</button>
-                                    <button onClick={() => handleDelete(u.id)}>🗑️</button>
-                                    <button onClick={() => { setSelectedUserId(u.id); setShowPasswordModal(true); }} style={{ color: 'blue' }}>🔑</button>
+                                    <button type="button" onClick={() => handleEdit(u)} title={t('modifier')} aria-label={t('modifier')} className="action-icon action-edit">
+                                        <ActionIcon name="edit" />
+                                    </button>
+                                    <button type="button" onClick={() => handleDelete(u.id)} title={t('supprimer')} aria-label={t('supprimer')} className="action-icon action-delete">
+                                        <ActionIcon name="delete" />
+                                    </button>
+                                    <button type="button" onClick={() => { setSelectedUserId(u.id); setShowPasswordModal(true); }} title={t('changer_mot_de_passe')} aria-label={t('changer_mot_de_passe')} className="action-icon action-password">
+                                        <ActionIcon name="password" />
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -377,6 +396,12 @@ function GererUtilisateurs() {
     );
 }
 
+function findHeader(headers, candidates) {
+    return headers.find(header =>
+        candidates.some(candidate => header.toLowerCase() === candidate.toLowerCase())
+    ) || '';
+}
+
 function getErrorMessage(error, fallback) {
     const data = error.response?.data;
     if (typeof data === 'string') return data;
@@ -387,3 +412,4 @@ function getErrorMessage(error, fallback) {
 }
 
 export default GererUtilisateurs;
+

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import ActionIcon from '../components/ActionIcon';
 
 const emptyForm = {
   documentId: '',
@@ -244,8 +245,12 @@ function Circulations() {
                   <td>{formatActor(item.recepteurUserName, item.recepteur)}</td>
                   <td>{item.etat || '-'}</td>
                   <td className="action-icons">
-                    <button type="button" onClick={() => handleEdit(item)}>{t('modifier')}</button>
-                    <button type="button" onClick={() => handleDelete(item.id)}>{t('supprimer')}</button>
+                    <button type="button" onClick={() => handleEdit(item)} title={t('modifier')} aria-label={t('modifier')} className="action-icon action-edit">
+                      <ActionIcon name="edit" />
+                    </button>
+                    <button type="button" onClick={() => handleDelete(item.id)} title={t('supprimer')} aria-label={t('supprimer')} className="action-icon action-delete">
+                      <ActionIcon name="delete" />
+                    </button>
                   </td>
                 </tr>
               ))

@@ -119,6 +119,11 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         return await GetAsync(retrait.CourrierJudiciaireId);
     }
 
+    public async Task DeleteRetraitAsync(int retraitId)
+    {
+        await _retraitRepository.DeleteAsync(retraitId, autoSave: true);
+    }
+
     public Task<CourrierJudiciaireDto> RetraitsAsync(int id, CreateRetraitJudiciaireDto input)
     {
         return CreateRetraitAsync(id, input);
@@ -223,7 +228,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         entity.NumeroDossierNombre = parsed.nombre;
         entity.NumeroDossierSujet = parsed.sujet;
         entity.EstTransmissible = IsLinkedJudicialDocument(input)
-            ? input.EstTransmissible
+            ? true
             : input.EstTransmissible || HasCompleteNumeroDossier(parsed);
         if (!IsLinkedJudicialDocument(input) && entity.ServiceId == OpeningFilesServiceId && HasCompleteNumeroDossier(parsed))
         {

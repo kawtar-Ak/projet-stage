@@ -3,12 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
-const defaultAdminLogin = 'admin';
-const defaultAdminPassword = '1q2w3E*';
-
 function Login() {
-  const [login, setLogin] = useState(defaultAdminLogin);
-  const [password, setPassword] = useState(defaultAdminPassword);
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
@@ -31,7 +28,7 @@ function Login() {
     setError('');
     try {
       await loginUser(login, password);
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(getLoginErrorMessage(err, t('identifiants_incorrects')));
     } finally {

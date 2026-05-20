@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
+import ActionIcon from '../components/ActionIcon';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
 
 function MesEntites() {
@@ -144,8 +145,12 @@ function MesEntites() {
                                     <td>{doc.serviceNom || doc.idService || '-'}</td>
                                     <td>{doc.estTransmissible ? t('oui') : t('non')}</td>
                                     <td className="action-icons">
-                                        <button className="btn-secondary" onClick={() => handleConsult(doc)}>{t('consulter')}</button>
-                                        <button className="btn-primary" onClick={() => openTransferModal(doc)} disabled={!doc.estTransmissible}>{t('transferer')}</button>
+                                        <button type="button" onClick={() => handleConsult(doc)} title={t('consulter')} aria-label={t('consulter')} className="action-icon action-view">
+                                            <ActionIcon name="view" />
+                                        </button>
+                                        <button type="button" onClick={() => openTransferModal(doc)} disabled={!doc.estTransmissible} title={t('transferer')} aria-label={t('transferer')} className="action-icon action-transfer">
+                                            <ActionIcon name="transfer" />
+                                        </button>
                                     </td>
                                 </tr>
                             ))

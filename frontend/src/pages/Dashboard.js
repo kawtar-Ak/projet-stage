@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
+import ActionIcon from '../components/ActionIcon';
 import { useAuth } from '../context/AuthContext';
 import AdminDashboard from '../dashboards/AdminDashboard';
 import JudicialSearch from '../components/JudicialSearch';
@@ -49,7 +50,7 @@ function Dashboard() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [pendingRes, historyRes, returnsRes] = await Promise.all([
+            const [pendingRes, historyRes, returnsRes, allTransactionsRes] = await Promise.all([
                 isArchiveService
                     ? axios.get('/api/transactions', { params: { skipCount: 0, maxResultCount: 1000 } })
                     : handlesIncomingRequests
@@ -58,13 +59,19 @@ function Dashboard() {
                 isArchiveService
                     ? axios.get('/api/transactions', { params: { skipCount: 0, maxResultCount: 1000 } })
                     : axios.get('/api/transactions/outgoing'),
-                axios.get('/api/transactions/pending-returns')
+                axios.get('/api/transactions/pending-returns'),
+                axios.get('/api/transactions', { params: { skipCount: 0, maxResultCount: 1000 } })
             ]);
             const pendingTransactions = toArray(pendingRes.data);
             const historyTransactions = toArray(historyRes.data);
+            const allTransactions = toArray(allTransactionsRes.data);
+            const fallbackPending = allTransactions.filter(tx =>
+                Number(tx.destinationServiceId) === serviceId &&
+                isPending(tx.statut)
+            );
             const visiblePending = isArchiveService
-                ? pendingTransactions.filter(tx => Number(tx.destinationServiceId) === serviceId)
-                : pendingTransactions.filter(tx =>
+                ? mergeTransactions(pendingTransactions, fallbackPending).filter(tx => Number(tx.destinationServiceId) === serviceId)
+                : mergeTransactions(pendingTransactions, fallbackPending).filter(tx =>
                     Number(tx.sourceServiceId) === serviceId ||
                     Number(tx.destinationServiceId) === serviceId ||
                     Number(tx.currentServiceId) === serviceId
@@ -272,13 +279,13 @@ function Dashboard() {
                                 badge={t('en_attente')}
                                 i18n={i18n}
                                 t={t}
-                                actions={handlesIncomingRequests ? [
-                                    <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
-                                    <button className="action-link accept" onClick={() => handleRespond(tx.id, true)}>{t('accepter')}</button>,
-                                    <button className="action-link cancel" onClick={() => handleRespond(tx.id, false)}>{t('refuser')}</button>
+                                actions={canRespondToTransaction(tx, serviceId) ? [
+                                    <button className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
+                                    <button className="action-link accept" onClick={() => handleRespond(tx.id, true)} title={isArchiveService ? t('archiver') : t('accepter')} aria-label={isArchiveService ? t('archiver') : t('accepter')}><ActionIcon name={isArchiveService ? 'archive' : 'accept'} /></button>,
+                                    <button className="action-link cancel" onClick={() => handleRespond(tx.id, false)} title={t('refuser')} aria-label={t('refuser')}><ActionIcon name="cancel" /></button>
                                 ] : [
-                                    <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
-                                    <button className="action-link cancel" onClick={() => handleCancel(tx.id)}>{t('annuler')}</button>
+                                    <button className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
+                                    <button className="action-link cancel" onClick={() => handleCancel(tx.id)} title={t('annuler')} aria-label={t('annuler')}><ActionIcon name="cancel" /></button>
                                 ]}
                             />
                         ))}
@@ -302,8 +309,8 @@ function Dashboard() {
                                 date={tx.dateReponse}
                                 dateLabel={t('traite_le')}
                                 actions={[
-                                    <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
-                                    <button className="action-link hide" onClick={() => handleHide(tx.id)}>{t('masquer')}</button>
+                                    <button className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
+                                    <button className="action-link hide" onClick={() => handleHide(tx.id)} title={t('masquer')} aria-label={t('masquer')}><ActionIcon name="hide" /></button>
                                 ]}
                             />
                         ))}
@@ -324,8 +331,8 @@ function Dashboard() {
                                 i18n={i18n}
                                 t={t}
                                 actions={[
-                                    <button className="action-link view" onClick={() => handleConsult(tx)}>{t('consulter')}</button>,
-                                    <button className="action-link accept" onClick={() => handleMarkReturned(tx.id)}>{t('marquer_retourne')}</button>
+                                    <button className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
+                                    <button className="action-link accept" onClick={() => handleMarkReturned(tx.id)} title={t('marquer_retourne')} aria-label={t('marquer_retourne')}><ActionIcon name="return" /></button>
                                 ]}
                             />
                         ))}
@@ -386,7 +393,12 @@ function normalizeStatus(value) {
 }
 
 function isPending(value) {
-    return normalizeStatus(value).includes('attente');
+    const status = normalizeStatus(value);
+    return status.includes('attente') || status.includes('pending');
+}
+
+function canRespondToTransaction(transaction, serviceId) {
+    return Number(transaction?.destinationServiceId) === Number(serviceId);
 }
 
 function isAccepted(value) {
@@ -417,6 +429,14 @@ function toArray(data) {
     if (Array.isArray(data)) return data;
     if (Array.isArray(data?.items)) return data.items;
     return [];
+}
+
+function mergeTransactions(...groups) {
+    const byId = new Map();
+    groups.flat().forEach(item => {
+        if (item?.id) byId.set(item.id, item);
+    });
+    return Array.from(byId.values());
 }
 
 function getErrorMessage(error, fallback) {

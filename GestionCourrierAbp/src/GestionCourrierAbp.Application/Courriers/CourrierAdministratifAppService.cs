@@ -107,7 +107,7 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
         entity.ParentId = input.ParentId;
         entity.ServiceId = input.IdService;
         entity.NumeroDeCourrier = input.NumeroDeCourrier?.Trim() ?? string.Empty;
-        entity.EstTransmissible = input.EstTransmissible;
+        entity.EstTransmissible = true;
         return entity;
     }
 

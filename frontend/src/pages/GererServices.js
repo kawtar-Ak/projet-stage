@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import ActionIcon from '../components/ActionIcon';
 import { getLocalizedServiceName } from '../utils/localization';
 
 function GererServices() {
@@ -181,7 +182,14 @@ function GererServices() {
                                 <td>{getLocalizedServiceName(s, i18n)}</td>
                                 <td>{getServiceDescription(s, i18n)}</td>
                                 <td>{s.etage || '—'}</td>
-                                <td className="action-icons"><button onClick={() => handleEdit(s)}>✏️</button><button onClick={() => handleDelete(s.idService)}>🗑️</button></td>
+                                <td className="action-icons">
+                                    <button type="button" onClick={() => handleEdit(s)} title={t('modifier')} aria-label={t('modifier')} className="action-icon action-edit">
+                                        <ActionIcon name="edit" />
+                                    </button>
+                                    <button type="button" onClick={() => handleDelete(s.idService)} title={t('supprimer')} aria-label={t('supprimer')} className="action-icon action-delete">
+                                        <ActionIcon name="delete" />
+                                    </button>
+                                </td>
                               </tr>
                         ))}
                     </tbody>

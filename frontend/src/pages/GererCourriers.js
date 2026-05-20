@@ -12,6 +12,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import GererCourriersJuridiques from "./GererCourriersJuridiques";
+import ActionIcon from "../components/ActionIcon";
 import DocumentModal from "../components/DocumentModal";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
@@ -50,6 +51,7 @@ const WARIDAT_SOURCES = [
 
 function GererCourriers() {
   const { t } = useTranslation();
+  const currentServiceId = Number(localStorage.getItem("idService") || 0);
 
   // ==========================================================
   // BLOC 3.1 : STATES PRINCIPAUX
@@ -74,6 +76,9 @@ function GererCourriers() {
   const [editingId, setEditingId] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [consultedDocument, setConsultedDocument] = useState(null);
+  const [selectedTransferItem, setSelectedTransferItem] = useState(null);
+  const [transferForm, setTransferForm] = useState(getInitialTransferForm());
+  const [sentAdministrativeDocumentIds, setSentAdministrativeDocumentIds] = useState(new Set());
 
 
   // ==========================================================
@@ -87,6 +92,7 @@ function GererCourriers() {
   // Date utilisée dans la recherche.
   const [dateRecherche, setDateRecherche] = useState("");
   const [registreFilter, setRegistreFilter] = useState("all");
+  const [selectedExportIds, setSelectedExportIds] = useState([]);
 
 
   // ==========================================================
@@ -150,6 +156,17 @@ function GererCourriers() {
     () => filterCourriers(allCourriers, motCle, dateRecherche, registreFilter),
     [allCourriers, motCle, dateRecherche, registreFilter]
   );
+  const selectedExportIdSet = useMemo(
+    () => new Set(selectedExportIds.map((id) => String(id))),
+    [selectedExportIds]
+  );
+  const visibleExportIds = useMemo(
+    () => filteredCourriers.map((courrier) => courrier.id).filter(Boolean),
+    [filteredCourriers]
+  );
+  const allVisibleSelected =
+    visibleExportIds.length > 0 &&
+    visibleExportIds.every((id) => selectedExportIdSet.has(String(id)));
 
   // Si la Morasalat est liée, on ne saisit pas le numéro de bureau d'ordre,
   // car il sera récupéré automatiquement depuis la Warida liée.
@@ -174,6 +191,7 @@ function GererCourriers() {
     fetchCourriers();
     fetchWaridat();
     fetchServices();
+    fetchSentAdministrativeTransactions();
   }, []);
 
 
@@ -246,6 +264,27 @@ function GererCourriers() {
     }
   };
 
+  const fetchSentAdministrativeTransactions = async () => {
+    try {
+      const response = await axios.get("/api/transactions/outgoing");
+      const transactions = Array.isArray(response.data)
+        ? response.data
+        : response.data?.items || [];
+      setSentAdministrativeDocumentIds(
+        new Set(
+          transactions
+            .filter((transaction) =>
+              String(transaction.documentType || "").toLowerCase() === "administratif" &&
+              Number(transaction.sourceServiceId) === currentServiceId
+            )
+            .map((transaction) => String(transaction.documentId))
+        )
+      );
+    } catch (err) {
+      setSentAdministrativeDocumentIds(new Set());
+    }
+  };
+
 
   // ==========================================================
   // BLOC 8 : SÉLECTION DU TYPE WARIDAT
@@ -308,6 +347,7 @@ function GererCourriers() {
       destinataire: prev.destinataire || DESTINATAIRE_WARIDAT_DEFAULT,
       source: prev.source || DESTINATAIRE_WARIDAT_DEFAULT,
       sujet: prev.sujet || "",
+      estTransmissible: true,
     }));
   };
 
@@ -641,6 +681,7 @@ function GererCourriers() {
       source: morasala.destinataire || DESTINATAIRE_WARIDAT_DEFAULT,
       destinataire: morasala.source || DESTINATAIRE_WARIDAT_DEFAULT,
       sujet: "",
+      etat: "",
       idService: morasala.idService || getDefaultServiceId(services),
     });
 
@@ -683,6 +724,99 @@ function GererCourriers() {
       await fetchWaridat();
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_archiver")));
+    }
+  };
+
+  const openTransferModal = (courrier) => {
+    setSelectedTransferItem(courrier);
+    setTransferForm(
+      getInitialTransferForm(getDefaultTransferServiceId(courrier, services))
+    );
+    setError("");
+    setSuccess("");
+  };
+
+  const closeTransferModal = () => {
+    setSelectedTransferItem(null);
+    setTransferForm(getInitialTransferForm());
+  };
+
+  const handleTransferChange = (event) => {
+    const { name, value, type, checked } = event.target;
+
+    setTransferForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleTransferServiceChange = (event) => {
+    setTransferForm((prev) => ({
+      ...prev,
+      serviceId: event.target.value,
+    }));
+  };
+
+  const handleTransferModeChange = (mode) => {
+    setTransferForm((prev) => ({
+      ...prev,
+      mode,
+      serviceIds: mode === "multiple" && prev.serviceId ? [prev.serviceId] : prev.serviceIds,
+    }));
+  };
+
+  const handleTransferServiceToggle = (serviceId) => {
+    setTransferForm((prev) => {
+      const value = String(serviceId);
+      const serviceIds = prev.serviceIds.includes(value)
+        ? prev.serviceIds.filter((id) => id !== value)
+        : [...prev.serviceIds, value];
+
+      return { ...prev, serviceIds };
+    });
+  };
+
+  const handleTransferSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!selectedTransferItem) return;
+
+    const destinationServiceIds = transferForm.mode === "multiple"
+      ? transferForm.serviceIds
+      : [transferForm.serviceId].filter(Boolean);
+
+    if (destinationServiceIds.length === 0) {
+      setError(t("service_destinataire_requis"));
+      return;
+    }
+
+    try {
+      const sourceServiceId = Number(
+        selectedTransferItem.idService || currentServiceId
+      );
+
+      await Promise.all(
+        destinationServiceIds.map((serviceId) =>
+          axios.post("/api/transactions", {
+            documentId: selectedTransferItem.id,
+            documentType: "Administratif",
+            sourceServiceId,
+            destinationServiceId: Number(serviceId),
+            destinationUserId: null,
+            doitRevenir: transferForm.doitRevenir,
+            dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
+            message: transferForm.message.trim(),
+          })
+        )
+      );
+
+      setSuccess(t("transaction_envoyee"));
+      closeTransferModal();
+      await fetchCourriers();
+      await fetchWaridat();
+      await fetchSentAdministrativeTransactions();
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_transaction")));
     }
   };
 
@@ -733,7 +867,6 @@ function GererCourriers() {
     return () => clearTimeout(timeoutId);
   }, [motCle, dateRecherche]);
 
-
   // ==========================================================
   // BLOC 23 : EXPORT EXCEL
   // ==========================================================
@@ -741,32 +874,56 @@ function GererCourriers() {
   // sous forme d'un fichier Excel.
 
   const exportToExcel = async () => {
+    const visibleIdSet = new Set(filteredCourriers.map((courrier) => String(courrier.id)));
+    const idsToExport = selectedExportIds
+      .filter((id) => visibleIdSet.has(String(id)))
+      .map((id) => String(id));
+    const selectedCourriers = filteredCourriers.filter((courrier) =>
+      idsToExport.includes(String(courrier.id))
+    );
+
+    if (selectedCourriers.length === 0) {
+      setError(t("selection_requise"));
+      return;
+    }
+
     try {
-      const response = await axios.get("/api/courriers/export/excel", { responseType: "blob" });
-      downloadBlob(response.data, "courriers-administratifs.xlsx");
+      const workbookHtml = buildAdministrativeSelectionWorkbook(selectedCourriers, allCourriers, t);
+      const blob = new Blob([workbookHtml], {
+        type: "application/vnd.ms-excel;charset=utf-8",
+      });
+      downloadBlob(blob, "courriers-administratifs-selection.xls");
     } catch (err) {
       setError(t("erreur_export"));
     }
-    return;
+  };
 
-    fetch(`/api/courriers/export/excel`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(t("erreur_export"));
-        return res.blob();
-      })
-      .then((blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
+  const toggleCourrierSelection = (id) => {
+    setSelectedExportIds((prev) =>
+      prev.some((selectedId) => String(selectedId) === String(id))
+        ? prev.filter((selectedId) => String(selectedId) !== String(id))
+        : [...prev, id]
+    );
+  };
 
-        a.href = url;
-        a.download = "courriers-administratifs.xlsx";
-        a.click();
+  const clearExportSelection = () => {
+    setSelectedExportIds([]);
+  };
 
-        window.URL.revokeObjectURL(url);
-      })
-      .catch(() => setError(t("erreur_export")));
+  const toggleVisibleSelection = () => {
+    if (allVisibleSelected) {
+      const visibleIdSet = new Set(visibleExportIds.map((id) => String(id)));
+      setSelectedExportIds((prev) =>
+        prev.filter((id) => !visibleIdSet.has(String(id)))
+      );
+      return;
+    }
+
+    setSelectedExportIds((prev) => {
+      const next = new Set(prev.map((id) => String(id)));
+      visibleExportIds.forEach((id) => next.add(String(id)));
+      return Array.from(next);
+    });
   };
 
 
@@ -868,15 +1025,46 @@ function GererCourriers() {
 
   const renderCourriersTable = () => (
     <div className="data-table-wrapper search-results-table">
-      <h3>
-        {hasActiveSearch
-          ? t("resultats_recherche", { count: filteredCourriers.length })
-          : t("registre_count", { count: filteredCourriers.length })}
-      </h3>
+      <div className="data-table-header">
+        <h3>
+          {hasActiveSearch
+            ? t("resultats_recherche", { count: filteredCourriers.length })
+            : t("registre_count", { count: filteredCourriers.length })}
+        </h3>
+
+        <div className="registry-tools table-registry-tools">
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={exportToExcel}
+            disabled={selectedExportIds.length === 0}
+          >
+            {t("exporter_excel")}
+          </button>
+
+          <label className="btn-secondary import-label">
+            {importing ? t("import_en_cours") : t("importer_excel")}
+
+            <input
+              type="file"
+              accept=".xlsx"
+              onChange={handleFileSelect}
+            />
+          </label>
+        </div>
+      </div>
 
       <table className="modern-table">
         <thead>
           <tr>
+            <th className="selection-column">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleVisibleSelection}
+                aria-label={t("selectionner")}
+              />
+            </th>
             <th>{t("numero_bureau_ordre")}</th>
             <th>{t("type_registre")}</th>
             <th>{t("liaison")}</th>
@@ -895,13 +1083,25 @@ function GererCourriers() {
         <tbody>
           {filteredCourriers.length === 0 ? (
             <tr>
-              <td colSpan="12" style={{ textAlign: "center" }}>
+              <td colSpan="13" style={{ textAlign: "center" }}>
                 {t("aucun_registre")}
               </td>
             </tr>
           ) : (
-            filteredCourriers.map((courrier) => (
+            filteredCourriers.map((courrier) => {
+              const actionState = getAdministrativeActionState(courrier, allCourriers, sentAdministrativeDocumentIds);
+
+              return (
               <tr key={courrier.id}>
+                <td className="selection-column">
+                  <input
+                    type="checkbox"
+                    className="row-select-checkbox"
+                    checked={selectedExportIdSet.has(String(courrier.id))}
+                    onChange={() => toggleCourrierSelection(courrier.id)}
+                    aria-label={t("selectionner")}
+                  />
+                </td>
                 <td>{getDisplayIdBureauOrdre(courrier, allCourriers)}</td>
                 <td>
                   <span className={getRegistreBadgeClass(courrier)}>
@@ -938,7 +1138,7 @@ function GererCourriers() {
                 </td>
 
                 <td className="action-icons">
-                  {isMainWaridat(courrier) && (
+                  {actionState.canAddLinkedMorasalat && (
                     <button
                       type="button"
                       onClick={() => handleAddMorasalat(courrier)}
@@ -946,11 +1146,11 @@ function GererCourriers() {
                       aria-label={t("ajouter_morasalat")}
                       className="action-icon action-link-record"
                     >
-                      <span aria-hidden="true">▤+</span>
+                      <ActionIcon name="link" />
                     </button>
                   )}
 
-                  {isMainMorasalat(courrier) && (
+                  {actionState.canAddResponse && (
                     <button
                       type="button"
                       onClick={() => handleAddMorasalatResponse(courrier)}
@@ -958,7 +1158,7 @@ function GererCourriers() {
                       aria-label={t("ajouter_reponse")}
                       className="action-icon action-reply"
                     >
-                      <span aria-hidden="true">✉+</span>
+                      <ActionIcon name="reply" />
                     </button>
                   )}
 
@@ -969,7 +1169,7 @@ function GererCourriers() {
                     aria-label={t("consulter")}
                     className="action-icon action-view"
                   >
-                    <span aria-hidden="true">⌕</span>
+                    <ActionIcon name="view" />
                   </button>
 
                   <button
@@ -979,8 +1179,20 @@ function GererCourriers() {
                     aria-label={t("modifier")}
                     className="action-icon action-edit"
                   >
-                    <span aria-hidden="true">✎</span>
+                    <ActionIcon name="edit" />
                   </button>
+
+                  {actionState.canTransfer && (
+                    <button
+                      type="button"
+                      onClick={() => openTransferModal(courrier)}
+                      title={t("transferer")}
+                      aria-label={t("transferer")}
+                      className="action-icon action-transfer"
+                    >
+                      <ActionIcon name="transfer" />
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -989,7 +1201,7 @@ function GererCourriers() {
                     aria-label={t("archiver")}
                     className="action-icon action-archive"
                   >
-                    <span aria-hidden="true">▣</span>
+                    <ActionIcon name="archive" />
                   </button>
 
                   <button
@@ -999,11 +1211,12 @@ function GererCourriers() {
                     aria-label={t("supprimer")}
                     className="action-icon action-delete"
                   >
-                    <span aria-hidden="true">×</span>
+                    <ActionIcon name="delete" />
                   </button>
                 </td>
               </tr>
-            ))
+              );
+            })
           )}
         </tbody>
       </table>
@@ -1117,7 +1330,9 @@ function GererCourriers() {
         onClick={isEditModalOpen ? (event) => event.stopPropagation() : undefined}
       >
         <h3>
-          {editingId ? t("modifier") : t("ajouter")} {formatFormTitle(form, t)}
+          {isMorasalatResponseMode && !editingId
+            ? t("ajouter_reponse")
+            : `${editingId ? t("modifier") : t("ajouter")} ${formatFormTitle(form, t)}`}
         </h3>
 
         <form onSubmit={handleSubmit}>
@@ -1281,6 +1496,19 @@ function GererCourriers() {
               />
             </div>
 
+            {isMorasalatResponseMode && (
+              <div className="form-field response-status-field">
+                <label>{t("resultat")}</label>
+                <input
+                  type="text"
+                  name="etat"
+                  value={form.etat}
+                  onChange={handleChange}
+                  placeholder={t("placeholder_resultat")}
+                />
+              </div>
+            )}
+
             {/* Destinataire */}
             {!isMorasalatResponseMode && (
             <div className={isStructuredAdminForm ? "form-field waridat-destinataire-field" : "form-field"}>
@@ -1404,7 +1632,6 @@ function GererCourriers() {
             )}
 
             {/* Transmissible */}
-            {!isMorasalatResponseMode && (
             <div className={isStructuredAdminForm ? "form-field waridat-transmissible-field" : "form-field"}>
               <label>{t("transmissible")}</label>
 
@@ -1418,7 +1645,6 @@ function GererCourriers() {
                 {t("transmissible")}
               </label>
             </div>
-            )}
 
             {/* Description */}
             {!isMorasalatResponseMode && (
@@ -1482,71 +1708,87 @@ function GererCourriers() {
       <div className="registry-panel">
         <div className="registry-panel-header">
           <h3>{t("recherche_registre")}</h3>
-
-          <div className="registry-tools">
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={exportToExcel}
-            >
-              {t("exporter_excel")}
-            </button>
-
-            <label className="btn-secondary import-label">
-              {importing ? t("import_en_cours") : t("importer_excel")}
-
-              <input
-                type="file"
-                accept=".xlsx"
-                onChange={handleFileSelect}
-              />
-            </label>
-          </div>
         </div>
 
         <div className="filters">
           <form onSubmit={handleSearch} className="search-form">
-            <input
-              type="text"
-              value={motCle}
-              onChange={(e) => setMotCle(e.target.value)}
-              placeholder={t("placeholder_recherche_courriers")}
-            />
+            <div className="search-input-row">
+              <input
+                type="text"
+                value={motCle}
+                onChange={(e) => {
+                  setMotCle(e.target.value);
+                  clearExportSelection();
+                }}
+                placeholder={t("placeholder_recherche_courriers")}
+              />
 
-            <input
-              type="date"
-              value={dateRecherche}
-              onChange={(e) => setDateRecherche(e.target.value)}
-            />
+              <input
+                type="date"
+                value={dateRecherche}
+                onChange={(e) => {
+                  setDateRecherche(e.target.value);
+                  clearExportSelection();
+                }}
+              />
+            </div>
 
-            <button
-              type="button"
-              className={registreFilter === TYPE_WARIDAT ? "btn-primary" : "btn-secondary"}
-              onClick={() => setRegistreFilter((prev) => prev === TYPE_WARIDAT ? "all" : TYPE_WARIDAT)}
-            >
-              {t("waridat_administratives")}
-            </button>
+            <div className="search-control-row">
+              <div className="filter-chip-group" aria-label={t("type_registre")}>
+                <button
+                  type="button"
+                  className={registreFilter === "all" ? "filter-chip active" : "filter-chip"}
+                  onClick={() => {
+                    setMotCle("");
+                    setDateRecherche("");
+                    setRegistreFilter("all");
+                    setSelectedExportIds(allCourriers.map((courrier) => courrier.id).filter(Boolean));
+                  }}
+                >
+                  {t("tous")}
+                </button>
 
-            <button
-              type="button"
-              className={registreFilter === TYPE_MORASALAT ? "btn-primary" : "btn-secondary"}
-              onClick={() => setRegistreFilter((prev) => prev === TYPE_MORASALAT ? "all" : TYPE_MORASALAT)}
-            >
-              {t("morasalat_administratives")}
-            </button>
+                <button
+                  type="button"
+                  className={registreFilter === TYPE_WARIDAT ? "filter-chip active" : "filter-chip"}
+                  onClick={() => {
+                    setRegistreFilter(TYPE_WARIDAT);
+                    clearExportSelection();
+                  }}
+                >
+                  {t("waridat_administratives")}
+                </button>
 
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setMotCle("");
-                setDateRecherche("");
-                setRegistreFilter("all");
-                fetchCourriers();
-              }}
-            >
-              {t("reinitialiser")}
-            </button>
+                <button
+                  type="button"
+                  className={registreFilter === TYPE_MORASALAT ? "filter-chip active" : "filter-chip"}
+                  onClick={() => {
+                    setRegistreFilter(TYPE_MORASALAT);
+                    clearExportSelection();
+                  }}
+                >
+                  {t("morasalat_administratives")}
+                </button>
+              </div>
+
+              <span className="selection-summary">
+                {t("selection_count", { count: selectedExportIds.length })}
+              </span>
+
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setMotCle("");
+                  setDateRecherche("");
+                  setRegistreFilter("all");
+                  clearExportSelection();
+                  fetchCourriers();
+                }}
+              >
+                {t("reinitialiser")}
+              </button>
+            </div>
           </form>
         </div>
 
@@ -1558,6 +1800,149 @@ function GererCourriers() {
           document={consultedDocument}
           onClose={() => setConsultedDocument(null)}
         />
+      )}
+
+      {selectedTransferItem && (
+        <>
+          <div className="modal-overlay" onClick={closeTransferModal} />
+          <div
+            className="modal form-card transfer-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="registry-panel-header">
+              <div>
+                <h3>{t("transferer")}</h3>
+                <p>
+                  {formatRegistre(selectedTransferItem, t)} -{" "}
+                  {getDisplayIdBureauOrdre(selectedTransferItem, allCourriers)} -{" "}
+                  {selectedTransferItem.sujet || "-"}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeTransferModal}
+              >
+                {t("fermer")}
+              </button>
+            </div>
+            {error && <div className="error-message">{error}</div>}
+
+            <form onSubmit={handleTransferSubmit}>
+              <div className="form-grid">
+                <div className="form-field full-width">
+                  <label>{translate(t, "mode_transfert", "Mode de transfert")}</label>
+                  <div className="filter-chip-group">
+                    <button
+                      type="button"
+                      className={transferForm.mode === "single" ? "filter-chip active" : "filter-chip"}
+                      onClick={() => handleTransferModeChange("single")}
+                    >
+                      {translate(t, "transfert_service_unique", "Un seul service")}
+                    </button>
+                    <button
+                      type="button"
+                      className={transferForm.mode === "multiple" ? "filter-chip active" : "filter-chip"}
+                      onClick={() => handleTransferModeChange("multiple")}
+                    >
+                      {translate(t, "transfert_plusieurs_services", "Plusieurs services")}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="form-field">
+                  <label>{t("service_destinataire")} *</label>
+                  {transferForm.mode === "single" ? (
+                    <select
+                      name="serviceId"
+                      value={transferForm.serviceId}
+                      onChange={handleTransferServiceChange}
+                      required
+                    >
+                      <option value="">-- {t("selectionner_service")} --</option>
+                      {services
+                        .filter(
+                          (service) =>
+                            Number(service.idService) !==
+                            Number(selectedTransferItem.idService)
+                        )
+                        .map((service) => (
+                          <option key={service.idService} value={service.idService}>
+                            {service.nomService}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <div className="checkbox-list">
+                      {services
+                        .filter(
+                          (service) =>
+                            Number(service.idService) !==
+                            Number(selectedTransferItem.idService)
+                        )
+                        .map((service) => (
+                          <label key={service.idService} className="checkbox-field">
+                            <input
+                              type="checkbox"
+                              checked={transferForm.serviceIds.includes(String(service.idService))}
+                              onChange={() => handleTransferServiceToggle(service.idService)}
+                            />
+                            {service.nomService}
+                          </label>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-field">
+                  <label>{t("date")} *</label>
+                  <input
+                    type="date"
+                    name="dateEnvoi"
+                    value={transferForm.dateEnvoi}
+                    onChange={handleTransferChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label className="checkbox-field">
+                    <input
+                      type="checkbox"
+                      name="doitRevenir"
+                      checked={transferForm.doitRevenir}
+                      onChange={handleTransferChange}
+                    />
+                    {t("doit_revenir")}
+                  </label>
+                </div>
+
+                <div className="form-field full-width">
+                  <label>{t("message")}</label>
+                  <textarea
+                    name="message"
+                    value={transferForm.message}
+                    onChange={handleTransferChange}
+                    rows="3"
+                  />
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="btn-primary">
+                  {t("envoyer")}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={closeTransferModal}
+                >
+                  {t("annuler")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
       )}
     </div>
   );
@@ -1603,7 +1988,18 @@ function getInitialForm(
     typeCorrespondance,
 
     // Par défaut, le courrier n'est pas transmissible.
-    estTransmissible: false,
+    estTransmissible: true,
+  };
+}
+
+function getInitialTransferForm(serviceId = "") {
+  return {
+    serviceId,
+    serviceIds: serviceId ? [String(serviceId)] : [],
+    mode: "single",
+    dateEnvoi: new Date().toISOString().slice(0, 10),
+    doitRevenir: false,
+    message: "",
   };
 }
 
@@ -1615,6 +2011,15 @@ function getInitialForm(
 
 function getDefaultServiceId(services) {
   return services.length > 0 ? services[0].idService : "";
+}
+
+function getDefaultTransferServiceId(courrier, services = []) {
+  const sourceServiceId = Number(courrier?.idService || 0);
+  const service = services.find(
+    (item) => Number(item.idService) !== sourceServiceId
+  );
+
+  return service?.idService || "";
 }
 
 
@@ -1681,6 +2086,12 @@ function getEffectiveDate(form) {
 
 function formatFormTitle(form, t) {
   if (form.typeRegistre === TYPE_WARIDAT) return t("waridat_administratives");
+  if (
+    form.typeRegistre === TYPE_MORASALAT &&
+    form.typeCorrespondance === CORRESPONDANCE_ENTRANTE
+  ) {
+    return t("ajouter_reponse");
+  }
 
   return t("morasalat_administratives");
 }
@@ -1727,6 +2138,11 @@ function toDateInputValue(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function translate(t, key, fallback) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
 
 // ==========================================================
 // BLOC 34 : FORMATAGE DU TYPE DE REGISTRE
@@ -1763,8 +2179,108 @@ function formatEtat(etat, t) {
   if (etat === "En cours") return t("etat_en_cours");
   if (etat === "Traite" || etat === "Traité") return t("etat_traite");
   if (etat === "Archive" || etat === "Archivé") return t("etat_archive");
+  if (etat && etat !== "Nouveau") return etat;
 
   return t("etat_nouveau");
+}
+
+function buildAdministrativeSelectionWorkbook(courriers, allCourriers, t) {
+  const rows = courriers.map((courrier) =>
+    buildAdministrativeSelectionRow(courrier, allCourriers, t)
+  );
+  const emptyRowsCount = Math.max(0, 12 - rows.length);
+  const emptyRows = Array.from({ length: emptyRowsCount }, () =>
+    "<tr>" + Array.from({ length: 12 }, () => "<td></td>").join("") + "</tr>"
+  ).join("");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    table { border-collapse: collapse; direction: rtl; width: 100%; font-family: Arial, sans-serif; }
+    th, td { border: 1px solid #333; padding: 6px 8px; text-align: center; vertical-align: middle; mso-number-format:"\\@"; }
+    .top { background: #0f6d7d; color: #fff; font-weight: 700; }
+    .sub, .head { background: #cfeef7; font-weight: 700; }
+    .data td { background: #f2f2f2; }
+  </style>
+</head>
+<body>
+  <table>
+    <tr>
+      <th class="top" colspan="6">الواردات الإدارية</th>
+      <th class="top" colspan="6">المراسلات الإدارية</th>
+    </tr>
+    <tr>
+      <th class="sub" colspan="6"></th>
+      <th class="sub" colspan="3">الصادرة</th>
+      <th class="sub" colspan="2">الواردة</th>
+      <th class="sub" rowspan="2">النتيجة</th>
+    </tr>
+    <tr>
+      <th class="head">الرقم الترتيبي</th>
+      <th class="head">تاريخ الرسالة</th>
+      <th class="head">رقمها</th>
+      <th class="head">تاريخ الوصول</th>
+      <th class="head">اسم و موطن المرسل إليه</th>
+      <th class="head">الموضوع</th>
+      <th class="head">التاريخ</th>
+      <th class="head">المرسل إليه</th>
+      <th class="head">الموضوع</th>
+      <th class="head">التاريخ</th>
+      <th class="head">المصدر والجواب</th>
+    </tr>
+    ${rows.join("")}
+    ${emptyRows}
+  </table>
+</body>
+</html>`;
+}
+
+function buildAdministrativeSelectionRow(courrier, allCourriers, t) {
+  const cells = Array.from({ length: 12 }, () => "");
+  const typeRegistre =
+    courrier.typeRegistre || (courrier.parentId ? TYPE_MORASALAT : TYPE_WARIDAT);
+  const isMorasalat = typeRegistre === TYPE_MORASALAT;
+  const isIncoming = isMorasalat && courrier.typeCorrespondance === CORRESPONDANCE_ENTRANTE;
+  const displayNumber = getDisplayIdBureauOrdre(courrier, allCourriers);
+
+  if (!isMorasalat) {
+    cells[0] = displayNumber;
+    cells[1] = formatExcelDate(courrier.date);
+    cells[2] = courrier.numeroDeCourrier || "";
+    cells[3] = formatExcelDate(courrier.date);
+    cells[4] = courrier.source || "";
+    cells[5] = courrier.sujet || "";
+  } else if (isIncoming) {
+    cells[0] = displayNumber;
+    cells[9] = formatExcelDate(courrier.date);
+    cells[10] = [courrier.source, courrier.sujet].filter(Boolean).join(" | ");
+  } else {
+    cells[0] = displayNumber;
+    cells[6] = formatExcelDate(courrier.date);
+    cells[7] = courrier.destinataire || "";
+    cells[8] = courrier.sujet || "";
+  }
+
+  cells[11] = formatEtat(courrier.etat, t);
+
+  return `<tr class="data">${cells.map((value) => `<td>${escapeExcelHtml(value)}</td>`).join("")}</tr>`;
+}
+
+function formatExcelDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("fr-FR");
+}
+
+function escapeExcelHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 
@@ -1789,6 +2305,41 @@ function isMainMorasalat(courrier) {
     typeRegistre === TYPE_MORASALAT &&
     courrier.typeCorrespondance !== CORRESPONDANCE_ENTRANTE
   );
+}
+
+function isMorasalatResponse(courrier) {
+  const typeRegistre =
+    courrier.typeRegistre || (courrier.parentId ? TYPE_MORASALAT : TYPE_WARIDAT);
+
+  return (
+    typeRegistre === TYPE_MORASALAT &&
+    courrier.typeCorrespondance === CORRESPONDANCE_ENTRANTE
+  );
+}
+
+function hasMorasalatResponse(courrier, courriers = []) {
+  return courriers.some(
+    (item) =>
+      String(item.parentId || "") === String(courrier.id || "") &&
+      isMorasalatResponse(item)
+  );
+}
+
+function getAdministrativeActionState(courrier, courriers = [], sentDocumentIds = new Set()) {
+  const canAddLinkedMorasalat = isMainWaridat(courrier);
+  const canAddResponse =
+    isMainMorasalat(courrier) && !hasMorasalatResponse(courrier, courriers);
+  const canTransfer = canTransferAdministrative(courrier, sentDocumentIds);
+
+  return {
+    canAddLinkedMorasalat,
+    canAddResponse,
+    canTransfer,
+  };
+}
+
+function canTransferAdministrative(courrier, sentDocumentIds = new Set()) {
+  return Boolean(courrier?.id && !sentDocumentIds.has(String(courrier.id)));
 }
 
 function getDisplayIdBureauOrdre(courrier, courriers = []) {
@@ -1894,3 +2445,4 @@ function getErrorMessage(error, fallback) {
 // Permet d'utiliser ce composant dans d'autres fichiers React.
 
 export default GererCourriers;
+

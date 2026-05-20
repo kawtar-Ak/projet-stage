@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 // Entités des courriers administratifs et judiciaires
 using GestionCourrierAbp.Courriers;
+using GestionCourrierAbp.Circulations;
 
 // Entité Service
 using GestionCourrierAbp.Services;
@@ -42,6 +43,7 @@ namespace GestionCourrierAbp.Transactions;
 public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITransactionWorkflowAppService
 {
     private const int OpeningFilesServiceId = 3;
+    private const string JudicialRecordDocumentLie = "DocumentLie";
 
     // Repository principal pour accéder aux transactions
     private readonly IRepository<Transaction, int> _repository;
@@ -54,6 +56,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
     // Repository pour accéder aux services
     private readonly IRepository<Service, int> _serviceRepository;
+    private readonly IRepository<Circulation, int> _circulationRepository;
 
     // Repository pour accéder aux utilisateurs
     private readonly IRepository<Utilisateur, int> _utilisateurRepository;
@@ -73,6 +76,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         IRepository<CourrierAdministratif, int> courrierAdministratifRepository,
         IRepository<CourrierJudiciaire, int> courrierJudiciaireRepository,
         IRepository<Service, int> serviceRepository,
+        IRepository<Circulation, int> circulationRepository,
         IRepository<Utilisateur, int> utilisateurRepository,
         TransactionWorkflowService workflowService,
         IWorkflowHost workflowHost)
@@ -81,6 +85,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         _courrierAdministratifRepository = courrierAdministratifRepository;
         _courrierJudiciaireRepository = courrierJudiciaireRepository;
         _serviceRepository = serviceRepository;
+        _circulationRepository = circulationRepository;
         _utilisateurRepository = utilisateurRepository;
         _workflowService = workflowService;
         _workflowHost = workflowHost;
@@ -197,7 +202,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         await EnsureDocumentBelongsToSourceServiceAsync(input.DocumentId, documentType, input.SourceServiceId);
 
         // Vérifie qu’il n’existe pas déjà une transaction active pour ce document
-        await EnsureNoActiveTransactionAsync(input.DocumentId, documentType);
+        await EnsureNoActiveTransactionAsync(input.DocumentId, documentType, input.SourceServiceId, input.DestinationServiceId);
 
         // Création de la transaction avec le statut initial "En attente"
         var transaction = await _repository.InsertAsync(new Transaction
@@ -216,6 +221,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         }, autoSave: true);
 
         await _workflowService.SendDocumentToDestinationServiceAsync(transaction);
+        await RegisterCirculationAsync(transaction);
 
         // Lancement du workflow après la création de la transaction
         await _workflowHost.StartWorkflow(
@@ -253,6 +259,8 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             input.ResponderServiceId ?? transaction.DestinationServiceId,
             input.ResponderServiceName ?? await GetServiceNameAsync(transaction.DestinationServiceId));
 
+        await UpdateCirculationFromTransactionAsync(transaction);
+
         return await ToDtoAsync(transaction);
     }
 
@@ -284,6 +292,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
         await _workflowService.ReturnDocumentToSourceServiceAsync(transaction);
         await _repository.UpdateAsync(transaction, autoSave: true);
+        await UpdateCirculationFromTransactionAsync(transaction);
 
         return await ToDtoAsync(transaction);
     }
@@ -324,6 +333,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         transaction.MessageReponse = "Document retourne au service source";
 
         await _repository.UpdateAsync(transaction, autoSave: true);
+        await UpdateCirculationFromTransactionAsync(transaction);
 
         return await ToDtoAsync(transaction);
     }
@@ -355,16 +365,97 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         await _repository.DeleteAsync(transaction, autoSave: true);
     }
 
+    private async Task RegisterCirculationAsync(Transaction transaction)
+    {
+        await _circulationRepository.InsertAsync(new Circulation
+        {
+            DocumentId = transaction.DocumentId,
+            DocumentType = transaction.DocumentType,
+            DateDeReception = transaction.DateEnvoi,
+            DateEnvoi = transaction.DateEnvoi,
+            Recepteur = await GetServiceNameAsync(transaction.DestinationServiceId),
+            RecepteurUserName = null,
+            EmetteurService = string.IsNullOrWhiteSpace(transaction.SenderServiceName)
+                ? await GetServiceNameAsync(transaction.SourceServiceId)
+                : transaction.SenderServiceName.Trim(),
+            EmetteurUserName = transaction.SenderUserName?.Trim(),
+            SourceServiceId = transaction.SourceServiceId,
+            DestinationServiceId = transaction.DestinationServiceId,
+            Etat = transaction.Statut,
+            Notes = transaction.Message
+        }, autoSave: true);
+    }
+
+    private async Task UpdateCirculationFromTransactionAsync(Transaction transaction)
+    {
+        var query = await _circulationRepository.GetQueryableAsync();
+        var circulation = await AsyncExecuter.FirstOrDefaultAsync(
+            query
+                .Where(x =>
+                    x.DocumentId == transaction.DocumentId &&
+                    x.DocumentType == transaction.DocumentType &&
+                    x.SourceServiceId == transaction.SourceServiceId &&
+                    x.DestinationServiceId == transaction.DestinationServiceId &&
+                    x.DateEnvoi == transaction.DateEnvoi)
+                .OrderByDescending(x => x.Id));
+
+        if (circulation == null)
+        {
+            await RegisterCirculationAsync(transaction);
+            return;
+        }
+
+        circulation.Etat = transaction.Statut;
+        circulation.RecepteurUserName = transaction.ResponderUserName?.Trim();
+        if (transaction.DateReponse.HasValue)
+        {
+            circulation.DateDeReception = transaction.DateReponse.Value;
+        }
+
+        var notes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(transaction.Message))
+        {
+            notes.Add(transaction.Message.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(transaction.MessageReponse))
+        {
+            notes.Add(transaction.MessageReponse.Trim());
+        }
+
+        circulation.Notes = string.Join(" | ", notes);
+
+        await _circulationRepository.UpdateAsync(circulation, autoSave: true);
+    }
+
     /// <summary>
     /// Vérifie qu’il n’existe pas déjà une transaction active pour le même document.
     /// Une transaction active est une transaction en attente ou acceptée.
     /// </summary>
-    private async Task EnsureNoActiveTransactionAsync(int documentId, string documentType)
+    private async Task EnsureNoActiveTransactionAsync(int documentId, string documentType, int sourceServiceId, int destinationServiceId)
     {
         var query = await _repository.GetQueryableAsync();
 
         var enAttente = WorkflowStatus.EnAttente.ToStorageValue();
         // Vérifie si une transaction active existe déjà
+        if (documentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase))
+        {
+            var duplicateAdministrativeDestination = await AsyncExecuter.AnyAsync(
+                query.Where(x =>
+                    x.DocumentId == documentId &&
+                    x.DocumentType == documentType &&
+                    x.SourceServiceId == sourceServiceId &&
+                    x.DestinationServiceId == destinationServiceId &&
+                    x.Statut == enAttente));
+
+            if (duplicateAdministrativeDestination)
+            {
+                throw new BusinessException("DocumentAvecTransactionActive");
+            }
+
+            return;
+        }
+
         var exists = await AsyncExecuter.AnyAsync(
             query.Where(x =>
                 x.DocumentId == documentId &&
@@ -383,10 +474,29 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         var currentServiceId = await GetCurrentServiceIdAsync(documentId, documentType);
         if (currentServiceId.HasValue && currentServiceId.Value != sourceServiceId)
         {
+            if (documentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase) &&
+                await HasPendingAdministrativeTransferFromSourceAsync(documentId, sourceServiceId))
+            {
+                return;
+            }
+
             throw new BusinessException("DocumentPasDansServiceSource")
                 .WithData("CurrentServiceId", currentServiceId.Value)
                 .WithData("SourceServiceId", sourceServiceId);
         }
+    }
+
+    private async Task<bool> HasPendingAdministrativeTransferFromSourceAsync(int documentId, int sourceServiceId)
+    {
+        var query = await _repository.GetQueryableAsync();
+        var enAttente = WorkflowStatus.EnAttente.ToStorageValue();
+
+        return await AsyncExecuter.AnyAsync(
+            query.Where(x =>
+                x.DocumentId == documentId &&
+                x.DocumentType == "Administratif" &&
+                x.SourceServiceId == sourceServiceId &&
+                x.Statut == enAttente));
     }
 
     /// <summary>
@@ -398,7 +508,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         if (documentType.Equals("Administratif", StringComparison.OrdinalIgnoreCase))
         {
             var document = await _courrierAdministratifRepository.FindAsync(documentId);
-            if (document is not { EstTransmissible: true })
+            if (document == null)
             {
                 throw new BusinessException("DocumentNonTransmissible");
             }
@@ -414,7 +524,11 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
                 throw new BusinessException("DocumentNonTransmissible");
             }
 
-            if (!document.EstTransmissible && destinationServiceId != OpeningFilesServiceId)
+            var isLinkedJudicialDocument =
+                document.CourrierJudiciaireParentId.HasValue ||
+                string.Equals(document.TypeEnregistrementJudiciaire, JudicialRecordDocumentLie, StringComparison.OrdinalIgnoreCase);
+
+            if (!document.EstTransmissible && !isLinkedJudicialDocument && destinationServiceId != OpeningFilesServiceId)
             {
                 throw new BusinessException("DocumentNonTransmissible");
             }

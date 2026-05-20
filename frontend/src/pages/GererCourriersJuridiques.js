@@ -1,15 +1,16 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_SERVICES } from "../constants/defaultServices";
 import DocumentModal from "../components/DocumentModal";
+import ActionIcon from "../components/ActionIcon";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 const BUREAU_ORDRE_SERVICE_ID = 2;
 const OUVERTURE_DOSSIERS_SERVICE_ID = 3;
 const JUDICIAL_RECORD_DOSSIER = "Dossier";
 const JUDICIAL_RECORD_DOCUMENT_LIE = "DocumentLie";
-const DEFAULT_JUDICIAL_DESTINATAIRE = "Ù…Ø­ÙƒÙ…Ø© Ø§Ù„Ø§Ø³ØªØ¦Ù†Ø§Ù Ø§Ù„Ø¥Ø¯Ø§Ø±ÙŠØ© ÙØ§Ø³";
+const DEFAULT_JUDICIAL_DESTINATAIRE = "محكمة الاستئناف الإدارية فاس";
 const JUDICIAL_DOCUMENT_TYPES = [];
 
 function GererCourriersJuridiques({ embedded = false }) {
@@ -38,6 +39,7 @@ function GererCourriersJuridiques({ embedded = false }) {
   const [retraitForm, setRetraitForm] = useState(getInitialRetraitForm());
   const [selectedTransferItem, setSelectedTransferItem] = useState(null);
   const [transferForm, setTransferForm] = useState(getInitialTransferForm());
+  const [sentJudicialDocumentIds, setSentJudicialDocumentIds] = useState(new Set());
   const courriersRegistre = useMemo(
     () => enrichJudicialCourriers(courriers),
     [courriers]
@@ -66,6 +68,7 @@ function GererCourriersJuridiques({ embedded = false }) {
   useEffect(() => {
     fetchCourriers();
     fetchServices();
+    fetchSentJudicialTransactions();
   }, []);
 
   const fetchCourriers = async () => {
@@ -95,6 +98,27 @@ function GererCourriersJuridiques({ embedded = false }) {
         ...prev,
         idService: prev.idService || currentServiceId || DEFAULT_SERVICES[0].idService,
       }));
+    }
+  };
+
+  const fetchSentJudicialTransactions = async () => {
+    try {
+      const response = await axios.get("/api/transactions/outgoing");
+      const transactions = Array.isArray(response.data)
+        ? response.data
+        : response.data?.items || [];
+      setSentJudicialDocumentIds(
+        new Set(
+          transactions
+            .filter((transaction) =>
+              String(transaction.documentType || "").toLowerCase() === "judiciaire" &&
+              Number(transaction.sourceServiceId) === currentServiceId
+            )
+            .map((transaction) => String(transaction.documentId))
+        )
+      );
+    } catch (err) {
+      setSentJudicialDocumentIds(new Set());
     }
   };
 
@@ -173,6 +197,7 @@ function GererCourriersJuridiques({ embedded = false }) {
       courrierJudiciaireParentId: dossier.id,
       numeroDossier: dossier.numeroDossier || "",
       typeEnregistrementJudiciaire: JUDICIAL_RECORD_DOCUMENT_LIE,
+      estTransmissible: true,
     }));
     setLinkedDossierSearch(formatDossierJudiciaireOption(dossier));
   };
@@ -205,7 +230,7 @@ function GererCourriersJuridiques({ embedded = false }) {
       courrierJudiciaireParentId: isLinkedJudicialDocument ? Number(form.courrierJudiciaireParentId) : null,
       numeroDossier: isLinkedJudicialDocument || isBureauOrdreService ? "" : form.numeroDossier.trim(),
       estTransmissible: isLinkedJudicialDocument
-        ? Boolean(form.estTransmissible)
+        ? true
         : isOuvertureDossiersService
         ? hasCompleteNumeroDossier(form.numeroDossier)
         : Boolean(form.estTransmissible) && !isLinkedJudicialDocument && !isBureauOrdreService && hasCompleteNumeroDossier(form.numeroDossier),
@@ -341,6 +366,7 @@ function GererCourriersJuridiques({ embedded = false }) {
       await axios.post("/api/transactions", {
         documentId: selectedTransferItem.id,
         documentType: "Judiciaire",
+        typeEnregistrementJudiciaire: selectedTransferItem.typeEnregistrementJudiciaire,
         sourceServiceId,
         destinationServiceId,
         destinationUserId: null,
@@ -352,6 +378,7 @@ function GererCourriersJuridiques({ embedded = false }) {
       setSuccess(t("transaction_envoyee"));
       closeTransferModal();
       await fetchCourriers();
+      await fetchSentJudicialTransactions();
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_transaction")));
     }
@@ -412,26 +439,25 @@ function GererCourriersJuridiques({ embedded = false }) {
 
   const exportToExcel = async () => {
     try {
-      const response = await axios.get("/api/acteursjudiciaires/export/registre-modele", {
+      const response = await axios.get("/api/acteursjudiciaires/export/excel", {
         responseType: "blob",
       });
 
-      downloadBlob(response.data, "registre-judiciaire.xlsx");
+      downloadBlob(response.data, "courriers-juridiques.xlsx");
     } catch (err) {
-      setError(getErrorMessage(err, t("erreur_export")));
+      setError(t("erreur_export"));
     }
   };
 
   const exportRegistreModele = async () => {
     try {
-      const response = await axios.get(
-        "/api/acteursjudiciaires/export/registre-modele",
-        { responseType: "blob" }
-      );
+      const response = await axios.get("/api/acteursjudiciaires/export/registre-modele", {
+        responseType: "blob",
+      });
 
-      downloadBlob(response.data, "registre-judiciaire-modele.xlsx");
+      downloadBlob(response.data, "registre-juridique-modele.xlsx");
     } catch (err) {
-      setError(getErrorMessage(err, t("erreur_export")));
+      setError(t("erreur_export"));
     }
   };
 
@@ -627,7 +653,7 @@ function GererCourriersJuridiques({ embedded = false }) {
                   name="estTransmissible"
                   checked={form.estTransmissible}
                   onChange={handleChange}
-                  disabled={isBureauOrdreService || isOuvertureDossiersService}
+                  disabled={!isLinkedJudicialDocument && (isBureauOrdreService || isOuvertureDossiersService)}
                 />
                 {t("oui")}
               </label>
@@ -900,7 +926,7 @@ function GererCourriersJuridiques({ embedded = false }) {
     className="btn-secondary"
     onClick={exportRegistreModele}
   >
-    تصدير نموذج السجل
+    {t("telecharger_modele")}
   </button>
   <label className="btn-secondary import-label">
     {importing ? t("import_en_cours") : t("importer_excel")}
@@ -953,8 +979,8 @@ function GererCourriersJuridiques({ embedded = false }) {
                       </span>
                     </td>
                     <td>{courrier.typeDocumentJudiciaire || "-"}</td>
-                    <td>{isLinkedJudicialRecord(courrier) ? getDisplayNumeroDossier(courrier) : "-"}</td>
-                    <td>{getDisplayNumeroDossier(courrier)}</td>
+                    <td className="judicial-number-cell">{isLinkedJudicialRecord(courrier) ? getDisplayDossierParentNumero(courrier) : "-"}</td>
+                    <td className="judicial-number-cell">{getDisplayNumeroDossier(courrier)}</td>
                     <td>{courrier.sujet || "-"}</td>
                     <td>{courrier.destinataire || "-"}</td>
                     <td>{courrier.serviceNom || courrier.idService || "-"}</td>
@@ -963,12 +989,44 @@ function GererCourriersJuridiques({ embedded = false }) {
                     <td>{courrier.retraitsCount ?? 0}</td>
                     <td>{courrier.lienPdf ? <a href={getDocumentHref(courrier.lienPdf)} target="_blank" rel="noreferrer">{t("ouvrir")}</a> : "-"}</td>
                     <td className="action-icons">
-                      <button type="button" onClick={() => handleConsult(courrier)}>{t("consulter")}</button>
-                      <button type="button" onClick={() => handleEdit(courrier)}>{t("modifier")}</button>
-                      <button type="button" onClick={() => openTransferModal(courrier)} disabled={!canTransferCourrier(courrier)}>
-                        {t("transferer")}
+                      <button
+                        type="button"
+                        onClick={() => handleConsult(courrier)}
+                        title={t("consulter")}
+                        aria-label={t("consulter")}
+                        className="action-icon action-view"
+                      >
+                        <ActionIcon name="view" />
                       </button>
-                      <button type="button" onClick={() => handleDelete(courrier.id)}>{t("supprimer")}</button>
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(courrier)}
+                        title={t("modifier")}
+                        aria-label={t("modifier")}
+                        className="action-icon action-edit"
+                      >
+                        <ActionIcon name="edit" />
+                      </button>
+                      {canTransferCourrier(courrier, sentJudicialDocumentIds) && (
+                        <button
+                          type="button"
+                          onClick={() => openTransferModal(courrier)}
+                          title={t("transferer")}
+                          aria-label={t("transferer")}
+                          className="action-icon action-transfer"
+                        >
+                          <ActionIcon name="transfer" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(courrier.id)}
+                        title={t("supprimer")}
+                        aria-label={t("supprimer")}
+                        className="action-icon action-delete"
+                      >
+                        <ActionIcon name="delete" />
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -988,6 +1046,8 @@ function GererCourriersJuridiques({ embedded = false }) {
 }
 
 function getInitialForm(services = [], currentServiceId = 0, mode = JUDICIAL_RECORD_DOSSIER) {
+  const isLinkedDocument = mode === JUDICIAL_RECORD_DOCUMENT_LIE;
+
   return {
     idBureauOrdre: "",
     date: "",
@@ -1004,7 +1064,7 @@ function getInitialForm(services = [], currentServiceId = 0, mode = JUDICIAL_REC
     typeEnregistrementJudiciaire: mode,
     courrierJudiciaireParentId: "",
     idService: currentServiceId || getDefaultServiceId(services),
-    estTransmissible: false,
+    estTransmissible: isLinkedDocument,
   };
 }
 
@@ -1058,7 +1118,9 @@ function isIncompleteJudicialFile(courrier) {
   return !hasCompleteNumeroDossier(courrier?.numeroDossier);
 }
 
-function canTransferCourrier(courrier) {
+function canTransferCourrier(courrier, sentDocumentIds = new Set()) {
+  if (sentDocumentIds.has(String(courrier?.id))) return false;
+  if (isLinkedJudicialRecord(courrier)) return true;
   if (courrier?.estTransmissible) return true;
   return Number(courrier?.idService) === BUREAU_ORDRE_SERVICE_ID && isIncompleteJudicialFile(courrier);
 }
@@ -1076,10 +1138,11 @@ function enrichJudicialCourriers(courriers) {
     const parentId = courrier.courrierJudiciaireParentId;
     const parent = parentId ? parentById.get(String(parentId)) : null;
     const isLinked = Boolean(parentId) || courrier.typeEnregistrementJudiciaire === JUDICIAL_RECORD_DOCUMENT_LIE;
-    const parentNumero = courrier.dossierParentNumero || parent?.numeroDossier || "";
+    const ownNumero = getRawNumeroDossier(courrier);
+    const parentNumero = normalizeNumeroDossierDisplay(courrier.dossierParentNumero) || getRawNumeroDossier(parent);
     const numeroDossier = isLinked
-      ? courrier.numeroDossier || parentNumero
-      : courrier.numeroDossier;
+      ? ownNumero || parentNumero
+      : ownNumero;
 
     return {
       ...courrier,
@@ -1177,11 +1240,47 @@ function isLinkedJudicialRecord(courrier) {
 }
 
 function getDisplayNumeroDossier(courrier) {
-  const value = isLinkedJudicialRecord(courrier)
-    ? courrier.numeroDossier || courrier.dossierParentNumero
-    : courrier.numeroDossier;
+  const value = getRawNumeroDossier(courrier) ||
+    normalizeNumeroDossierDisplay(courrier?.dossierParentNumero);
 
   return value || "-";
+}
+
+function getDisplayDossierParentNumero(courrier) {
+  return normalizeNumeroDossierDisplay(courrier?.dossierParentNumero) ||
+    getRawNumeroDossier(courrier) ||
+    "-";
+}
+
+function getRawNumeroDossier(courrier) {
+  if (!courrier) return "";
+
+  return [
+    courrier.numeroDossier,
+    courrier.numeroDossierJudiciaire,
+    buildNumeroDossierFromParts(courrier)
+  ]
+    .map(normalizeNumeroDossierDisplay)
+    .find(Boolean) || "";
+}
+
+function buildNumeroDossierFromParts(courrier) {
+  const annee = getNumeroPart(courrier?.numeroDossierAnnee);
+  const nombre = getNumeroPart(courrier?.numeroDossierNombre);
+  const sujet = getNumeroPart(courrier?.numeroDossierSujet);
+
+  if (!annee && !nombre && !sujet) return "";
+  return [annee, nombre, sujet].filter(Boolean).join("/");
+}
+
+function getNumeroPart(value) {
+  const text = String(value ?? "").trim();
+  return text && text !== "-" ? text : "";
+}
+
+function normalizeNumeroDossierDisplay(value) {
+  const text = String(value ?? "").trim().replace(/\s*\/\s*/g, "/");
+  return text && text !== "-" ? text : "";
 }
 
 function normalizeSearchText(value) {
@@ -1247,4 +1346,3 @@ function getErrorMessage(error, fallback) {
 }
 
 export default GererCourriersJuridiques;
-

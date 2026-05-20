@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import Login from './pages/Login';
 import PrivateRoute from './components/PrivateRoute';
@@ -27,7 +27,6 @@ import './theme.css';
 // ... autres imports
 
 function AppRoutes() {
-  useAuth();
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -39,7 +38,6 @@ function AppRoutes() {
         </PrivateRoute>
       } />
       {/* Routes pour chaque fonctionnalité (selon les paths définis dans le menu) */}
-      <Route path="/dashboard" element={<PrivateRoute><MainLayout><Dashboard /></MainLayout></PrivateRoute>} />
       <Route path="/mes-entites" element={<PrivateRoute><MainLayout><MesEntites /></MainLayout></PrivateRoute>} />
       <Route path="/circulations" element={<PrivateRoute><MainLayout><Circulations /></MainLayout></PrivateRoute>} />
       <Route path="/transactions-outgoing" element={<PrivateRoute><MainLayout><TransactionsOutgoing /></MainLayout></PrivateRoute>} />
@@ -55,7 +53,8 @@ function AppRoutes() {
       <Route path="/services" element={<PrivateRoute><MainLayout><GererServices /></MainLayout></PrivateRoute>} />
       <Route path="/utilisateurs" element={<PrivateRoute><MainLayout><GererUtilisateurs /></MainLayout></PrivateRoute>} />
       {/* ... ajoutez les autres routes */}
-      <Route path="/" element={<Navigate to="/dashboard" />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

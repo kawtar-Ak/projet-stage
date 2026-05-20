@@ -841,6 +841,23 @@ button:disabled {
   font-weight: 850;
 }
 
+.data-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1rem 0.85rem;
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.data-table-header h3 {
+  margin: 0;
+}
+
+.table-registry-tools {
+  justify-content: flex-start;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
@@ -945,6 +962,81 @@ button:disabled {
   gap: 0.75rem;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.search-form {
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.search-input-row,
+.search-control-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+}
+
+.search-input-row input[type="text"] {
+  flex: 1 1 420px;
+}
+
+.search-input-row input[type="date"] {
+  flex: 0 1 240px;
+}
+
+.search-control-row {
+  justify-content: space-between;
+}
+
+.filter-chip-group {
+  display: inline-flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.25rem;
+  border: 1px solid #d6e3f0;
+  border-radius: 8px;
+  background: #f8fbfe;
+}
+
+.filter-chip {
+  min-height: 36px;
+  padding: 0.45rem 0.85rem;
+  color: var(--navy-800);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.filter-chip:hover,
+.filter-chip:focus-visible {
+  background: #eef6ff;
+  border-color: #b8d5ed;
+  outline: none;
+}
+
+.filter-chip.active {
+  color: #ffffff;
+  background: var(--navy-800);
+  border-color: var(--navy-800);
+  box-shadow: 0 6px 14px rgba(8, 42, 74, 0.16);
+}
+
+.selection-summary {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  color: #37546f;
+  background: #eef6ff;
+  border: 1px solid #c7d7e8;
+  border-radius: 8px;
+  font-weight: 850;
 }
 
 .form-actions {
@@ -1089,6 +1181,10 @@ button:disabled {
   margin-bottom: 0.75rem;
 }
 
+.registry-panel-header h3 {
+  margin-bottom: 0;
+}
+
 .data-table-wrapper {
   overflow-x: auto;
   background: #ffffff;
@@ -1101,6 +1197,11 @@ button:disabled {
   margin: 0;
   padding: 1rem 1rem 0.85rem;
   border-bottom: 1px solid var(--soft-line);
+}
+
+.data-table-wrapper .data-table-header h3 {
+  padding: 0;
+  border-bottom: 0;
 }
 
 .modern-table {
@@ -1135,8 +1236,32 @@ button:disabled {
 
 .modern-table th:last-child,
 .modern-table td:last-child {
-  min-width: 260px;
-  width: 260px;
+  min-width: 320px;
+  width: 320px;
+}
+
+.modern-table th.selection-column,
+.modern-table td.selection-column {
+  min-width: 58px;
+  width: 58px;
+  text-align: center;
+}
+
+.modern-table .selection-column input,
+.row-select-checkbox {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  accent-color: var(--navy-800);
+  cursor: pointer;
+}
+
+.judicial-number-cell {
+  min-width: 170px;
+  direction: ltr;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .modern-table tbody tr:nth-child(even) td {
@@ -1183,32 +1308,59 @@ button:disabled {
   background: #eef6ff;
 }
 
-.action-icons {
+.action-icons,
+.notification-actions {
   display: flex;
   gap: 0.45rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  white-space: nowrap;
+  white-space: normal;
+  min-width: 0;
+  direction: ltr;
 }
 
-.action-icons button {
+.action-icons button,
+.notification-actions .action-icon,
+.action-link {
   flex: 0 0 auto;
-  width: 38px;
+  width: auto;
+  min-width: 38px;
   height: 38px;
   min-height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  padding: 0 0.65rem;
   color: var(--navy-800);
   background: #f8fbfe;
   border: 1px solid #c7d7e8;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 1.15rem;
+  font-size: 0.86rem;
   font-weight: 800;
   font-family: "Segoe UI Symbol", "Arial", sans-serif;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.action-icons .action-icon,
+.notification-actions .action-icon,
+.action-link {
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+  font-size: 1.05rem;
+}
+
+.action-icons .action-icon svg,
+.notification-actions .action-icon svg,
+.action-link svg {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .action-icons .action-link-record {
@@ -1221,7 +1373,8 @@ button:disabled {
   letter-spacing: 0;
 }
 
-.action-icons button:hover {
+.action-icons button:hover,
+.notification-actions .action-icon:hover {
   color: #ffffff;
   background: var(--navy-800);
   border-color: var(--navy-800);
@@ -1240,28 +1393,66 @@ button:disabled {
   background: #f5f3ff;
 }
 
-.action-icons .action-view {
+.action-icons .action-view,
+.notification-actions .action-view {
   color: #1e5b8f;
   border-color: #b8d5ed;
   background: #f3f8fd;
 }
 
-.action-icons .action-edit {
+.action-icons .action-edit,
+.notification-actions .action-edit {
   color: #9a5b00;
   border-color: #edd08e;
   background: #fff8e8;
 }
 
-.action-icons .action-archive {
+.action-icons .action-transfer,
+.notification-actions .action-transfer {
+  color: #0f766e;
+  border-color: #99d6cd;
+  background: #eefbf8;
+}
+
+.action-icons .action-archive,
+.notification-actions .action-archive {
   color: #5b6472;
   border-color: #cfd6df;
   background: #f7f9fb;
 }
 
-.action-icons .action-delete {
+.action-icons .action-delete,
+.notification-actions .action-delete,
+.notification-actions .action-cancel {
   color: #b42318;
   border-color: #f0b7b2;
   background: #fff1f0;
+}
+
+.action-icons .action-password {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.action-icons .action-return,
+.notification-actions .action-return,
+.notification-actions .action-accept {
+  color: #13835f;
+  border-color: #a7dfc3;
+  background: #effaf5;
+}
+
+.export-scope-select {
+  min-height: 42px;
+  min-width: 180px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #c7d7e8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--navy-800);
+  font: inherit;
+  font-weight: 750;
 }
 
 .action-icons button:hover,

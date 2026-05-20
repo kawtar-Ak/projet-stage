@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_SERVICES } from "../constants/defaultServices";
+import ActionIcon from "../components/ActionIcon";
 
 function GererArchivesJuridiques() {
   const { t } = useTranslation();
@@ -18,6 +19,10 @@ function GererArchivesJuridiques() {
   const [services, setServices] = useState([]);
   const [retraitForm, setRetraitForm] = useState(getInitialRetraitForm());
   const [retourForm, setRetourForm] = useState(getInitialRetourForm());
+  const [importFile, setImportFile] = useState(null);
+  const [importHeaders, setImportHeaders] = useState([]);
+  const [showImportMapping, setShowImportMapping] = useState(false);
+  const [importMapping, setImportMapping] = useState({ colIdentifiant: "", colCabinet: "", colEmplacement: "" });
   const filteredRetraits = useMemo(
     () => filterRetraits(selectedItem?.retraits || [], retraitMotCle, retraitDate),
     [selectedItem, retraitMotCle, retraitDate]
@@ -107,6 +112,11 @@ function GererArchivesJuridiques() {
     event.preventDefault();
     if (!selectedItem) return;
 
+    if (hasActiveRetrait(selectedItem)) {
+      setError(translate(t, "retrait_deja_en_cours", "Ce dossier a deja un retrait actif. Enregistrez le retour avant un nouveau retrait."));
+      return;
+    }
+
     if (!retraitForm.motifDeRetrait.trim()) {
       setError(t("erreur_motif_retrait_requis"));
       return;
@@ -147,6 +157,79 @@ function GererArchivesJuridiques() {
     }
   };
 
+  const exportArchives = async () => {
+    try {
+      const response = await axios.get("/api/acteursjudiciaires/export/archives", {
+        responseType: "blob",
+      });
+      downloadBlob(response.data, "archives-juridiques.xlsx");
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_export")));
+    }
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      const response = await axios.get("/api/acteursjudiciaires/template-excel", {
+        responseType: "blob",
+      });
+      downloadBlob(response.data, "modele-import-archives.xlsx");
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_telechargement_modele")));
+    }
+  };
+
+  const handleImportFileSelect = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const response = await axios.post("/api/acteursjudiciaires/import-archive/preview", formData);
+      setImportFile(file);
+      setImportHeaders(Array.isArray(response.data) ? response.data : []);
+      setImportMapping({ colIdentifiant: "", colCabinet: "", colEmplacement: "" });
+      setShowImportMapping(true);
+      setError("");
+      setSuccess("");
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_lecture_fichier")));
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const executeArchiveImport = async () => {
+    if (!importFile || !importMapping.colIdentifiant) {
+      setError(translate(t, "colonne_identifiant_requise", "La colonne Identifiant est obligatoire."));
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", importFile);
+    const params = new URLSearchParams({
+      colIdentifiant: importMapping.colIdentifiant,
+      colCabinet: importMapping.colCabinet || "",
+      colEmplacement: importMapping.colEmplacement || "",
+    });
+
+    try {
+      const response = await axios.post(`/api/acteursjudiciaires/import-archive/execute?${params.toString()}`, formData);
+      const archived = response.data?.archived ?? 0;
+      const errors = response.data?.errors || [];
+      setSuccess(`${archived} dossier(s) archive(s).${errors.length ? ` ${errors.length} erreur(s).` : ""}`);
+      if (errors.length) {
+        alert(`${archived} dossier(s) archive(s).\n\n${errors.join("\n")}`);
+      }
+      setShowImportMapping(false);
+      setImportFile(null);
+      await fetchArchives();
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_import")));
+    }
+  };
+
   const handleSaveRetour = async (event) => {
     event.preventDefault();
     if (!selectedItem) return;
@@ -169,6 +252,18 @@ function GererArchivesJuridiques() {
     }
   };
 
+  const handleCancelRetrait = async (retrait) => {
+    if (!window.confirm(translate(t, "confirmation_annuler_retrait", "Annuler ce retrait ?"))) return;
+
+    try {
+      await axios.delete(`/api/acteursjudiciaires/retraits/${retrait.id}`);
+      setSuccess(translate(t, "retrait_annule", "Retrait annule"));
+      await fetchArchives();
+    } catch (err) {
+      setError(getErrorMessage(err, translate(t, "erreur_annulation_retrait", "Erreur lors de l'annulation du retrait")));
+    }
+  };
+
   return (
     <div className="page-container" dir="rtl">
       <h1 className="page-title">{t("gestion_archives_judiciaires")}</h1>
@@ -179,6 +274,18 @@ function GererArchivesJuridiques() {
       <div className="registry-panel">
         <div className="registry-panel-header">
           <h3>{t("archives")}</h3>
+          <div className="registry-tools">
+            <button type="button" className="btn-primary" onClick={exportArchives}>
+              {t("exporter_excel")}
+            </button>
+            <label className="btn-secondary import-label">
+              {t("importer_excel")}
+              <input type="file" accept=".xlsx" onChange={handleImportFileSelect} />
+            </label>
+            <button type="button" className="btn-secondary" onClick={downloadTemplate}>
+              {t("telecharger_modele")}
+            </button>
+          </div>
         </div>
 
         <div className="filters">
@@ -192,15 +299,65 @@ function GererArchivesJuridiques() {
           </button>
         </div>
 
+        {showImportMapping && (
+          <div className="mapping-panel">
+            <h4>{translate(t, "associer_colonnes", "Associer les colonnes")}</h4>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>{translate(t, "colonne_identifiant", "Colonne Identifiant")} *</label>
+                <select
+                  value={importMapping.colIdentifiant}
+                  onChange={(event) => setImportMapping((prev) => ({ ...prev, colIdentifiant: event.target.value }))}
+                >
+                  <option value="">--</option>
+                  {importHeaders.map((header) => (
+                    <option key={header} value={header}>{header}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-field">
+                <label>{translate(t, "colonne_cabinet", "Colonne cabinet")}</label>
+                <select
+                  value={importMapping.colCabinet}
+                  onChange={(event) => setImportMapping((prev) => ({ ...prev, colCabinet: event.target.value }))}
+                >
+                  <option value="">--</option>
+                  {importHeaders.map((header) => (
+                    <option key={header} value={header}>{header}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-field">
+                <label>{translate(t, "colonne_emplacement", "Colonne emplacement")}</label>
+                <select
+                  value={importMapping.colEmplacement}
+                  onChange={(event) => setImportMapping((prev) => ({ ...prev, colEmplacement: event.target.value }))}
+                >
+                  <option value="">--</option>
+                  {importHeaders.map((header) => (
+                    <option key={header} value={header}>{header}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn-primary" onClick={executeArchiveImport}>{t("importer")}</button>
+              <button type="button" className="btn-secondary" onClick={() => setShowImportMapping(false)}>{t("annuler")}</button>
+            </div>
+          </div>
+        )}
+
         <div className="data-table-wrapper">
           <table className="modern-table">
             <thead>
               <tr>
                 <th>{t("numero_dossier_appel")}</th>
+                <th>{translate(t, "numero_premiere_instance", "Numero premiere instance")}</th>
                 <th>{t("date")}</th>
                 <th>{t("tribunal_source")}</th>
                 <th>{t("objet")}</th>
                 <th>{t("emplacement")}</th>
+                <th>{translate(t, "cabinet", "Cabinet")}</th>
                 <th>{t("etat")}</th>
                 <th>{t("retraits")}</th>
                 <th>{t("actions")}</th>
@@ -208,23 +365,31 @@ function GererArchivesJuridiques() {
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan="8" style={{ textAlign: "center" }}>{t("aucune_archive_judiciaire")}</td></tr>
+                <tr><td colSpan="10" style={{ textAlign: "center" }}>{t("aucune_archive_judiciaire")}</td></tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id} onClick={() => selectItem(item)}>
                     <td>{item.numeroDossier || "-"}</td>
+                    <td>{item.numeroPremiereInstance || "-"}</td>
                     <td>{formatDate(item.date)}</td>
                     <td>{item.tribunalSource || "-"}</td>
                     <td>{item.sujet || "-"}</td>
                     <td>{item.emplacement || "-"}</td>
+                    <td>{item.cabinet || "-"}</td>
                     <td>{formatEtat(item.etatArchive, t)}</td>
                     <td>{item.retraitsCount ?? 0}</td>
                     <td className="action-icons">
-                      <button type="button" onClick={(event) => {
-                        event.stopPropagation();
-                        openRetraitModal(item);
-                      }}>
-                        {t("gerer_retrait")}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openRetraitModal(item);
+                        }}
+                        title={t("gerer_retrait")}
+                        aria-label={t("gerer_retrait")}
+                        className="action-icon action-archive"
+                      >
+                        <ActionIcon name="archive" />
                       </button>
                     </td>
                   </tr>
@@ -289,13 +454,18 @@ function GererArchivesJuridiques() {
                     <td>{retrait.dateDeRetour ? formatDate(retrait.dateDeRetour) : "-"}</td>
                     <td>{retrait.notes || "-"}</td>
                     <td className="action-icons">
-                      <button type="button" onClick={() => setSelectedRetrait(retrait)}>
-                        {t("consulter")}
+                      <button type="button" onClick={() => setSelectedRetrait(retrait)} title={t("consulter")} aria-label={t("consulter")} className="action-icon action-view">
+                        <ActionIcon name="view" />
                       </button>
                       {!retrait.dateDeRetour ? (
-                        <button type="button" onClick={() => openRetourModal(retrait)}>
-                          {t("enregistrer_retour")}
-                        </button>
+                        <>
+                          <button type="button" onClick={() => openRetourModal(retrait)} title={t("enregistrer_retour")} aria-label={t("enregistrer_retour")} className="action-icon action-return">
+                            <ActionIcon name="return" />
+                          </button>
+                          <button type="button" onClick={() => handleCancelRetrait(retrait)} title={translate(t, "annuler_retrait", "Annuler retrait")} aria-label={translate(t, "annuler_retrait", "Annuler retrait")} className="action-icon action-delete">
+                            <ActionIcon name="delete" />
+                          </button>
+                        </>
                       ) : (
                         t("retour_effectue")
                       )}
@@ -469,6 +639,10 @@ function getInitialRetourForm() {
     dateDeRetour: new Date().toISOString().slice(0, 10),
     notes: "",
   };
+}
+
+function hasActiveRetrait(item) {
+  return (item?.retraits || []).some((retrait) => !retrait.dateDeRetour);
 }
 
 function formatDate(value) {

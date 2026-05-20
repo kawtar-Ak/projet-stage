@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 
 namespace GestionCourrierAbp.Controllers;
@@ -32,6 +33,7 @@ namespace GestionCourrierAbp.Controllers;
 [ApiController]
 public class LegacyExcelController : ControllerBase
 {
+    private const string DefaultImportPassword = "1q2w3E*";
     private readonly ICourrierAdministratifAppService _courrierAdministratifAppService;
     private readonly ICourrierJudiciaireAppService _courrierJudiciaireAppService;
     private readonly ITransactionWorkflowAppService _transactionWorkflowAppService;
@@ -59,9 +61,18 @@ public class LegacyExcelController : ControllerBase
     }
 
     [HttpGet("api/courriers/export/excel")]
-    public async Task<IActionResult> ExportCourriersAdministratifs()
+    public async Task<IActionResult> ExportCourriersAdministratifs([FromQuery] string? ids = null)
     {
-        var courriers = await GetAllAdministratifs();
+        var allCourriersForLookup = await GetAllAdministratifs();
+        var headerIds = Request.Headers.TryGetValue("X-Selected-Ids", out var headerValues)
+            ? headerValues.ToString()
+            : null;
+        var selectionText = !string.IsNullOrWhiteSpace(ids) ? ids : headerIds;
+        var hasIdSelection = !string.IsNullOrWhiteSpace(selectionText);
+        var selectedIds = ParseIdSelection(selectionText);
+        var courriers = hasIdSelection
+            ? allCourriersForLookup.Where(courrier => selectedIds.Contains(courrier.Id)).ToList()
+            : allCourriersForLookup;
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("\u0627\u0644\u0633\u062C\u0644 \u0627\u0644\u0625\u062F\u0627\u0631\u064A");
         ws.RightToLeft = true;
@@ -113,7 +124,7 @@ public class LegacyExcelController : ControllerBase
             .OrderBy(courrier => courrier.Date)
             .ThenBy(courrier => courrier.Id)
             .ToList();
-        var courriersById = courriers.ToDictionary(courrier => courrier.Id);
+        var courriersById = allCourriersForLookup.ToDictionary(courrier => courrier.Id);
         var exportedMorasalatIds = new HashSet<int>();
 
         foreach (var warida in mainWaridat)
@@ -129,25 +140,15 @@ public class LegacyExcelController : ControllerBase
                 .Where(IsAdministrativeIncomingResponse)
                 .ToList();
 
-            var rowsForWarida = Math.Max(1, Math.Max(outgoingMorasalat.Count, incomingMorasalat.Count));
-            for (var index = 0; index < rowsForWarida; index++)
-            {
-                WriteAdministrativeWaridaRow(ws, row, warida);
-
-                if (index < outgoingMorasalat.Count)
-                {
-                    WriteAdministrativeOutgoingMorasalat(ws, row, outgoingMorasalat[index]);
-                    exportedMorasalatIds.Add(outgoingMorasalat[index].Id);
-                }
-
-                if (index < incomingMorasalat.Count)
-                {
-                    WriteAdministrativeIncomingMorasalat(ws, row, incomingMorasalat[index]);
-                    exportedMorasalatIds.Add(incomingMorasalat[index].Id);
-                }
-
-                row++;
-            }
+            row = WriteAdministrativeFamilyRows(
+                ws,
+                row,
+                warida,
+                outgoingMorasalat,
+                incomingMorasalat,
+                courriersById,
+                exportedMorasalatIds
+            );
         }
 
         var independentMorasalat = courriers
@@ -168,22 +169,15 @@ public class LegacyExcelController : ControllerBase
                 .OrderBy(morasala => morasala.Date)
                 .ThenBy(morasala => morasala.Id)
                 .ToList();
-            var rowsForMorasalat = Math.Max(outgoingMorasalat.Count, incomingMorasalat.Count);
-
-            for (var index = 0; index < rowsForMorasalat; index++)
-            {
-                if (index < outgoingMorasalat.Count)
-                {
-                    WriteAdministrativeOutgoingMorasalat(ws, row, outgoingMorasalat[index]);
-                }
-
-                if (index < incomingMorasalat.Count)
-                {
-                    WriteAdministrativeIncomingMorasalat(ws, row, incomingMorasalat[index]);
-                }
-
-                row++;
-            }
+            row = WriteAdministrativeFamilyRows(
+                ws,
+                row,
+                warida: null,
+                outgoingMorasalat,
+                incomingMorasalat,
+                courriersById,
+                exportedMorasalatIds: null
+            );
         }
 
         while (row <= 15)
@@ -293,131 +287,75 @@ public class LegacyExcelController : ControllerBase
     [HttpGet("api/acteursjudiciaires/export/registre-modele")]
     public async Task<IActionResult> ExportRegistreJudiciaireModele()
     {
-        var courriers = await GetAllJudiciaires();
-
-        using var workbook = new XLWorkbook();
-        var ws = workbook.Worksheets.Add("\u0627\u0644\u0633\u062C\u0644 \u0627\u0644\u0642\u0636\u0627\u0626\u064A");
-        ws.RightToLeft = true;
-
-        var widths = new[] { 20d, 18d, 16d, 18d, 30d, 38d, 18d, 28d, 38d, 18d, 34d, 18d };
-        for (var i = 0; i < widths.Length; i++)
-        {
-            ws.Column(i + 1).Width = widths[i];
-        }
-
-        ws.Range(1, 1, 1, 6).Merge().Value = "\u0627\u0644\u0648\u0627\u0631\u062F\u0627\u062A";
-        ws.Range(1, 7, 1, 12).Merge().Value = "\u0627\u0644\u0645\u0631\u0627\u0633\u0644\u0627\u062A";
-
-        ws.Range(2, 1, 2, 6).Merge().Value = string.Empty;
-        ws.Range(2, 7, 2, 9).Merge().Value = "\u0627\u0644\u0635\u0627\u062F\u0631\u0629";
-        ws.Range(2, 10, 2, 11).Merge().Value = "\u0627\u0644\u0648\u0627\u0631\u062F\u0629";
-        ws.Range(2, 12, 3, 12).Merge().Value = "\u0627\u0644\u0646\u062A\u064A\u062C\u0629";
-
-        var headers = new Dictionary<int, string>
-        {
-            [1] = "\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u062A\u0631\u062A\u064A\u0628\u064A",
-            [2] = "\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0631\u0633\u0627\u0644\u0629",
-            [3] = "\u0631\u0642\u0645\u0647\u0627",
-            [4] = "\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0648\u0635\u0648\u0644",
-            [5] = "\u0627\u0633\u0645 \u0648 \u0645\u0648\u0637\u0646 \u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064A\u0647",
-            [6] = "\u0627\u0644\u0645\u0648\u0636\u0648\u0639",
-            [7] = "\u0627\u0644\u062A\u0627\u0631\u064A\u062E",
-            [8] = "\u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064A\u0647",
-            [9] = "\u0627\u0644\u0645\u0648\u0636\u0648\u0639",
-            [10] = "\u0627\u0644\u062A\u0627\u0631\u064A\u062E",
-            [11] = "\u0627\u0644\u0645\u0635\u062F\u0631 \u0648 \u0627\u0644\u062C\u0648\u0627\u0628"
-        };
-
-        foreach (var header in headers)
-        {
-            ws.Cell(3, header.Key).Value = header.Value;
-        }
-
-        StyleRegistreModele(ws, rowCount: 15);
-
-        var row = 4;
-        var ordre = 1;
-        foreach (var courrier in courriers)
-        {
-            var isLinkedDocument = courrier.CourrierJudiciaireParentId.HasValue ||
-                string.Equals(courrier.TypeEnregistrementJudiciaire, "DocumentLie", StringComparison.OrdinalIgnoreCase);
-
-            if (isLinkedDocument)
-            {
-                WriteExcelDate(ws.Cell(row, 7), courrier.Date);
-                ws.Cell(row, 8).Value = courrier.Destinataire ?? string.Empty;
-                ws.Cell(row, 9).Value = courrier.Sujet ?? string.Empty;
-                WriteExcelDate(ws.Cell(row, 10), courrier.Date);
-                ws.Cell(row, 11).Value = BuildLinkedJudicialAnswer(courrier);
-                ws.Cell(row, 12).Value = courrier.EtatArchive ?? string.Empty;
-            }
-            else
-            {
-                ws.Cell(row, 1).Value = ordre++;
-                WriteExcelDate(ws.Cell(row, 2), courrier.Date);
-                ws.Cell(row, 3).Value = courrier.IdBureauOrdre ?? string.Empty;
-                WriteExcelDate(ws.Cell(row, 4), courrier.CreationTime);
-                ws.Cell(row, 5).Value = courrier.TribunalSource ?? string.Empty;
-                ws.Cell(row, 6).Value = courrier.Sujet ?? string.Empty;
-            }
-
-            row++;
-        }
-
-        while (row <= 15)
-        {
-            for (var col = 1; col <= 12; col++)
-            {
-                ws.Cell(row, col).Value = string.Empty;
-            }
-
-            row++;
-        }
-
-        StyleRegistreData(ws, row - 1);
-
-        return ExcelFile(workbook, $"registre-judiciaire-modele-{DateTime.Now:yyyyMMddHHmm}.xlsx");
+        return await ExportCourriersJudiciaires();
     }
     [HttpGet("api/acteursjudiciaires/export/excel")]
     public async Task<IActionResult> ExportCourriersJudiciaires()
     {
         var courriers = await GetAllJudiciaires();
         using var workbook = new XLWorkbook();
-        var ws = workbook.Worksheets.Add("Courriers juridiques");
+        var ws = workbook.Worksheets.Add("\u0627\u0644\u0633\u062C\u0644 \u0627\u0644\u0642\u0636\u0627\u0626\u064A");
+        ws.RightToLeft = true;
 
         var headers = new[]
         {
-            "Numero bureau ordre",
-            "Date",
-            "Tribunal source",
-            "Numero dossier",
-            "Sujet",
-            "Destinataire",
-            "Service",
-            "Etat",
-            "Emplacement",
-            "Lien document",
-            "Description"
+            "\u0627\u0644\u062A\u0627\u0631\u064A\u062E",
+            "\u0631\u0642\u0645 \u0645\u0643\u062A\u0628 \u0627\u0644\u0636\u0628\u0637",
+            "\u0627\u0644\u0645\u062D\u0643\u0645\u0629 / \u0627\u0644\u0645\u0635\u062F\u0631",
+            "\u0646\u0648\u0639 \u0627\u0644\u0633\u062C\u0644",
+            "\u0646\u0648\u0639 \u0627\u0644\u0648\u062B\u064A\u0642\u0629 \u0627\u0644\u0642\u0636\u0627\u0626\u064A\u0629",
+            "\u0627\u0644\u0645\u0644\u0641 \u0627\u0644\u0642\u0636\u0627\u0626\u064A \u0627\u0644\u0645\u0631\u062A\u0628\u0637",
+            "\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0627\u0633\u062A\u0626\u0646\u0627\u0641\u064A \u0644\u0644\u0645\u0644\u0641",
+            "\u0627\u0644\u0645\u0648\u0636\u0648\u0639",
+            "\u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064A\u0647",
+            "\u0627\u0644\u0645\u0635\u0644\u062D\u0629",
+            "\u0627\u0644\u062D\u0627\u0644\u0629",
+            "\u0627\u0644\u0645\u0648\u0642\u0639",
+            "\u0627\u0644\u0633\u062D\u0648\u0628\u0627\u062A",
+            "PDF",
+            "\u0627\u0644\u0625\u062C\u0631\u0627\u0621\u0627\u062A"
         };
 
         WriteHeaders(ws, headers);
+        ws.SheetView.FreezeRows(1);
+        var widths = new[] { 16d, 18d, 28d, 22d, 24d, 24d, 24d, 30d, 26d, 22d, 16d, 18d, 14d, 28d, 18d };
+        for (var i = 0; i < widths.Length; i++)
+        {
+            ws.Column(i + 1).Width = widths[i];
+        }
 
         var row = 2;
         foreach (var courrier in courriers)
         {
-            ws.Cell(row, 1).Value = courrier.IdBureauOrdre;
-            ws.Cell(row, 2).Value = courrier.Date;
-            ws.Cell(row, 2).Style.DateFormat.Format = "dd/MM/yyyy";
+            var isLinkedDocument = IsLinkedJudicialDocument(courrier);
+            WriteExcelDate(ws.Cell(row, 1), courrier.Date);
+            ws.Cell(row, 2).Value = courrier.IdBureauOrdre ?? string.Empty;
             ws.Cell(row, 3).Value = courrier.TribunalSource;
-            ws.Cell(row, 4).Value = courrier.NumeroDossier;
-            ws.Cell(row, 5).Value = courrier.Sujet;
-            ws.Cell(row, 6).Value = courrier.Destinataire;
-            ws.Cell(row, 7).Value = courrier.ServiceNom ?? courrier.IdService.ToString();
-            ws.Cell(row, 8).Value = courrier.EtatArchive;
-            ws.Cell(row, 9).Value = courrier.Emplacement;
-            ws.Cell(row, 10).Value = courrier.LienPdf;
-            ws.Cell(row, 11).Value = courrier.Description;
+            ws.Cell(row, 4).Value = isLinkedDocument
+                ? "\u0648\u062B\u064A\u0642\u0629 \u0645\u0631\u0628\u0648\u0637\u0629 \u0628\u0645\u0644\u0641"
+                : "\u0648\u0627\u0631\u062F\u0629 \u0642\u0636\u0627\u0626\u064A\u0629";
+            ws.Cell(row, 5).Value = courrier.TypeDocumentJudiciaire ?? string.Empty;
+            ws.Cell(row, 6).Value = isLinkedDocument ? courrier.DossierParentNumero ?? courrier.NumeroDossier ?? string.Empty : string.Empty;
+            ws.Cell(row, 7).Value = courrier.NumeroDossier ?? string.Empty;
+            ws.Cell(row, 8).Value = courrier.Sujet;
+            ws.Cell(row, 9).Value = courrier.Destinataire;
+            ws.Cell(row, 10).Value = string.IsNullOrWhiteSpace(courrier.ServiceNom)
+                ? courrier.IdService.ToString()
+                : $"{courrier.IdService} - {courrier.ServiceNom}";
+            ws.Cell(row, 11).Value = courrier.EtatArchive;
+            ws.Cell(row, 12).Value = courrier.Emplacement;
+            ws.Cell(row, 13).Value = courrier.RetraitsCount;
+            ws.Cell(row, 14).Value = courrier.LienPdf;
+            ws.Cell(row, 15).Value = string.Empty;
             row++;
+        }
+
+        if (row > 2)
+        {
+            ws.Range(2, 1, row - 1, headers.Length).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(2, 1, row - 1, headers.Length).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Range(2, 1, row - 1, headers.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            ws.Range(2, 1, row - 1, headers.Length).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
         }
 
         return ExcelFile(workbook, $"courriers-juridiques-{DateTime.Now:yyyyMMddHHmm}.xlsx");
@@ -466,6 +404,143 @@ public class LegacyExcelController : ControllerBase
         return ExcelFile(workbook, $"registre-retraits-{numero}-{DateTime.Now:yyyyMMddHHmm}.xlsx");
     }
 
+    [HttpDelete("api/acteursjudiciaires/retraits/{retraitId:int}")]
+    public async Task<IActionResult> DeleteRetraitJudiciaire(int retraitId)
+    {
+        await _courrierJudiciaireAppService.DeleteRetraitAsync(retraitId);
+        return Ok(new { message = "Retrait annule" });
+    }
+
+    [HttpGet("api/acteursjudiciaires/export/archives")]
+    public async Task<IActionResult> ExportArchivesJudiciaires()
+    {
+        var archives = await _courrierJudiciaireAppService.GetArchivesAsync(null);
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("Archives juridiques");
+        ws.RightToLeft = true;
+
+        var headers = new[]
+        {
+            "رقم الاستئناف",
+            "رقم مكتب الضبط",
+            "التاريخ",
+            "المحكمة / المصدر",
+            "الموضوع",
+            "الموقع",
+            "الحالة",
+            "عدد السحوبات",
+            "PDF",
+            "الملاحظات"
+        };
+
+        WriteHeaders(ws, headers);
+        var row = 2;
+        foreach (var archive in archives)
+        {
+            ws.Cell(row, 1).Value = archive.NumeroDossier ?? string.Empty;
+            ws.Cell(row, 2).Value = archive.IdBureauOrdre ?? string.Empty;
+            WriteExcelDate(ws.Cell(row, 3), archive.Date);
+            ws.Cell(row, 4).Value = archive.TribunalSource;
+            ws.Cell(row, 5).Value = archive.Sujet;
+            ws.Cell(row, 6).Value = archive.Emplacement;
+            ws.Cell(row, 7).Value = archive.EtatArchive;
+            ws.Cell(row, 8).Value = archive.RetraitsCount;
+            ws.Cell(row, 9).Value = archive.LienPdf;
+            ws.Cell(row, 10).Value = archive.Description;
+            row++;
+        }
+
+        ws.Columns().AdjustToContents();
+        return ExcelFile(workbook, $"archives-juridiques-{DateTime.Now:yyyyMMddHHmm}.xlsx");
+    }
+
+    [HttpGet("api/acteursjudiciaires/template-excel")]
+    public IActionResult ExportArchiveImportTemplate()
+    {
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("Import archives");
+        ws.RightToLeft = true;
+        WriteHeaders(ws, new[] { "Identifiant", "الخزانة", "الموقع" });
+        ws.Cell(2, 1).Value = "2026/15/3";
+        ws.Cell(2, 2).Value = "A-12";
+        ws.Cell(2, 3).Value = "الحفظ";
+        ws.Columns().AdjustToContents();
+        return ExcelFile(workbook, "modele_import_archives.xlsx");
+    }
+
+    [HttpPost("api/acteursjudiciaires/import-archive/preview")]
+    public IActionResult ImportArchivePreview(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest("Fichier requis.");
+        }
+
+        using var stream = file.OpenReadStream();
+        using var workbook = new XLWorkbook(stream);
+        var ws = workbook.Worksheets.First();
+        var headers = ws.Row(1).CellsUsed().Select(cell => cell.GetString().Trim()).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+        return Ok(headers);
+    }
+
+    [HttpPost("api/acteursjudiciaires/import-archive/execute")]
+    public async Task<IActionResult> ImportArchiveExecute(
+        IFormFile file,
+        [FromQuery] string colIdentifiant,
+        [FromQuery] string? colCabinet,
+        [FromQuery] string? colEmplacement)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest("Fichier requis.");
+        }
+
+        if (string.IsNullOrWhiteSpace(colIdentifiant))
+        {
+            return BadRequest("La colonne Identifiant est obligatoire.");
+        }
+
+        using var stream = file.OpenReadStream();
+        using var workbook = new XLWorkbook(stream);
+        var ws = workbook.Worksheets.First();
+        var headers = ws.Row(1).CellsUsed().Select(cell => cell.GetString().Trim()).ToList();
+        var idIndex = headers.FindIndex(header => header.Equals(colIdentifiant, StringComparison.OrdinalIgnoreCase));
+        if (idIndex < 0)
+        {
+            return BadRequest("Colonne Identifiant introuvable.");
+        }
+
+        var active = await GetAllJudiciaires();
+        var archived = 0;
+        var errors = new List<string>();
+
+        foreach (var row in ws.RowsUsed().Skip(1))
+        {
+            var identifier = row.Cell(idIndex + 1).GetString().Trim();
+            if (string.IsNullOrWhiteSpace(identifier))
+            {
+                errors.Add($"Ligne {row.RowNumber()}: identifiant vide.");
+                continue;
+            }
+
+            var normalized = NormalizeExportNumber(identifier);
+            var target = active.FirstOrDefault(courrier =>
+                NormalizeExportNumber(courrier.NumeroDossier) == normalized ||
+                NormalizeExportNumber(courrier.IdBureauOrdre) == normalized);
+
+            if (target == null)
+            {
+                errors.Add($"Ligne {row.RowNumber()}: dossier '{identifier}' introuvable ou deja archive.");
+                continue;
+            }
+
+            await _courrierJudiciaireAppService.ArchiverAsync(target.Id);
+            archived++;
+        }
+
+        return Ok(new { archived, errors });
+    }
+
     [HttpPost("api/acteursjudiciaires/import/excel")]
     public async Task<IActionResult> ImportCourriersJudiciaires(IFormFile file)
     {
@@ -478,40 +553,68 @@ public class LegacyExcelController : ControllerBase
         using var stream = file.OpenReadStream();
         using var workbook = new XLWorkbook(stream);
         var ws = workbook.Worksheets.First();
+        var existingCourriers = await GetAllJudiciaires();
 
         foreach (var row in ws.RowsUsed().Skip(1))
         {
             try
             {
-                var date = ReadDate(row.Cell(2)) ?? DateTime.Now;
+                var date = ReadDate(row.Cell(1)) ?? DateTime.Now;
+                var idBureauOrdre = row.Cell(2).GetString().Trim();
                 var tribunalSource = row.Cell(3).GetString().Trim();
-                var numeroDossier = row.Cell(4).GetString().Trim();
-                var sujet = row.Cell(5).GetString().Trim();
-                var idService = ReadServiceId(row.Cell(7).GetString());
+                var typeRegistre = row.Cell(4).GetString().Trim();
+                var typeDocument = row.Cell(5).GetString().Trim();
+                var linkedNumero = row.Cell(6).GetString().Trim();
+                var numeroDossier = row.Cell(7).GetString().Trim();
+                var sujet = row.Cell(8).GetString().Trim();
+                var destinataire = row.Cell(9).GetString().Trim();
+                var idService = ReadServiceId(row.Cell(10).GetString());
+                var isLinkedDocument = IsLinkedJudicialImport(typeRegistre, typeDocument, linkedNumero);
+                int? parentId = null;
 
-                if (string.IsNullOrWhiteSpace(tribunalSource) || string.IsNullOrWhiteSpace(numeroDossier) ||
-                    string.IsNullOrWhiteSpace(sujet) || idService <= 0)
+                if (isLinkedDocument)
+                {
+                    var parent = FindJudicialParentByNumero(existingCourriers, linkedNumero);
+                    if (parent == null)
+                    {
+                        errors.Add($"Ligne {row.RowNumber()}: dossier judiciaire lie introuvable ({linkedNumero}).");
+                        continue;
+                    }
+
+                    parentId = parent.Id;
+                    if (string.IsNullOrWhiteSpace(numeroDossier))
+                    {
+                        numeroDossier = parent.NumeroDossier ?? string.Empty;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(tribunalSource) || string.IsNullOrWhiteSpace(sujet) || idService <= 0 ||
+                    (!isLinkedDocument && string.IsNullOrWhiteSpace(numeroDossier)))
                 {
                     errors.Add($"Ligne {row.RowNumber()}: tribunal/source, numero dossier, sujet et service sont obligatoires.");
                     continue;
                 }
 
-                await _courrierJudiciaireAppService.CreateAsync(new CreateUpdateCourrierJudiciaireDto
+                var created = await _courrierJudiciaireAppService.CreateAsync(new CreateUpdateCourrierJudiciaireDto
                 {
-                    IdBureauOrdre = row.Cell(1).GetString().Trim(),
+                    IdBureauOrdre = idBureauOrdre,
                     Date = date,
                     TribunalSource = tribunalSource,
-                    NumeroDossier = numeroDossier,
+                    TypeEnregistrementJudiciaire = isLinkedDocument ? "DocumentLie" : "Dossier",
+                    TypeDocumentJudiciaire = isLinkedDocument ? typeDocument : string.Empty,
+                    CourrierJudiciaireParentId = parentId,
+                    NumeroDossier = isLinkedDocument ? null : numeroDossier,
                     Sujet = sujet,
-                    Destinataire = row.Cell(6).GetString().Trim(),
+                    Destinataire = destinataire,
                     IdService = idService,
-                    EtatArchive = EmptyToDefault(row.Cell(8).GetString(), "Nouveau"),
-                    Emplacement = row.Cell(9).GetString().Trim(),
-                    LienPdf = row.Cell(10).GetString().Trim(),
-                    Description = row.Cell(11).GetString().Trim(),
+                    EtatArchive = EmptyToDefault(row.Cell(11).GetString(), "Nouveau"),
+                    Emplacement = row.Cell(12).GetString().Trim(),
+                    LienPdf = row.Cell(14).GetString().Trim(),
+                    Description = string.Empty,
                     Direction = "Entrant",
                     EstTransmissible = true
                 });
+                existingCourriers.Add(created);
                 imported++;
             }
             catch (Exception ex)
@@ -764,11 +867,10 @@ public class LegacyExcelController : ControllerBase
     {
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("Modele utilisateurs");
-        WriteHeaders(ws, new[] { "Nom complet", "Login", "Service ID", "Mot de passe" });
+        WriteHeaders(ws, new[] { "Nom complet", "Login", "Service ID" });
         ws.Cell(2, 1).Value = "Exemple Utilisateur";
         ws.Cell(2, 2).Value = "exemple";
         ws.Cell(2, 3).Value = 1;
-        ws.Cell(2, 4).Value = "123456";
         return ExcelFile(workbook, "modele-utilisateurs.xlsx");
     }
 
@@ -789,12 +891,18 @@ public class LegacyExcelController : ControllerBase
             return BadRequest("Fichier Excel requis.");
 
         var imported = 0;
+        var updated = 0;
         var errors = new List<string>();
 
         using var stream = file.OpenReadStream();
         using var workbook = new XLWorkbook(stream);
         var ws = workbook.Worksheets.First();
         var headers = ReadHeaders(ws);
+        var services = await GetAllServices();
+        var existingUsersByLogin = (await GetAllUtilisateurs())
+            .GroupBy(utilisateur => utilisateur.Login.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        var importedLogins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in ws.RowsUsed().Skip(1))
         {
@@ -803,23 +911,58 @@ public class LegacyExcelController : ControllerBase
                 var nom = ReadMappedCell(row, headers, colNom);
                 var login = ReadMappedCell(row, headers, colLogin);
                 var serviceText = ReadMappedCell(row, headers, colServiceId);
-                var password = ReadMappedCell(row, headers, "Mot de passe");
 
-                if (string.IsNullOrWhiteSpace(nom) || string.IsNullOrWhiteSpace(login) ||
-                    !int.TryParse(serviceText, out var serviceId))
+                if (string.IsNullOrWhiteSpace(nom) || string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(serviceText))
                 {
                     errors.Add($"Ligne {row.RowNumber()}: nom, login et service sont obligatoires.");
                     continue;
                 }
 
-                await _utilisateurAppService.CreateAsync(new CreateUtilisateurDto
+                var serviceId = ResolveUtilisateurServiceId(serviceText, services);
+                if (serviceId == null)
+                {
+                    errors.Add($"Ligne {row.RowNumber()}: service introuvable ({serviceText}). Utilisez un ID de service existant ou le nom exact du service.");
+                    continue;
+                }
+
+                var normalizedLogin = login.Trim();
+                if (importedLogins.Contains(normalizedLogin))
+                {
+                    errors.Add($"Ligne {row.RowNumber()}: login duplique dans le fichier ({normalizedLogin}).");
+                    continue;
+                }
+
+                if (existingUsersByLogin.TryGetValue(normalizedLogin, out var existingUser))
+                {
+                    await _utilisateurAppService.UpdateAsync(existingUser.Id, new UpdateUtilisateurDto
+                    {
+                        NomComplet = nom,
+                        Login = normalizedLogin,
+                        ServiceId = serviceId.Value
+                    });
+                    updated++;
+                    importedLogins.Add(normalizedLogin);
+                    continue;
+                }
+
+                var createdUser = await _utilisateurAppService.CreateAsync(new CreateUtilisateurDto
                 {
                     NomComplet = nom,
-                    Login = login,
-                    ServiceId = serviceId,
-                    Password = string.IsNullOrWhiteSpace(password) ? "123456" : password
+                    Login = normalizedLogin,
+                    ServiceId = serviceId.Value,
+                    Password = DefaultImportPassword
                 });
                 imported++;
+                importedLogins.Add(normalizedLogin);
+                existingUsersByLogin[normalizedLogin] = createdUser;
+            }
+            catch (UserFriendlyException ex)
+            {
+                errors.Add($"Ligne {row.RowNumber()}: {ex.Message}");
+            }
+            catch (BusinessException ex)
+            {
+                errors.Add($"Ligne {row.RowNumber()}: {FormatUtilisateurImportBusinessError(ex)}");
             }
             catch (Exception ex)
             {
@@ -827,7 +970,15 @@ public class LegacyExcelController : ControllerBase
             }
         }
 
-        return Ok(new { imported, errors });
+        return Ok(new
+        {
+            imported,
+            updated,
+            errors,
+            message = errors.Count > 0
+                ? $"Import termine avec {errors.Count} erreur(s)."
+                : $"{imported} utilisateur(s) importe(s), {updated} utilisateur(s) mis a jour avec succes."
+        });
     }
 
     private async Task<List<CourrierAdministratifDto>> GetAllAdministratifs()
@@ -852,6 +1003,20 @@ public class LegacyExcelController : ControllerBase
         return result.Items.ToList();
     }
 
+    private static HashSet<int> ParseIdSelection(string? ids)
+    {
+        if (string.IsNullOrWhiteSpace(ids))
+        {
+            return new HashSet<int>();
+        }
+
+        return ids
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => int.TryParse(value, out var id) ? id : 0)
+            .Where(id => id > 0)
+            .ToHashSet();
+    }
+
     private async Task<List<ServiceDto>> GetAllServices()
     {
         var result = await _serviceAppService.GetListAsync(new PagedAndSortedResultRequestDto
@@ -861,6 +1026,42 @@ public class LegacyExcelController : ControllerBase
         });
 
         return result.Items.ToList();
+    }
+
+    private static int? ResolveUtilisateurServiceId(string value, IReadOnlyList<ServiceDto> services)
+    {
+        var normalized = value.Trim();
+        if (int.TryParse(normalized, out var id) && services.Any(service => service.Id == id))
+        {
+            return id;
+        }
+
+        var firstToken = normalized
+            .Split(new[] { ' ', '-', '\u2013', '\u2014', ':' }, StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault();
+
+        if (int.TryParse(firstToken, out id) && services.Any(service => service.Id == id))
+        {
+            return id;
+        }
+
+        var serviceByName = services.FirstOrDefault(service =>
+            string.Equals(service.NomService, normalized, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(service.Description, normalized, StringComparison.OrdinalIgnoreCase));
+
+        return serviceByName?.Id;
+    }
+
+    private static string FormatUtilisateurImportBusinessError(BusinessException exception)
+    {
+        return exception.Code switch
+        {
+            "ServiceInexistant" => "service inexistant.",
+            "LoginDejaUtilise" => "login deja utilise.",
+            _ => string.IsNullOrWhiteSpace(exception.Code)
+                ? exception.Message
+                : exception.Code
+        };
     }
 
     private async Task<List<EquipementDto>> GetAllEquipements()
@@ -997,9 +1198,14 @@ public class LegacyExcelController : ControllerBase
     }
 
     private static string GetAdministrativeExportNumber(
-        CourrierAdministratifDto courrier,
-        IReadOnlyDictionary<int, CourrierAdministratifDto> courriersById)
+        CourrierAdministratifDto? courrier,
+        IReadOnlyDictionary<int, CourrierAdministratifDto>? courriersById)
     {
+        if (courrier == null)
+        {
+            return string.Empty;
+        }
+
         var current = courrier;
         var visited = new HashSet<int>();
 
@@ -1011,7 +1217,8 @@ public class LegacyExcelController : ControllerBase
                 return currentNumber;
             }
 
-            if (!current.ParentId.HasValue ||
+            if (courriersById == null ||
+                !current.ParentId.HasValue ||
                 !courriersById.TryGetValue(current.ParentId.Value, out var parent))
             {
                 return string.Empty;
@@ -1026,6 +1233,103 @@ public class LegacyExcelController : ControllerBase
     private static string NormalizeExportNumber(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+    }
+
+    private static int WriteAdministrativeFamilyRows(
+        IXLWorksheet ws,
+        int startRow,
+        CourrierAdministratifDto? warida,
+        IReadOnlyList<CourrierAdministratifDto> outgoingMorasalat,
+        IReadOnlyList<CourrierAdministratifDto> incomingMorasalat,
+        IReadOnlyDictionary<int, CourrierAdministratifDto> courriersById,
+        ISet<int>? exportedMorasalatIds)
+    {
+        var row = startRow;
+        var usedIncomingIds = new HashSet<int>();
+        var wroteAnyRow = false;
+
+        foreach (var outgoing in outgoingMorasalat)
+        {
+            var linkedIncoming = incomingMorasalat
+                .Where(incoming => !usedIncomingIds.Contains(incoming.Id))
+                .Where(incoming => HasAdministrativeAncestor(incoming, outgoing.Id, courriersById))
+                .OrderBy(incoming => incoming.Date)
+                .ThenBy(incoming => incoming.Id)
+                .ToList();
+
+            if (linkedIncoming.Count == 0)
+            {
+                WriteAdministrativeRegisterRow(ws, row, warida, outgoing, incoming: null, courriersById);
+                exportedMorasalatIds?.Add(outgoing.Id);
+                wroteAnyRow = true;
+                row++;
+                continue;
+            }
+
+            foreach (var incoming in linkedIncoming)
+            {
+                WriteAdministrativeRegisterRow(ws, row, warida, outgoing, incoming, courriersById);
+                exportedMorasalatIds?.Add(outgoing.Id);
+                exportedMorasalatIds?.Add(incoming.Id);
+                usedIncomingIds.Add(incoming.Id);
+                wroteAnyRow = true;
+                row++;
+            }
+        }
+
+        var remainingIncoming = incomingMorasalat
+            .Where(incoming => !usedIncomingIds.Contains(incoming.Id))
+            .OrderBy(incoming => incoming.Date)
+            .ThenBy(incoming => incoming.Id)
+            .ToList();
+
+        foreach (var incoming in remainingIncoming)
+        {
+            WriteAdministrativeRegisterRow(ws, row, warida, outgoing: null, incoming, courriersById);
+            exportedMorasalatIds?.Add(incoming.Id);
+            wroteAnyRow = true;
+            row++;
+        }
+
+        if (!wroteAnyRow && warida != null)
+        {
+            WriteAdministrativeRegisterRow(ws, row, warida, outgoing: null, incoming: null, courriersById);
+            row++;
+        }
+
+        return row;
+    }
+
+    private static void WriteAdministrativeRegisterRow(
+        IXLWorksheet ws,
+        int row,
+        CourrierAdministratifDto? warida,
+        CourrierAdministratifDto? outgoing,
+        CourrierAdministratifDto? incoming,
+        IReadOnlyDictionary<int, CourrierAdministratifDto> courriersById)
+    {
+        if (warida != null)
+        {
+            WriteAdministrativeWaridaRow(ws, row, warida);
+        }
+        else
+        {
+            var exportNumber = outgoing != null
+                ? GetAdministrativeExportNumber(outgoing, courriersById)
+                : GetAdministrativeExportNumber(incoming, courriersById);
+
+            ws.Cell(row, 1).Value = exportNumber;
+        }
+
+        if (outgoing != null)
+        {
+            WriteAdministrativeOutgoingMorasalat(ws, row, outgoing);
+        }
+
+        if (incoming != null)
+        {
+            WriteAdministrativeIncomingMorasalat(ws, row, incoming);
+        }
     }
 
     private static void WriteAdministrativeWaridaRow(IXLWorksheet ws, int row, CourrierAdministratifDto courrier)
@@ -1078,6 +1382,36 @@ public class LegacyExcelController : ControllerBase
         };
 
         return string.Join(" | ", parts.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static bool IsLinkedJudicialDocument(CourrierJudiciaireDto courrier)
+    {
+        return courrier.CourrierJudiciaireParentId.HasValue ||
+            string.Equals(courrier.TypeEnregistrementJudiciaire, "DocumentLie", StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrWhiteSpace(courrier.TypeDocumentJudiciaire);
+    }
+
+    private static bool IsLinkedJudicialImport(string typeRegistre, string typeDocument, string linkedNumero)
+    {
+        return typeRegistre.Contains("\u0648\u062B\u064A\u0642\u0629", StringComparison.OrdinalIgnoreCase) ||
+            typeRegistre.Contains("DocumentLie", StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrWhiteSpace(typeDocument) ||
+            !string.IsNullOrWhiteSpace(linkedNumero);
+    }
+
+    private static CourrierJudiciaireDto? FindJudicialParentByNumero(
+        IEnumerable<CourrierJudiciaireDto> courriers,
+        string numero)
+    {
+        var normalizedNumero = NormalizeExportNumber(numero);
+        if (string.IsNullOrWhiteSpace(normalizedNumero))
+        {
+            return null;
+        }
+
+        return courriers.FirstOrDefault(courrier =>
+            !IsLinkedJudicialDocument(courrier) &&
+            NormalizeExportNumber(courrier.NumeroDossier) == normalizedNumero);
     }
 
     private static FileContentResult ExcelFile(XLWorkbook workbook, string fileName)
@@ -1136,7 +1470,15 @@ public class LegacyExcelController : ControllerBase
 
     private static int ReadServiceId(string value)
     {
-        if (int.TryParse(value?.Trim(), out var id))
+        var normalized = value?.Trim() ?? string.Empty;
+        if (int.TryParse(normalized, out var id))
+            return id;
+
+        var firstToken = normalized
+            .Split(new[] { ' ', '-', '\u2013', '\u2014', ':' }, StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault();
+
+        if (int.TryParse(firstToken, out id))
             return id;
 
         return 1;

@@ -13,6 +13,7 @@ public interface ICourrierJudiciaireAppService :
     Task<CourrierJudiciaireDto> ArchiverAsync(int id);
     Task<CourrierJudiciaireDto> CreateRetraitAsync(int id, CreateRetraitJudiciaireDto input);
     Task<CourrierJudiciaireDto> RetourRetraitAsync(int retraitId, RetourRetraitJudiciaireDto input);
+    Task DeleteRetraitAsync(int retraitId);
     Task<CourrierJudiciaireDto> RetraitsAsync(int id, CreateRetraitJudiciaireDto input);
     Task<CourrierJudiciaireDto> RetourAsync(int retraitId, RetourRetraitJudiciaireDto input);
 }

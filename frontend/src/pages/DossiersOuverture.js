@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
+import ActionIcon from '../components/ActionIcon';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
 
 const OUVERTURE_DOSSIERS_SERVICE_ID = 3;
@@ -401,21 +402,28 @@ function DossiersTable({ dossiers, savingId, t, onOpenNumberModal, onOpenTransfe
                   <td>{dossier.numeroDossier || '-'}</td>
                   <td>{isComplete ? t('dossier_complet') : t('a_completer')}</td>
                   <td className="action-icons">
-                    <button type="button" onClick={() => onConsult(dossier)}>{t('consulter')}</button>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={() => onOpenNumberModal(dossier)}
-                      disabled={savingId === dossier.id}
-                    >
-                      {isComplete ? t('modifier_numero') : t('attribuer_numero')}
+                    <button type="button" onClick={() => onConsult(dossier)} title={t('consulter')} aria-label={t('consulter')} className="action-icon action-view">
+                      <ActionIcon name="view" />
                     </button>
                     <button
                       type="button"
+                      className="action-icon action-edit"
+                      onClick={() => onOpenNumberModal(dossier)}
+                      disabled={savingId === dossier.id}
+                      title={isComplete ? t('modifier_numero') : t('attribuer_numero')}
+                      aria-label={isComplete ? t('modifier_numero') : t('attribuer_numero')}
+                    >
+                      <ActionIcon name="edit" />
+                    </button>
+                    <button
+                      type="button"
+                      className="action-icon action-transfer"
                       onClick={() => onOpenTransferModal(dossier)}
                       disabled={!isComplete}
+                      title={t('transferer')}
+                      aria-label={t('transferer')}
                     >
-                      {t('transferer')}
+                      <ActionIcon name="transfer" />
                     </button>
                   </td>
                 </tr>
