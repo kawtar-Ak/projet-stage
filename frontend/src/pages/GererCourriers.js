@@ -78,6 +78,7 @@ function GererCourriers() {
   const [consultedDocument, setConsultedDocument] = useState(null);
   const [selectedTransferItem, setSelectedTransferItem] = useState(null);
   const [transferForm, setTransferForm] = useState(getInitialTransferForm());
+  const [transferServiceSearch, setTransferServiceSearch] = useState("");
   const [sentAdministrativeDocumentIds, setSentAdministrativeDocumentIds] = useState(new Set());
 
 
@@ -275,7 +276,8 @@ function GererCourriers() {
           transactions
             .filter((transaction) =>
               String(transaction.documentType || "").toLowerCase() === "administratif" &&
-              Number(transaction.sourceServiceId) === currentServiceId
+              Number(transaction.sourceServiceId) === currentServiceId &&
+              isPendingTransactionStatus(transaction.statut)
             )
             .map((transaction) => String(transaction.documentId))
         )
@@ -611,6 +613,7 @@ function GererCourriers() {
       sujet: courrier.sujet,
       type: formatRegistre(courrier, t),
       dateCreation: courrier.date,
+      idBureauOrdre: courrier.idBureauOrdre,
       source: courrier.source,
       destinataire: courrier.destinataire,
       description: courrier.description,
@@ -729,9 +732,8 @@ function GererCourriers() {
 
   const openTransferModal = (courrier) => {
     setSelectedTransferItem(courrier);
-    setTransferForm(
-      getInitialTransferForm(getDefaultTransferServiceId(courrier, services))
-    );
+    setTransferForm(getInitialTransferForm());
+    setTransferServiceSearch("");
     setError("");
     setSuccess("");
   };
@@ -739,6 +741,7 @@ function GererCourriers() {
   const closeTransferModal = () => {
     setSelectedTransferItem(null);
     setTransferForm(getInitialTransferForm());
+    setTransferServiceSearch("");
   };
 
   const handleTransferChange = (event) => {
@@ -761,8 +764,9 @@ function GererCourriers() {
     setTransferForm((prev) => ({
       ...prev,
       mode,
-      serviceIds: mode === "multiple" && prev.serviceId ? [prev.serviceId] : prev.serviceIds,
+      serviceIds: mode === "multiple" ? [] : prev.serviceIds,
     }));
+    setTransferServiceSearch("");
   };
 
   const handleTransferServiceToggle = (serviceId) => {
@@ -1829,7 +1833,7 @@ function GererCourriers() {
             {error && <div className="error-message">{error}</div>}
 
             <form onSubmit={handleTransferSubmit}>
-              <div className="form-grid">
+              <div className="transfer-form-layout">
                 <div className="form-field full-width">
                   <label>{translate(t, "mode_transfert", "Mode de transfert")}</label>
                   <div className="filter-chip-group">
@@ -1850,7 +1854,7 @@ function GererCourriers() {
                   </div>
                 </div>
 
-                <div className="form-field">
+                <div className="form-field full-width">
                   <label>{t("service_destinataire")} *</label>
                   {transferForm.mode === "single" ? (
                     <select
@@ -1873,27 +1877,79 @@ function GererCourriers() {
                         ))}
                     </select>
                   ) : (
-                    <div className="checkbox-list">
-                      {services
-                        .filter(
-                          (service) =>
-                            Number(service.idService) !==
-                            Number(selectedTransferItem.idService)
-                        )
-                        .map((service) => (
-                          <label key={service.idService} className="checkbox-field">
-                            <input
-                              type="checkbox"
-                              checked={transferForm.serviceIds.includes(String(service.idService))}
-                              onChange={() => handleTransferServiceToggle(service.idService)}
-                            />
-                            {service.nomService}
-                          </label>
-                        ))}
+                    <div className="transfer-service-picker">
+                      <div className="service-panel available-services-panel">
+                        <div className="service-panel-header">
+                          <strong>{translate(t, "services_disponibles", "Services disponibles")}</strong>
+                          <span>
+                            {services.filter((service) =>
+                              Number(service.idService) !== Number(selectedTransferItem.idService) &&
+                              !transferForm.serviceIds.includes(String(service.idService)) &&
+                              service.nomService?.toLowerCase().includes(transferServiceSearch.trim().toLowerCase())
+                            ).length}
+                          </span>
+                        </div>
+                        <input
+                          className="service-search-input"
+                          value={transferServiceSearch}
+                          onChange={(event) => setTransferServiceSearch(event.target.value)}
+                          placeholder={translate(t, "rechercher_service", "Rechercher un service")}
+                        />
+                        <div className="available-service-list">
+                          {services
+                            .filter(
+                              (service) =>
+                                Number(service.idService) !== Number(selectedTransferItem.idService) &&
+                                !transferForm.serviceIds.includes(String(service.idService)) &&
+                                service.nomService?.toLowerCase().includes(transferServiceSearch.trim().toLowerCase())
+                            )
+                            .map((service) => (
+                              <button
+                                key={service.idService}
+                                type="button"
+                              className="available-service-option"
+                              onClick={() => handleTransferServiceToggle(service.idService)}
+                            >
+                              <span>{service.nomService}</span>
+                            </button>
+                            ))}
+                        </div>
+                      </div>
+
+                      <div className="service-panel selected-services-panel">
+                        <div className="service-panel-header">
+                          <strong>{translate(t, "services_selectionnes", "Services sélectionnés")}</strong>
+                          <span>{transferForm.serviceIds.length}</span>
+                        </div>
+                        {transferForm.serviceIds.length === 0 ? (
+                          <div className="empty-selected-services">
+                            {translate(t, "aucun_service_selectionne", "Aucun service sélectionné")}
+                          </div>
+                        ) : (
+                          <div className="selected-service-list">
+                            {transferForm.serviceIds.map((serviceId) => {
+                              const service = services.find((item) => String(item.idService) === String(serviceId));
+                              return (
+                                <button
+                                  key={serviceId}
+                                  type="button"
+                                  className="selected-service-chip"
+                                  onClick={() => handleTransferServiceToggle(serviceId)}
+                                  title={t("supprimer")}
+                                >
+                                  <span>{service?.nomService || serviceId}</span>
+                                  <span className="remove-service-mark" aria-hidden="true">×</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
 
+                <div className="transfer-options-row">
                 <div className="form-field">
                   <label>{t("date")} *</label>
                   <input
@@ -1915,6 +1971,7 @@ function GererCourriers() {
                     />
                     {t("doit_revenir")}
                   </label>
+                </div>
                 </div>
 
                 <div className="form-field full-width">
@@ -1995,7 +2052,7 @@ function getInitialForm(
 function getInitialTransferForm(serviceId = "") {
   return {
     serviceId,
-    serviceIds: serviceId ? [String(serviceId)] : [],
+    serviceIds: [],
     mode: "single",
     dateEnvoi: new Date().toISOString().slice(0, 10),
     doitRevenir: false,
@@ -2340,6 +2397,11 @@ function getAdministrativeActionState(courrier, courriers = [], sentDocumentIds 
 
 function canTransferAdministrative(courrier, sentDocumentIds = new Set()) {
   return Boolean(courrier?.id && !sentDocumentIds.has(String(courrier.id)));
+}
+
+function isPendingTransactionStatus(statut) {
+  const value = String(statut || "").toLowerCase();
+  return value === "enattente" || value === "en attente" || value === "pending";
 }
 
 function getDisplayIdBureauOrdre(courrier, courriers = []) {

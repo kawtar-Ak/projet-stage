@@ -195,17 +195,51 @@ public class LegacyExcelController : ControllerBase
         return ExcelFile(workbook, $"registre-administratif-{DateTime.Now:yyyyMMddHHmm}.xlsx");
     }
     [HttpPost("api/courriers/import/excel")]
-    public async Task<IActionResult> ImportCourriersAdministratifs(IFormFile file)
+    public async Task<IActionResult> ImportCourriersAdministratifs(
+        IFormFile file,
+        [FromQuery] string? typeRegistre = null)
     {
         if (file == null || file.Length == 0)
             return BadRequest("Fichier Excel requis.");
 
         var imported = 0;
         var errors = new List<string>();
+        var selectedTypeRegistre = NormalizeAdministrativeImportType(typeRegistre);
 
         using var stream = file.OpenReadStream();
         using var workbook = new XLWorkbook(stream);
         var ws = workbook.Worksheets.First();
+        var headers = ReadHeaders(ws);
+
+        if (IsExternalAdministrativeWorkbook(headers))
+        {
+            var services = await GetAllServices();
+
+            foreach (var row in ws.RowsUsed().Skip(1))
+            {
+                try
+                {
+                    if (row.IsEmpty())
+                    {
+                        continue;
+                    }
+
+                    await ImportExternalAdministrativeRow(row, headers, services, selectedTypeRegistre);
+                    imported++;
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Ligne {row.RowNumber()}: {ex.Message}");
+                }
+            }
+
+            return Ok(new
+            {
+                imported,
+                errors,
+                message = $"{imported} courrier(s) administratif(s) importe(s) dans le registre."
+            });
+        }
 
         foreach (var row in ws.RowsUsed().Skip(1))
         {
@@ -232,11 +266,11 @@ public class LegacyExcelController : ControllerBase
                     IdService = idService,
                     Etat = EmptyToDefault(row.Cell(7).GetString(), "Nouveau"),
                     NumeroDeCourrier = row.Cell(8).GetString().Trim(),
-                    TypeRegistre = EmptyToDefault(row.Cell(9).GetString(), "Waridat"),
+                    TypeRegistre = EmptyToDefault(row.Cell(9).GetString(), selectedTypeRegistre),
                     TypeCorrespondance = EmptyToNull(row.Cell(10).GetString()),
                     LienPdf = row.Cell(11).GetString().Trim(),
                     Description = row.Cell(12).GetString().Trim(),
-                    Direction = "Entrant",
+                    Direction = selectedTypeRegistre == "Morasalat" ? "Sortant" : "Entrant",
                     EstTransmissible = false
                 });
                 imported++;
@@ -1454,7 +1488,7 @@ public class LegacyExcelController : ControllerBase
     {
         return ws.Row(1)
             .CellsUsed()
-            .Select((cell, index) => new { Name = cell.GetString().Trim(), Index = index + 1 })
+            .Select(cell => new { Name = cell.GetString().Trim(), Index = cell.Address.ColumnNumber })
             .Where(x => !string.IsNullOrWhiteSpace(x.Name))
             .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x => x.Key, x => x.First().Index, StringComparer.OrdinalIgnoreCase);
@@ -1466,6 +1500,151 @@ public class LegacyExcelController : ControllerBase
             return string.Empty;
 
         return row.Cell(index).GetString().Trim();
+    }
+
+    private static string ReadMappedCellLastNonEmpty(IXLRow row, string headerName)
+    {
+        var matches = row.Worksheet.Row(1)
+            .CellsUsed()
+            .Where(cell => string.Equals(cell.GetString().Trim(), headerName, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(cell => cell.Address.ColumnNumber)
+            .ToList();
+
+        foreach (var headerCell in matches)
+        {
+            var value = row.Cell(headerCell.Address.ColumnNumber).GetString().Trim();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private async Task ImportExternalAdministrativeRow(
+        IXLRow row,
+        Dictionary<string, int> headers,
+        IReadOnlyList<ServiceDto> services,
+        string typeRegistre)
+    {
+        var numero = ReadMappedCell(row, headers, "\u0631\u0642\u0645 \u0627\u0644\u0645\u0631\u0627\u0633\u0644\u0629");
+        var sujet = ReadMappedCell(row, headers, "\u0627\u0644\u0645\u0648\u0636\u0648\u0639");
+        var sender = ReadMappedCellLastNonEmpty(row, "\u0627\u0644\u0645\u0631\u0633\u0644");
+        var senderRef = ReadMappedCell(row, headers, "\u0645\u0631\u062C\u0639 \u0627\u0644\u0645\u0631\u0633\u0644");
+        var destinataire = ReadMappedCell(row, headers, "\u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064A\u0647");
+        var serviceName = ReadMappedCell(row, headers, "\u0627\u0644\u0627\u062F\u0627\u0631\u0629 \u0627\u0644\u0645\u0633\u0624\u0648\u0644\u0629");
+        var date = ReadMappedDate(row, headers, "\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0625\u064A\u062F\u0627\u0639") ?? DateTime.Now;
+
+        if (string.IsNullOrWhiteSpace(sujet))
+        {
+            throw new UserFriendlyException("Le sujet est obligatoire.");
+        }
+
+        if (string.IsNullOrWhiteSpace(sender))
+        {
+            sender = ReadMappedCell(row, headers, "\u0627\u0644\u0627\u0633\u0645 \u0628\u0627\u0644\u0641\u0631\u0646\u0633\u064A\u0629 \u0627\u0644\u0645\u0631\u0633\u0644");
+        }
+
+        if (string.IsNullOrWhiteSpace(sender))
+        {
+            sender = senderRef;
+        }
+
+        if (string.IsNullOrWhiteSpace(sender))
+        {
+            sender = "Import Excel";
+        }
+
+        var normalizedType = NormalizeAdministrativeImportType(typeRegistre);
+        var description = BuildExternalAdministrativeDescription(row, headers);
+
+        await _courrierAdministratifAppService.CreateAsync(new CreateUpdateCourrierAdministratifDto
+        {
+            IdBureauOrdre = numero,
+            Date = date,
+            Source = sender,
+            Sujet = sujet,
+            Destinataire = destinataire,
+            Description = description,
+            Etat = "Nouveau",
+            LienPdf = string.Empty,
+            Direction = normalizedType == "Morasalat" ? "Sortant" : "Entrant",
+            TypeRegistre = normalizedType,
+            TypeCorrespondance = normalizedType == "Morasalat" ? "Sortante" : null,
+            IdService = ResolveAdministrativeServiceId(serviceName, services),
+            NumeroDeCourrier = string.Empty,
+            EstTransmissible = false
+        });
+    }
+
+    private static bool IsExternalAdministrativeWorkbook(Dictionary<string, int> headers)
+    {
+        return headers.ContainsKey("\u0631\u0642\u0645 \u0627\u0644\u0645\u0631\u0627\u0633\u0644\u0629") &&
+               headers.ContainsKey("\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0625\u064A\u062F\u0627\u0639") &&
+               headers.ContainsKey("\u0627\u0644\u0645\u0648\u0636\u0648\u0639");
+    }
+
+    private static string NormalizeAdministrativeImportType(string? value)
+    {
+        return value?.Equals("Morasalat", StringComparison.OrdinalIgnoreCase) == true
+            ? "Morasalat"
+            : "Waridat";
+    }
+
+    private static DateTime? ReadMappedDate(IXLRow row, Dictionary<string, int> headers, string headerName)
+    {
+        if (!headers.TryGetValue(headerName, out var index))
+        {
+            return null;
+        }
+
+        return ReadDate(row.Cell(index));
+    }
+
+    private static int ResolveAdministrativeServiceId(string value, IReadOnlyList<ServiceDto> services)
+    {
+        var normalized = value.Trim();
+        if (int.TryParse(normalized, out var id) && services.Any(service => service.Id == id))
+        {
+            return id;
+        }
+
+        var serviceByName = services.FirstOrDefault(service =>
+            string.Equals(service.NomService, normalized, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(service.Description, normalized, StringComparison.OrdinalIgnoreCase));
+
+        return serviceByName?.Id ?? services.FirstOrDefault()?.Id ?? 1;
+    }
+
+    private static string BuildExternalAdministrativeDescription(IXLRow row, Dictionary<string, int> headers)
+    {
+        var mappedHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "\u0631\u0642\u0645 \u0627\u0644\u0645\u0631\u0627\u0633\u0644\u0629",
+            "\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0625\u064A\u062F\u0627\u0639",
+            "\u0627\u0644\u0645\u0648\u0636\u0648\u0639",
+            "\u0627\u0644\u0645\u0631\u0633\u0644",
+            "\u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064A\u0647"
+        };
+
+        var notes = new List<string> { "Donnees importees depuis le fichier externe:" };
+        foreach (var headerCell in row.Worksheet.Row(1).CellsUsed().OrderBy(cell => cell.Address.ColumnNumber))
+        {
+            var headerName = headerCell.GetString().Trim();
+            var value = row.Cell(headerCell.Address.ColumnNumber).GetString().Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (!mappedHeaders.Contains(headerName))
+            {
+                notes.Add($"{headerName}: {value}");
+            }
+        }
+
+        return notes.Count == 1 ? string.Empty : string.Join(Environment.NewLine, notes);
     }
 
     private static int ReadServiceId(string value)

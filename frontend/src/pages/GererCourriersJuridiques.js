@@ -112,7 +112,8 @@ function GererCourriersJuridiques({ embedded = false }) {
           transactions
             .filter((transaction) =>
               String(transaction.documentType || "").toLowerCase() === "judiciaire" &&
-              Number(transaction.sourceServiceId) === currentServiceId
+              Number(transaction.sourceServiceId) === currentServiceId &&
+              isPendingTransactionStatus(transaction.statut)
             )
             .map((transaction) => String(transaction.documentId))
         )
@@ -1123,6 +1124,11 @@ function canTransferCourrier(courrier, sentDocumentIds = new Set()) {
   if (isLinkedJudicialRecord(courrier)) return true;
   if (courrier?.estTransmissible) return true;
   return Number(courrier?.idService) === BUREAU_ORDRE_SERVICE_ID && isIncompleteJudicialFile(courrier);
+}
+
+function isPendingTransactionStatus(statut) {
+  const value = String(statut || "").toLowerCase();
+  return value === "enattente" || value === "en attente" || value === "pending";
 }
 
 function getDefaultTransferServiceId(courrier) {

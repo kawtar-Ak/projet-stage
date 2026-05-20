@@ -32,7 +32,7 @@ function Dashboard() {
     const isOpeningFilesService = serviceId === 3;
     const isAdminService = serviceId === 1 || serviceId === 5 || user?.readOnly;
     const isNotificationCopiesService = serviceId === 7;
-    const handlesIncomingRequests = !isGreffeService;
+    const handlesIncomingRequests = true;
 
     useEffect(() => {
         const stored = localStorage.getItem('hiddenDashboardTransactions');
@@ -280,12 +280,12 @@ function Dashboard() {
                                 i18n={i18n}
                                 t={t}
                                 actions={canRespondToTransaction(tx, serviceId) ? [
-                                    <button className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
-                                    <button className="action-link accept" onClick={() => handleRespond(tx.id, true)} title={isArchiveService ? t('archiver') : t('accepter')} aria-label={isArchiveService ? t('archiver') : t('accepter')}><ActionIcon name={isArchiveService ? 'archive' : 'accept'} /></button>,
-                                    <button className="action-link cancel" onClick={() => handleRespond(tx.id, false)} title={t('refuser')} aria-label={t('refuser')}><ActionIcon name="cancel" /></button>
+                                    <button key="view" className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
+                                    <button key="accept" className="action-link accept" onClick={() => handleRespond(tx.id, true)} title={isArchiveService ? t('archiver') : t('accepter')} aria-label={isArchiveService ? t('archiver') : t('accepter')}><ActionIcon name={isArchiveService ? 'archive' : 'accept'} /></button>,
+                                    <button key="reject" className="action-link cancel" onClick={() => handleRespond(tx.id, false)} title={t('refuser')} aria-label={t('refuser')}><ActionIcon name="cancel" /></button>
                                 ] : [
-                                    <button className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
-                                    <button className="action-link cancel" onClick={() => handleCancel(tx.id)} title={t('annuler')} aria-label={t('annuler')}><ActionIcon name="cancel" /></button>
+                                    <button key="view" className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
+                                    <button key="cancel" className="action-link cancel" onClick={() => handleCancel(tx.id)} title={t('annuler')} aria-label={t('annuler')}><ActionIcon name="cancel" /></button>
                                 ]}
                             />
                         ))}
@@ -309,8 +309,8 @@ function Dashboard() {
                                 date={tx.dateReponse}
                                 dateLabel={t('traite_le')}
                                 actions={[
-                                    <button className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
-                                    <button className="action-link hide" onClick={() => handleHide(tx.id)} title={t('masquer')} aria-label={t('masquer')}><ActionIcon name="hide" /></button>
+                                    <button key="view" className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
+                                    <button key="hide" className="action-link hide" onClick={() => handleHide(tx.id)} title={t('masquer')} aria-label={t('masquer')}><ActionIcon name="hide" /></button>
                                 ]}
                             />
                         ))}
@@ -331,8 +331,8 @@ function Dashboard() {
                                 i18n={i18n}
                                 t={t}
                                 actions={[
-                                    <button className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
-                                    <button className="action-link accept" onClick={() => handleMarkReturned(tx.id)} title={t('marquer_retourne')} aria-label={t('marquer_retourne')}><ActionIcon name="return" /></button>
+                                    <button key="view" className="action-link view" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')}><ActionIcon name="view" /></button>,
+                                    <button key="return" className="action-link accept" onClick={() => handleMarkReturned(tx.id)} title={t('marquer_retourne')} aria-label={t('marquer_retourne')}><ActionIcon name="return" /></button>
                                 ]}
                             />
                         ))}

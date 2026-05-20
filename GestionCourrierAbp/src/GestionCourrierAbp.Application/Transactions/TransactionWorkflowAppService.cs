@@ -249,6 +249,14 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     {
         // Récupération de la transaction par son ID
         var transaction = await _repository.GetAsync(id);
+        var responderServiceId = input.ResponderServiceId ?? transaction.DestinationServiceId;
+
+        if (responderServiceId != transaction.DestinationServiceId)
+        {
+            throw new BusinessException("TransactionReponseNonAutorisee")
+                .WithData("DestinationServiceId", transaction.DestinationServiceId)
+                .WithData("ResponderServiceId", responderServiceId);
+        }
 
         // Traitement de l’acceptation ou du refus via le service workflow
         await _workflowService.RespondAsync(
@@ -256,7 +264,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             input.Accepte,
             input.Message,
             input.ResponderUserName,
-            input.ResponderServiceId ?? transaction.DestinationServiceId,
+            responderServiceId,
             input.ResponderServiceName ?? await GetServiceNameAsync(transaction.DestinationServiceId));
 
         await UpdateCirculationFromTransactionAsync(transaction);
