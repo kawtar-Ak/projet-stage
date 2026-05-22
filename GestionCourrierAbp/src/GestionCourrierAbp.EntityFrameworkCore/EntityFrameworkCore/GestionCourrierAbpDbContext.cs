@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using GestionCourrierAbp.Circulations;
 using GestionCourrierAbp.Courriers;
 using GestionCourrierAbp.Equipements;
+using GestionCourrierAbp.Lookups;
 using GestionCourrierAbp.Registres;
 using GestionCourrierAbp.Services;
 using GestionCourrierAbp.Transactions;
@@ -40,6 +41,7 @@ public class GestionCourrierAbpDbContext :
     public DbSet<Circulation> Circulations { get; set; }
     public DbSet<Registre> Registres { get; set; }
     public DbSet<Reponse> Reponses { get; set; }
+    public DbSet<LookupItem> LookupItems { get; set; }
 
     #region Entities from the modules
 
@@ -182,6 +184,7 @@ public class GestionCourrierAbpDbContext :
             b.Property(x => x.Destinataire).HasMaxLength(512);
             b.Property(x => x.EtatArchive).HasMaxLength(64);
             b.Property(x => x.Emplacement).HasMaxLength(512);
+            b.Property(x => x.Cabinet).HasMaxLength(256);
             b.Property(x => x.LienPdf).HasMaxLength(1024);
             b.HasOne(x => x.Service)
                 .WithMany()
@@ -240,6 +243,16 @@ public class GestionCourrierAbpDbContext :
                 .WithMany(x => x.Reponses)
                 .HasForeignKey(x => x.RegistreId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<LookupItem>(b =>
+        {
+            b.ToTable(GestionCourrierAbpConsts.DbTablePrefix + "LookupItems", GestionCourrierAbpConsts.DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.ListName).IsRequired().HasMaxLength(128);
+            b.Property(x => x.Value).IsRequired().HasMaxLength(256);
+            b.Property(x => x.Label).IsRequired().HasMaxLength(256);
+            b.HasIndex(x => new { x.ListName, x.Value }).IsUnique();
         });
     }
 }

@@ -13,6 +13,7 @@ function JudicialSearch() {
   const [error, setError] = useState('');
   const [consultedDocument, setConsultedDocument] = useState(null);
   const [services, setServices] = useState(DEFAULT_SERVICES);
+  const [movementHistory, setMovementHistory] = useState(null);
 
   useEffect(() => {
     const timeout = setTimeout(searchJudicialFiles, 300);
@@ -76,10 +77,19 @@ function JudicialSearch() {
         });
       });
 
-      setResults(filteredItems.slice(0, 8).map((dossier) => ({
-        ...dossier,
-        latestTransaction: getLatestTransaction(dossier, transactions),
-      })));
+      const mappedResults = mergeSearchResultsByDossier(filteredItems)
+        .map((dossier) => {
+          const movements = getDocumentTransactions(dossier, transactions);
+          return {
+            ...dossier,
+            latestTransaction: movements[0] || null,
+            movements,
+          };
+        })
+        .sort((a, b) => getDossierSortTime(b) - getDossierSortTime(a))
+        .slice(0, 8);
+
+      setResults(mappedResults);
       setError('');
     } catch {
       setError(t('erreur_recherche_dossiers_juridiques'));
@@ -101,6 +111,7 @@ function JudicialSearch() {
       numeroCourrier: dossier.idBureauOrdre,
       numeroDossierJudiciaire: dossier.numeroDossier,
       etatArchive: dossier.etatArchive,
+      lienPdf: dossier.lienPdf,
     });
   };
 
@@ -133,56 +144,70 @@ function JudicialSearch() {
         ) : results.length === 0 && !loading ? (
           <div className="admin-search-empty">{t('aucun_dossier_trouve')}</div>
         ) : (
-          results.map((dossier) => {
-            const transaction = dossier.latestTransaction;
-            const currentService = getLocalizedServiceName(
-              {
-                idService: transaction?.currentServiceId || transaction?.destinationServiceId || dossier.idService,
-                nomService: transaction?.currentServiceNom || transaction?.destinationServiceNom || dossier.serviceNom || dossier.nomService
-              },
-              i18n,
-              getCurrentServiceLabel(dossier, services, i18n)
-            );
-            const location = dossier.emplacement || transaction?.currentLocation || '-';
-            const trackingStatus = transaction?.statut || dossier.etatArchive || 'Nouveau';
+          <div className="data-table-wrapper judicial-search-table-wrapper" dir={(i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar') ? 'rtl' : 'ltr'}>
+            <table className="modern-table judicial-search-table">
+              <thead>
+                <tr>
+                  <th>{translate(t, 'numero_dossier', 'Numero dossier')}</th>
+                  <th>{t('numero_bureau_ordre')}</th>
+                  <th>{t('sujet')}</th>
+                  <th>{t('etat')}</th>
+                  <th>{t('service_actuel')}</th>
+                  <th>{t('emplacement')}</th>
+                  <th>{translate(t, 'derniere_transaction', 'Derniere transaction')}</th>
+                  <th>{t('traite_par')}</th>
+                  <th>{translate(t, 'toutes_transactions', 'Toutes les transactions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((dossier) => {
+                  const transaction = dossier.latestTransaction;
+                  const movements = dossier.movements || [];
+                  const currentService = getLocalizedServiceName(
+                    {
+                      idService: transaction?.currentServiceId || transaction?.destinationServiceId || dossier.idService,
+                      nomService: transaction?.currentServiceNom || transaction?.destinationServiceNom || dossier.serviceNom || dossier.nomService
+                    },
+                    i18n,
+                    getCurrentServiceLabel(dossier, services, i18n)
+                  );
+                  const location = dossier.emplacement || transaction?.currentLocation || '-';
+                  const trackingStatus = transaction?.statut || dossier.etatArchive || 'Nouveau';
 
-            return (
-              <button
-                type="button"
-                className="admin-search-result admin-tracking-result"
-                key={dossier.id}
-                onClick={() => handleConsult(dossier)}
-              >
-                <span className="admin-result-identity">
-                  <span className="admin-result-title">
-                    <strong>{dossier.numeroDossier || t('sans_numero')}</strong>
-                    <em>{formatStatus(trackingStatus, t)}</em>
-                  </span>
-                  <small>BO {dossier.idBureauOrdre || '-'} | {dossier.tribunalSource || '-'}</small>
-                  <small>{dossier.sujet || '-'}</small>
-                </span>
-
-                <span className="admin-result-location">
-                  <span>
-                    <b>{t('service_actuel')}</b>
-                    <small>{transaction?.currentServiceNom || transaction?.destinationServiceNom || currentService}</small>
-                  </span>
-                  <span>
-                    <b>{t('emplacement')}</b>
-                    <small>{location}</small>
-                  </span>
-                  <span>
-                    <b>{t('dernier_mouvement')}</b>
-                    <small>{formatMovement(transaction, t)}</small>
-                  </span>
-                  <span>
-                    <b>{t('traite_par')}</b>
-                    <small>{formatResponder(transaction, i18n, t)}</small>
-                  </span>
-                </span>
-              </button>
-            );
-          })
+                  return (
+                    <tr key={dossier.id}>
+                      <td>
+                        <button
+                          type="button"
+                          className="table-link-button"
+                          onClick={() => handleConsult(dossier)}
+                        >
+                          {dossier.numeroDossier || t('sans_numero')}
+                        </button>
+                      </td>
+                      <td>BO {dossier.idBureauOrdre || '-'}</td>
+                      <td>{dossier.sujet || dossier.tribunalSource || '-'}</td>
+                      <td>{formatStatus(trackingStatus, t)}</td>
+                      <td>{transaction?.currentServiceNom || transaction?.destinationServiceNom || currentService}</td>
+                      <td>{location}</td>
+                      <td title={formatMovement(transaction, t)}>{formatMovement(transaction, t)}</td>
+                      <td title={formatResponder(transaction, i18n, t)}>{formatResponder(transaction, i18n, t)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          aria-label={`${translate(t, 'toutes_transactions', 'Toutes les transactions')} ${dossier.numeroDossier || ''}`}
+                          onClick={() => setMovementHistory(dossier)}
+                        >
+                          {t('consulter')}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -190,6 +215,14 @@ function JudicialSearch() {
         <DocumentModal
           document={consultedDocument}
           onClose={() => setConsultedDocument(null)}
+        />
+      )}
+      {movementHistory && (
+        <MovementHistoryModal
+          dossier={movementHistory}
+          i18n={i18n}
+          t={t}
+          onClose={() => setMovementHistory(null)}
         />
       )}
     </section>
@@ -273,14 +306,74 @@ function mergeById(...lists) {
   return Array.from(map.values());
 }
 
-function getLatestTransaction(dossier, transactions) {
+function mergeSearchResultsByDossier(items) {
+  const map = new Map();
+
+  items.forEach((item) => {
+    if (!item) return;
+    const key = getDossierGroupKey(item);
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, {
+        ...item,
+        sourceIds: [item.id].filter((value) => value !== undefined && value !== null),
+      });
+      return;
+    }
+
+    map.set(key, {
+      ...existing,
+      ...item,
+      id: existing.id,
+      numeroDossier: existing.numeroDossier || item.numeroDossier,
+      idBureauOrdre: existing.idBureauOrdre || item.idBureauOrdre,
+      sujet: existing.sujet || item.sujet,
+      tribunalSource: existing.tribunalSource || item.tribunalSource,
+      description: existing.description || item.description,
+      lienPdf: existing.lienPdf || item.lienPdf,
+      sourceIds: Array.from(new Set([
+        ...(existing.sourceIds || [existing.id]),
+        item.id,
+      ].filter((value) => value !== undefined && value !== null))),
+      date: getTime(item.date || item.creationTime) > getTime(existing.date || existing.creationTime)
+        ? item.date
+        : existing.date,
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function getDossierGroupKey(item) {
+  const numeroDossier = normalizeSearchText(item.numeroDossier);
+  if (numeroDossier) return `dossier:${numeroDossier}`;
+
+  const bureauOrdre = normalizeSearchText(item.idBureauOrdre);
+  if (bureauOrdre) return `bo:${bureauOrdre}`;
+
+  return `id:${item.id}`;
+}
+
+function getDossierSortTime(dossier) {
+  return getTime(
+    dossier.latestTransaction?.dateReponse ||
+    dossier.latestTransaction?.dateEnvoi ||
+    dossier.date ||
+    dossier.creationTime ||
+    dossier.dateCreation
+  );
+}
+
+function getDocumentTransactions(dossier, transactions) {
+  const sourceIds = new Set((dossier.sourceIds || [dossier.id]).map((id) => Number(id)));
   const matches = transactions.filter((tx) => {
-    return Number(tx.documentId) === Number(dossier.id) ||
+    return sourceIds.has(Number(tx.documentId)) ||
       normalizeSearchText(tx.numeroDossierJudiciaire) === normalizeSearchText(dossier.numeroDossier) ||
       normalizeSearchText(tx.numeroCourrier) === normalizeSearchText(dossier.idBureauOrdre);
   });
 
-  return matches.sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi))[0] || null;
+  return matches.sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
 }
 
 function getCurrentServiceLabel(dossier, services, i18n) {
@@ -319,6 +412,66 @@ function formatStatus(value, t) {
 function getTime(value) {
   const time = value ? new Date(value).getTime() : 0;
   return Number.isNaN(time) ? 0 : time;
+}
+
+function formatDateTime(value, i18n) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  const locale = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar') ? 'ar-MA' : 'fr-FR';
+  return date.toLocaleString(locale);
+}
+
+function MovementHistoryModal({ dossier, i18n, t, onClose }) {
+  const movements = [...(dossier.movements || [])]
+    .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
+
+  return (
+    <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <div className="modal" onClick={(event) => event.stopPropagation()}>
+        <h2>{translate(t, 'toutes_transactions', 'Toutes les transactions')}</h2>
+        <p className="modal-subtitle">{dossier.numeroDossier || dossier.idBureauOrdre || '-'}</p>
+        {movements.length === 0 ? (
+          <div className="admin-search-empty">{t('aucun_mouvement')}</div>
+        ) : (
+          <div className="data-table-wrapper">
+            <table className="modern-table">
+              <thead>
+                <tr>
+                  <th>{t('date')}</th>
+                  <th>{translate(t, 'mouvement', 'Mouvement')}</th>
+                  <th>{t('etat')}</th>
+                  <th>{translate(t, 'envoye_par', 'Envoye par')}</th>
+                  <th>{t('traite_par')}</th>
+                  <th>{t('message')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {movements.map((movement) => (
+                  <tr key={movement.id}>
+                    <td>{formatDateTime(movement.dateReponse || movement.dateEnvoi, i18n)}</td>
+                    <td>{formatMovement(movement, t)}</td>
+                    <td>{formatStatus(movement.statut, t)}</td>
+                    <td>{movement.senderUserName || movement.sourceServiceNom || '-'}</td>
+                    <td>{formatResponder(movement, i18n, t)}</td>
+                    <td>{movement.messageReponse || movement.message || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="form-actions">
+          <button type="button" className="btn-primary" onClick={onClose}>{t('fermer')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function translate(t, key, fallback) {
+  const value = t(key);
+  return value === key ? fallback : value;
 }
 
 export default JudicialSearch;

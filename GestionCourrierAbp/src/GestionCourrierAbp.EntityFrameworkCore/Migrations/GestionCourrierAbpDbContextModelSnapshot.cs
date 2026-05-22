@@ -138,7 +138,15 @@ namespace GestionCourrierAbp.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("CreatorId");
 
+                    b.Property<string>("Cabinet")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
                     b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DateArchivage")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Description")

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import ActionIcon from '../components/ActionIcon';
+import { getLookupItems, itemsToOptions } from '../api/lookups';
 
 function GererEquipements() {
     const { t } = useTranslation();
@@ -20,6 +21,8 @@ function GererEquipements() {
     const [headers, setHeaders] = useState([]);
     const [mapping, setMapping] = useState({ serie: '', type: '', etat: '', serviceId: '' });
     const [showMapping, setShowMapping] = useState(false);
+    const [typeOptions, setTypeOptions] = useState([]);
+    const [etatOptions, setEtatOptions] = useState([]);
 
     const fetchEquipements = async () => {
         try {
@@ -40,9 +43,23 @@ function GererEquipements() {
             setServices(res.data);
         } catch (err) { }
     };
+    const fetchLookups = async () => {
+        try {
+            const [types, etats] = await Promise.all([
+                getLookupItems('equipement.type'),
+                getLookupItems('equipement.etat')
+            ]);
+            setTypeOptions(itemsToOptions(types, getDefaultTypeOptions(t)));
+            setEtatOptions(itemsToOptions(etats, getDefaultEtatOptions(t)));
+        } catch (err) {
+            setTypeOptions(getDefaultTypeOptions(t));
+            setEtatOptions(getDefaultEtatOptions(t));
+        }
+    };
     useEffect(() => {
         fetchEquipements();
         fetchServices();
+        fetchLookups();
     }, [search, filterType, filterEtat, onlyDecharge]);
 
     const handleSubmit = async (e) => {
@@ -169,18 +186,8 @@ function GererEquipements() {
         setSelectedIds(selectedIds.includes(id) ? selectedIds.filter(i => i !== id) : [...selectedIds, id]);
     };
 
-    const typeMap = {
-        1: t('type_ordinateur'),
-        2: t('type_imprimante'),
-        3: t('type_scanner'),
-        4: t('type_photocopieur')
-    };
-    const etatMap = {
-        1: t('etat_neuf'),
-        2: t('etat_bon'),
-        3: t('etat_reparer'),
-        4: t('etat_hors_service')
-    };
+    const typeMap = Object.fromEntries(typeOptions.map(option => [option.value, option.label]));
+    const etatMap = Object.fromEntries(etatOptions.map(option => [option.value, option.label]));
 
     return (
         <div className="page-container">
@@ -190,11 +197,11 @@ function GererEquipements() {
                 <input type="text" placeholder={t('rechercher_equipement')} value={search} onChange={e => setSearch(e.target.value)} />
                 <select value={filterType} onChange={e => setFilterType(e.target.value)}>
                     <option value="">{t('tous_types')}</option>
-                    {Object.entries(typeMap).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    {typeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
                 <select value={filterEtat} onChange={e => setFilterEtat(e.target.value)}>
                     <option value="">{t('tous_etats')}</option>
-                    {Object.entries(etatMap).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    {etatOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
                 <label>
                     <input type="checkbox" checked={onlyDecharge} onChange={e => setOnlyDecharge(e.target.checked)} /> {t('uniquement_decharges')}
@@ -254,8 +261,8 @@ function GererEquipements() {
                 <form onSubmit={handleSubmit}>
                     <div className="form-grid">
                         <div className="form-field"><label>{t('serie')} *</label><input type="number" value={form.serial} onChange={e => setForm({ ...form, serial: e.target.value })} required /></div>
-                        <div className="form-field"><label>{t('type')} *</label><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} required><option value="">{t('type')}</option>{Object.entries(typeMap).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-                        <div className="form-field"><label>{t('etat')} *</label><select value={form.etat} onChange={e => setForm({ ...form, etat: e.target.value })} required><option value="">{t('etat')}</option>{Object.entries(etatMap).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+                        <div className="form-field"><label>{t('type')} *</label><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} required><option value="">{t('type')}</option>{typeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+                        <div className="form-field"><label>{t('etat')} *</label><select value={form.etat} onChange={e => setForm({ ...form, etat: e.target.value })} required><option value="">{t('etat')}</option>{etatOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
                         <div className="form-field"><label>{t('service')} *</label><select value={form.idService} onChange={e => setForm({ ...form, idService: e.target.value })} required><option value="">{t('service')}</option>{services.map(s => <option key={s.idService} value={s.idService}>{s.nomService}</option>)}</select></div>
                     </div>
                     <div className="form-actions">
@@ -315,4 +322,22 @@ function GererEquipements() {
 }
 
 export default GererEquipements;
+
+function getDefaultTypeOptions(t) {
+    return [
+        { value: '1', label: t('type_ordinateur') },
+        { value: '2', label: t('type_imprimante') },
+        { value: '3', label: t('type_scanner') },
+        { value: '4', label: t('type_photocopieur') }
+    ];
+}
+
+function getDefaultEtatOptions(t) {
+    return [
+        { value: '1', label: t('etat_neuf') },
+        { value: '2', label: t('etat_bon') },
+        { value: '3', label: t('etat_reparer') },
+        { value: '4', label: t('etat_hors_service') }
+    ];
+}
 

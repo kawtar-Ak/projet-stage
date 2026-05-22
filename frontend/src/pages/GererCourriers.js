@@ -14,6 +14,8 @@ import { useTranslation } from "react-i18next";
 import GererCourriersJuridiques from "./GererCourriersJuridiques";
 import ActionIcon from "../components/ActionIcon";
 import DocumentModal from "../components/DocumentModal";
+import { ABP_API_URL } from "../api/axiosConfig";
+import { getLookupItems, itemsToOptions } from "../api/lookups";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 
@@ -70,6 +72,8 @@ function GererCourriers() {
 
   // Stocke la liste des services récupérés depuis le backend.
   const [services, setServices] = useState([]);
+  const [etatOptions, setEtatOptions] = useState(getDefaultCourrierEtatOptions(t));
+  const [sourceOptions, setSourceOptions] = useState(WARIDAT_SOURCES.map((source) => ({ value: source, label: source })));
 
   // Si editingId = null => mode ajout.
   // Si editingId contient un id => mode modification.
@@ -108,6 +112,7 @@ function GererCourriers() {
 
   // Indique si un fichier Excel est en cours d'importation.
   const [importing, setImporting] = useState(false);
+  const [administrativeImportType, setAdministrativeImportType] = useState(TYPE_WARIDAT);
 
   // Indique si un document PDF/Word est en cours d'upload.
   const [uploadingDocument, setUploadingDocument] = useState(false);
@@ -157,13 +162,17 @@ function GererCourriers() {
     () => filterCourriers(allCourriers, motCle, dateRecherche, registreFilter),
     [allCourriers, motCle, dateRecherche, registreFilter]
   );
+  const visibleCourriers = useMemo(
+    () => getVisibleAdministrativeRows(filteredCourriers, allCourriers),
+    [filteredCourriers, allCourriers]
+  );
   const selectedExportIdSet = useMemo(
     () => new Set(selectedExportIds.map((id) => String(id))),
     [selectedExportIds]
   );
   const visibleExportIds = useMemo(
-    () => filteredCourriers.map((courrier) => courrier.id).filter(Boolean),
-    [filteredCourriers]
+    () => visibleCourriers.map((courrier) => courrier.id).filter(Boolean),
+    [visibleCourriers]
   );
   const allVisibleSelected =
     visibleExportIds.length > 0 &&
@@ -192,6 +201,7 @@ function GererCourriers() {
     fetchCourriers();
     fetchWaridat();
     fetchServices();
+    fetchLookups();
     fetchSentAdministrativeTransactions();
   }, []);
 
@@ -262,6 +272,20 @@ function GererCourriers() {
       }
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_chargement_services")));
+    }
+  };
+
+  const fetchLookups = async () => {
+    try {
+      const [etats, sources] = await Promise.all([
+        getLookupItems("courrier.etat"),
+        getLookupItems("administratif.source")
+      ]);
+      setEtatOptions(itemsToOptions(etats, getDefaultCourrierEtatOptions(t)));
+      setSourceOptions(itemsToOptions(sources, WARIDAT_SOURCES.map((source) => ({ value: source, label: source }))));
+    } catch (err) {
+      setEtatOptions(getDefaultCourrierEtatOptions(t));
+      setSourceOptions(WARIDAT_SOURCES.map((source) => ({ value: source, label: source })));
     }
   };
 
@@ -473,7 +497,7 @@ function GererCourriers() {
 
     const effectiveIdBureauOrdre = isLinkedMorasalat
       ? (displayedIdBureauOrdre || form.parentIdBureauOrdre || "").trim()
-      : form.idBureauOrdre.trim();
+      : formatBureauOrdreWithCurrentYear(form.idBureauOrdre);
 
     const dataToSend = {
       // Si la Morasalat est liée, le numéro de bureau d'ordre vient de la Warida.
@@ -539,7 +563,7 @@ function GererCourriers() {
       setSavingLinked(true);
 
       const existingWarida = !editingId
-        ? findMainWaridatByNumero(allCourriers, form.idBureauOrdre)
+        ? findMainWaridatByNumero(allCourriers, formatBureauOrdreWithCurrentYear(form.idBureauOrdre))
         : null;
 
       const savedWarida = existingWarida || (await saveCurrentCourrier());
@@ -619,6 +643,7 @@ function GererCourriers() {
       description: courrier.description,
       numeroCourrier: courrier.numeroDeCourrier || courrier.idBureauOrdre,
       etat: courrier.etat,
+      lienPdf: courrier.lienPdf,
     });
   };
 
@@ -750,6 +775,13 @@ function GererCourriers() {
     setTransferForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleIdBureauOrdreBlur = () => {
+    setForm((prev) => ({
+      ...prev,
+      idBureauOrdre: formatBureauOrdreWithCurrentYear(prev.idBureauOrdre),
     }));
   };
 
@@ -950,7 +982,18 @@ function GererCourriers() {
     setSuccess("");
 
     try {
-      const response = await axios.post("/api/courriers/import/excel", formData);
+      const params = new URLSearchParams();
+      if (administrativeImportType === "MorasalatEntrante") {
+        params.set("typeRegistre", TYPE_MORASALAT);
+        params.set("typeCorrespondance", CORRESPONDANCE_ENTRANTE);
+      } else if (administrativeImportType === "MorasalatSortante") {
+        params.set("typeRegistre", TYPE_MORASALAT);
+        params.set("typeCorrespondance", CORRESPONDANCE_SORTANTE);
+      } else {
+        params.set("typeRegistre", TYPE_WARIDAT);
+      }
+
+      const response = await axios.post(`/api/courriers/import/excel?${params.toString()}`, formData);
 
       const imported = response.data?.imported || 0;
       const errors = response.data?.errors || [];
@@ -1032,8 +1075,8 @@ function GererCourriers() {
       <div className="data-table-header">
         <h3>
           {hasActiveSearch
-            ? t("resultats_recherche", { count: filteredCourriers.length })
-            : t("registre_count", { count: filteredCourriers.length })}
+            ? t("resultats_recherche", { count: visibleCourriers.length })
+            : t("registre_count", { count: visibleCourriers.length })}
         </h3>
 
         <div className="registry-tools table-registry-tools">
@@ -1045,6 +1088,17 @@ function GererCourriers() {
           >
             {t("exporter_excel")}
           </button>
+
+          <select
+            className="export-scope-select"
+            value={administrativeImportType}
+            onChange={(event) => setAdministrativeImportType(event.target.value)}
+            disabled={importing}
+          >
+            <option value={TYPE_WARIDAT}>{translate(t, "import_entrees", "Entrées")}</option>
+            <option value="MorasalatEntrante">{translate(t, "import_correspondances_entrantes", "Correspondances entrantes")}</option>
+            <option value="MorasalatSortante">{translate(t, "import_correspondances_sortantes", "Correspondances sortantes")}</option>
+          </select>
 
           <label className="btn-secondary import-label">
             {importing ? t("import_en_cours") : t("importer_excel")}
@@ -1070,7 +1124,7 @@ function GererCourriers() {
               />
             </th>
             <th>{t("numero_bureau_ordre")}</th>
-            <th>{t("type_registre")}</th>
+            <th>{t("type_document")}</th>
             <th>{t("liaison")}</th>
             <th>{t("date")}</th>
             <th>{t("source")}</th>
@@ -1080,20 +1134,22 @@ function GererCourriers() {
             <th>{t("etat")}</th>
             <th>{t("transmissible")}</th>
             <th>{t("pdf")}</th>
+            <th>{t("morasalat_entrantes")}</th>
             <th>{t("actions")}</th>
           </tr>
         </thead>
 
         <tbody>
-          {filteredCourriers.length === 0 ? (
+          {visibleCourriers.length === 0 ? (
             <tr>
-              <td colSpan="13" style={{ textAlign: "center" }}>
+              <td colSpan="14" style={{ textAlign: "center" }}>
                 {t("aucun_registre")}
               </td>
             </tr>
           ) : (
-            filteredCourriers.map((courrier) => {
+            visibleCourriers.map((courrier) => {
               const actionState = getAdministrativeActionState(courrier, allCourriers, sentAdministrativeDocumentIds);
+              const morasalatResponse = findMorasalatResponse(courrier, allCourriers);
 
               return (
               <tr key={courrier.id}>
@@ -1136,6 +1192,22 @@ function GererCourriers() {
                     >
                       {t("voir")}
                     </a>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+
+                <td className="action-icons">
+                  {morasalatResponse ? (
+                    <button
+                      type="button"
+                      onClick={() => handleConsult(morasalatResponse)}
+                      title={t("consulter")}
+                      aria-label={t("consulter")}
+                      className="btn-secondary"
+                    >
+                      {t("morasalat_entrantes")}
+                    </button>
                   ) : (
                     "-"
                   )}
@@ -1359,6 +1431,7 @@ function GererCourriers() {
                   name="idBureauOrdre"
                   value={form.idBureauOrdre}
                   onChange={handleChange}
+                  onBlur={handleIdBureauOrdreBlur}
                   placeholder={t("placeholder_numero_bureau_exemple")}
                   required
                 />
@@ -1467,8 +1540,8 @@ function GererCourriers() {
                   required
                 >
                   <option value="">{t("choisir")}</option>
-                  {WARIDAT_SOURCES.map((source) => (
-                    <option key={source} value={source}>{source}</option>
+                  {sourceOptions.map((source) => (
+                    <option key={source.value} value={source.value}>{source.label}</option>
                   ))}
                 </select>
               ) : (
@@ -1553,10 +1626,9 @@ function GererCourriers() {
             <div className={isStructuredAdminForm ? "form-field waridat-etat-field" : "form-field"}>
               <label>{t("etat")}</label>
               <select name="etat" value={form.etat} onChange={handleChange}>
-                <option value="Nouveau">{t("etat_nouveau")}</option>
-                <option value="En cours">{t("etat_en_cours")}</option>
-                <option value="Traite">{t("etat_traite")}</option>
-                <option value="Archive">{t("etat_archive")}</option>
+                {etatOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
             )}
@@ -1738,7 +1810,7 @@ function GererCourriers() {
             </div>
 
             <div className="search-control-row">
-              <div className="filter-chip-group" aria-label={t("type_registre")}>
+              <div className="filter-chip-group" aria-label={t("type_document")}>
                 <button
                   type="button"
                   className={registreFilter === "all" ? "filter-chip active" : "filter-chip"}
@@ -2184,6 +2256,62 @@ function filterCourriers(courriers, motCle, dateRecherche, registreFilter = "all
   });
 }
 
+function getVisibleAdministrativeRows(filteredCourriers, allCourriers) {
+  const visibleById = new Map();
+
+  filteredCourriers.forEach((courrier) => {
+    if (!isMorasalatResponse(courrier)) {
+      visibleById.set(String(courrier.id), courrier);
+      return;
+    }
+
+    const parent = findMorasalatParent(courrier, allCourriers);
+    if (parent) {
+      visibleById.set(String(parent.id), parent);
+    }
+  });
+
+  return Array.from(visibleById.values())
+    .sort((a, b) => getTime(b.date) - getTime(a.date));
+}
+
+function findMorasalatParent(response, courriers = []) {
+  if (!response?.parentId) return null;
+  return courriers.find((item) => String(item.id) === String(response.parentId)) || null;
+}
+
+function findMorasalatResponse(courrier, courriers = []) {
+  if (!isMainMorasalat(courrier)) return null;
+
+  return courriers
+    .filter((item) =>
+      String(item.parentId || "") === String(courrier.id || "") &&
+      isMorasalatResponse(item)
+    )
+    .sort((a, b) => getTime(b.date) - getTime(a.date))[0] || null;
+}
+
+function getTime(value) {
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function formatBureauOrdreWithCurrentYear(value) {
+  const currentYear = new Date().getFullYear().toString();
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+
+  if (trimmed.includes("/")) {
+    const [numberPart, yearPart] = trimmed.split("/").map((part) => part.trim());
+    const number = numberPart.replace(/\D/g, "");
+    const year = (yearPart || currentYear).replace(/\D/g, "").slice(0, 4) || currentYear;
+    return number ? `${number}/${year}` : trimmed;
+  }
+
+  const number = trimmed.replace(/\D/g, "");
+  return number ? `${number}/${currentYear}` : trimmed;
+}
+
 function normalizeSearchText(value) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -2239,6 +2367,15 @@ function formatEtat(etat, t) {
   if (etat && etat !== "Nouveau") return etat;
 
   return t("etat_nouveau");
+}
+
+function getDefaultCourrierEtatOptions(t) {
+  return [
+    { value: "Nouveau", label: t("etat_nouveau") },
+    { value: "En cours", label: t("etat_en_cours") },
+    { value: "Traite", label: t("etat_traite") },
+    { value: "Archive", label: t("etat_archive") },
+  ];
 }
 
 function buildAdministrativeSelectionWorkbook(courriers, allCourriers, t) {
@@ -2463,7 +2600,7 @@ function getDocumentHref(value) {
     window.location.hostname === "localhost" && window.location.port === "3000";
 
   return isReactDevServer
-    ? `http://localhost:5127${normalizedValue}`
+    ? `${ABP_API_URL}${normalizedValue}`
     : normalizedValue;
 }
 

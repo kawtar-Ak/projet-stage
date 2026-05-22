@@ -3445,6 +3445,15 @@ button:disabled {
   min-width: 0;
 }
 
+.admin-result-identity {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: inherit;
+  cursor: pointer;
+}
+
 .admin-result-title {
   display: flex;
   align-items: center;
@@ -3476,7 +3485,7 @@ button:disabled {
 }
 
 .admin-result-location {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 0.65rem;
   border-radius: 8px;
   background: #f0f6fb;
@@ -3504,6 +3513,49 @@ button:disabled {
 .admin-result-location small {
   color: #07365f;
   overflow-wrap: anywhere;
+}
+
+.admin-result-location .btn-secondary {
+  min-height: 2.25rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.modal-subtitle {
+  margin: -0.35rem 0 1rem;
+  color: #61758a;
+  font-weight: 800;
+}
+
+.table-link-button {
+  border: 0;
+  background: transparent;
+  color: #07365f;
+  padding: 0;
+  font: inherit;
+  font-weight: 900;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.table-link-button:hover {
+  color: #0f5f9a;
+  text-decoration: underline;
+}
+
+.judicial-search-table td {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.judicial-search-table .btn-secondary {
+  min-height: 2.4rem;
+  padding: 0.35rem 0.8rem;
+  white-space: nowrap;
+}
+
+.judicial-search-table .table-link-button {
+  white-space: nowrap;
 }
 
 .admin-search-empty {

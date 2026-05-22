@@ -18,6 +18,7 @@ public class CreateUpdateCourrierJudiciaireDto
     public string? Description { get; set; }
     public string? EtatArchive { get; set; }
     public string? Emplacement { get; set; }
+    public string? Cabinet { get; set; }
     public string? LienPdf { get; set; }
     [Range(1, int.MaxValue)]
     public int IdService { get; set; }

@@ -61,6 +61,7 @@ export const AuthProvider = ({ children }) => {
     const isOpeningFilesLogin = normalizedLogin === 'ouverturedossiers';
     const isServiceChiefLogin = normalizedLogin === 'chefservice';
     const isNotificationCopiesLogin = normalizedLogin === 'notificationcopies';
+    const isConseillerRapporteurLogin = normalizedLogin === 'conseiller' || normalizedLogin === 'conseillerrapporteur';
     const profileServiceId = Number(profile?.idService || profile?.serviceId || 0);
     const readOnly = isServiceChiefLogin || profileServiceId === 5;
 
@@ -70,15 +71,17 @@ export const AuthProvider = ({ children }) => {
           isOpeningFilesLogin ? "Bureau d'ouverture des dossiers" :
             isServiceChiefLogin ? 'Chef de service' :
               isNotificationCopiesLogin ? 'Notification et remise des copies' :
+                isConseillerRapporteurLogin ? 'Conseiller rapporteur' :
               userLogin);
     const idService = Number(profile?.idService || profile?.serviceId ||
-      (isArchiveLogin ? 13 : isGreffeLogin ? 2 : isOpeningFilesLogin ? 3 : isServiceChiefLogin ? 5 : isNotificationCopiesLogin ? 7 : 1));
+      (isArchiveLogin ? 13 : isGreffeLogin ? 2 : isOpeningFilesLogin ? 3 : isServiceChiefLogin ? 5 : isNotificationCopiesLogin ? 7 : isConseillerRapporteurLogin ? 15 : 1));
     const nomService = profile?.serviceNom || profile?.nomService ||
       (isArchiveLogin ? 'Archivage' :
         isGreffeLogin ? "Bureau d'ordre" :
           isOpeningFilesLogin ? 'Ouverture des dossiers' :
             isServiceChiefLogin ? 'Chef de service' :
               isNotificationCopiesLogin ? 'Notification et remise des copies' :
+                isConseillerRapporteurLogin ? 'المستشار المقرر' :
               'ABP');
 
     localStorage.setItem('login', userLogin);

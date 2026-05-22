@@ -19,6 +19,8 @@ public class CourrierJudiciaire : AuditedAggregateRoot<int>
     public string Description { get; set; } = string.Empty;
     public string EtatArchive { get; set; } = WorkflowStatus.Nouveau.ToStorageValue();
     public string Emplacement { get; set; } = string.Empty;
+    public string Cabinet { get; set; } = string.Empty;
+    public DateTime? DateArchivage { get; set; }
     public string LienPdf { get; set; } = string.Empty;
     public bool EstTransmissible { get; set; } = true;
     public bool EstArchive { get; set; }

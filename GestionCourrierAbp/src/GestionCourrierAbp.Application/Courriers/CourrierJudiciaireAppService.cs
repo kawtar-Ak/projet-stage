@@ -82,9 +82,25 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<CourrierJudiciaireDto> ArchiverAsync(int id)
     {
+        return await ArchiverAvecDetailsAsync(id, DateTime.Now, null, null);
+    }
+
+    public async Task<CourrierJudiciaireDto> ArchiverAvecDetailsAsync(int id, DateTime? dateArchivage, string? cabinet, string? emplacement)
+    {
         var entity = await _repository.GetAsync(id);
         entity.EstArchive = true;
         entity.EtatArchive = WorkflowStatus.Archive.ToStorageValue();
+        entity.DateArchivage = dateArchivage ?? DateTime.Now;
+        if (!string.IsNullOrWhiteSpace(cabinet))
+        {
+            entity.Cabinet = cabinet.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(emplacement))
+        {
+            entity.Emplacement = emplacement.Trim();
+        }
+
         await _repository.UpdateAsync(entity, autoSave: true);
         return await GetAsync(id);
     }
@@ -151,6 +167,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
                 x.TypeDocumentJudiciaire.Contains(value) ||
                 x.Destinataire.Contains(value) ||
                 x.Emplacement.Contains(value) ||
+                x.Cabinet.Contains(value) ||
                 x.EtatArchive.Contains(value) ||
                 (x.IdBureauOrdre != null && x.IdBureauOrdre.Contains(value)) ||
                 (x.NumeroDossierAnnee == parsed.annee &&
@@ -183,6 +200,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
                 x.TypeDocumentJudiciaire.Contains(value) ||
                 x.Destinataire.Contains(value) ||
                 x.Emplacement.Contains(value) ||
+                x.Cabinet.Contains(value) ||
                 x.EtatArchive.Contains(value) ||
                 (x.IdBureauOrdre != null && x.IdBureauOrdre.Contains(value)) ||
                 x.NumeroDossierAnnee == number ||
@@ -197,6 +215,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             x.TypeDocumentJudiciaire.Contains(value) ||
             x.Destinataire.Contains(value) ||
             x.Emplacement.Contains(value) ||
+            x.Cabinet.Contains(value) ||
             x.EtatArchive.Contains(value) ||
             (x.IdBureauOrdre != null && x.IdBureauOrdre.Contains(value)));
     }
@@ -218,6 +237,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         entity.Description = input.Description?.Trim() ?? string.Empty;
         entity.EtatArchive = input.EtatArchive?.Trim() ?? WorkflowStatus.Nouveau.ToStorageValue();
         entity.Emplacement = input.Emplacement?.Trim() ?? string.Empty;
+        entity.Cabinet = input.Cabinet?.Trim() ?? string.Empty;
         entity.LienPdf = input.LienPdf?.Trim() ?? string.Empty;
         entity.ServiceId = input.IdService;
         entity.CourrierJudiciaireParentId = IsLinkedJudicialDocument(input)
@@ -402,6 +422,8 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             Description = entity.Description,
             EtatArchive = entity.EtatArchive,
             Emplacement = entity.Emplacement,
+            Cabinet = entity.Cabinet,
+            DateArchivage = entity.DateArchivage,
             LienPdf = entity.LienPdf,
             EstTransmissible = entity.EstTransmissible,
             EstArchive = entity.EstArchive,

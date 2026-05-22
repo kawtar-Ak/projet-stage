@@ -14,5 +14,6 @@ public interface ITransactionWorkflowAppService : IApplicationService
     Task<TransactionDto> RespondAsync(int id, RespondTransactionDto input);
     Task<TransactionDto> CancelAsync(int id, int sourceServiceId);
     Task<TransactionDto> MarkReturnedAsync(int id, int sourceServiceId);
+    Task<TransactionDto> ForwardReturnAsync(int id, CreateTransactionDto input);
     Task DeleteAsync(int id, int sourceServiceId, bool isAdmin = false);
 }

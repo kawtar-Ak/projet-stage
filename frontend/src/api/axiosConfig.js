@@ -63,9 +63,13 @@ function shouldUseAbp(url = '', originalUrl = '') {
     url?.startsWith('/api/acteursjudiciaires/') ||
     url?.startsWith('/api/documents') ||
     url?.startsWith('/api/services/') ||
+    url?.startsWith('/api/lookups') ||
     url?.startsWith('/api/circulations/') ||
     url?.startsWith('/api/equipements/') ||
     url?.startsWith('/api/utilisateurs/') ||
+    url?.startsWith('/api/transactions/template') ||
+    url?.startsWith('/api/transactions/export/excel') ||
+    url?.startsWith('/api/transactions/import/excel') ||
     url === '/api/transactions/export-selected';
 }
 
@@ -112,6 +116,7 @@ function mapLegacyUrlToAbp(url = '') {
     .replace(/^\/api\/acteursjudiciaires(\/\d+)?$/, match => match.replace('/api/acteursjudiciaires', '/api/app/courrier-judiciaire'))
     .replace(/^\/api\/services\/(export\/excel|import\/preview|import\/execute)(\?.*)?$/, '/api/services/$1$2')
     .replace(/^\/api\/services(\/\d+)?$/, match => match.replace('/api/services', '/api/app/service'))
+    .replace(/^\/api\/circulations\/(template|export\/excel|import\/excel)(\?.*)?$/, '/api/circulations/$1$2')
     .replace(/^\/api\/circulations(\/\d+)?$/, match => match.replace('/api/circulations', '/api/app/circulation'))
     .replace(/^\/api\/equipements\/(export\/excel|import\/preview|import\/execute)(\?.*)?$/, '/api/equipements/$1$2')
     .replace(/^\/api\/equipements(\/\d+)?$/, match => match.replace('/api/equipements', '/api/app/equipement'))
@@ -123,8 +128,10 @@ function mapLegacyUrlToAbp(url = '') {
     .replace(/^\/api\/transactions\/incoming$/, `/api/app/transaction-workflow/incoming/${serviceId}`)
     .replace(/^\/api\/transactions\/outgoing$/, `/api/app/transaction-workflow/outgoing/${serviceId}`)
     .replace(/^\/api\/transactions\/pending-returns$/, `/api/app/transaction-workflow/pending-returns/${serviceId}`)
+    .replace(/^\/api\/transactions\/(template|export\/excel|import\/excel)(\?.*)?$/, '/api/transactions/$1$2')
     .replace(/^\/api\/transactions\/export-selected$/, '/api/transactions/export-selected')
     .replace(/^\/api\/transactions\/(\d+)\/respond$/, '/api/app/transaction-workflow/$1/respond')
+    .replace(/^\/api\/transactions\/(\d+)\/forward-return$/, '/api/app/transaction-workflow/$1/forward-return')
     .replace(/^\/api\/transactions\/(\d+)\/cancel$/, `/api/app/transaction-workflow/$1/cancel/${serviceId}`)
     .replace(/^\/api\/transactions\/(\d+)\/mark-returned$/, `/api/app/transaction-workflow/$1/mark-returned/${serviceId}`);
 }

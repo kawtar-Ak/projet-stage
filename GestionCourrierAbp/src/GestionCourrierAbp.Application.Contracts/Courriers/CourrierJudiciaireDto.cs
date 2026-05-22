@@ -17,6 +17,8 @@ public class CourrierJudiciaireDto : AuditedEntityDto<int>
     public string Description { get; set; } = string.Empty;
     public string EtatArchive { get; set; } = string.Empty;
     public string Emplacement { get; set; } = string.Empty;
+    public string Cabinet { get; set; } = string.Empty;
+    public DateTime? DateArchivage { get; set; }
     public string LienPdf { get; set; } = string.Empty;
     public bool EstTransmissible { get; set; }
     public bool EstArchive { get; set; }

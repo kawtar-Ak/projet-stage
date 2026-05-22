@@ -133,10 +133,7 @@ function Notifications() {
 
         try {
             const responseMessage = responseMsg[transferTarget.id] || transferForm.message || '';
-
-            await axios.post(`/api/transactions/${transferTarget.id}/respond`, buildResponsePayload(true, responseMessage));
-
-            await axios.post('/api/transactions', {
+            const payload = {
                 documentId: transferTarget.documentId,
                 documentType: transferTarget.documentType,
                 sourceServiceId: transferTarget.destinationServiceId,
@@ -145,7 +142,14 @@ function Notifications() {
                 doitRevenir: transferForm.doitRevenir,
                 dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
                 message: transferForm.message
-            });
+            };
+
+            if (isReturnTransferTarget(transferTarget)) {
+                await axios.post(`/api/transactions/${transferTarget.id}/forward-return`, payload);
+            } else {
+                await axios.post(`/api/transactions/${transferTarget.id}/respond`, buildResponsePayload(true, responseMessage));
+                await axios.post('/api/transactions', payload);
+            }
 
             await fetchNotificationData();
             setSuccess(t('transaction_envoyee'));
@@ -300,6 +304,11 @@ function Notifications() {
                                             <button type="button" onClick={() => handleMarkReturned(tx)} title={t('marquer_retourne')} aria-label={t('marquer_retourne')} className="action-icon action-return">
                                                 <ActionIcon name="return" />
                                             </button>
+                                            {isReturnTransferTarget(tx) && (
+                                                <button type="button" onClick={() => openTransferModal(tx)} title={t('transferer')} aria-label={t('transferer')} className="action-icon action-transfer">
+                                                    <ActionIcon name="transfer" />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))
@@ -325,7 +334,7 @@ function Notifications() {
                                     onChange={e => setTransferForm({ ...transferForm, serviceId: e.target.value })}
                                 >
                                     <option value="">--</option>
-                                    {services.filter(s => s.idService !== transferTarget.destinationServiceId).map(s => (
+                                    {services.filter(s => Number(s.idService) !== Number(transferTarget.destinationServiceId)).map(s => (
                                         <option key={s.idService} value={s.idService}>{getLocalizedServiceName(s, i18n)}</option>
                                     ))}
                                 </select>
@@ -403,6 +412,13 @@ function isProcessedStatus(value) {
 function isPendingStatus(value) {
     const status = String(value || '').toLowerCase();
     return status.includes('attente') || status.includes('pending');
+}
+
+function isReturnTransferTarget(transaction) {
+    return Boolean(
+        transaction?.doitRevenir &&
+        String(transaction?.statut || '').toLowerCase().includes('accept')
+    );
 }
 
 function getTime(value) {

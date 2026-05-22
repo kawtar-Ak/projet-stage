@@ -4,6 +4,7 @@ import GreffierDashboard from '../dashboards/GreffierDashboard';
 import EnregistrementDashboard from '../dashboards/EnregistrementDashboard';
 import CaisseDashboard from '../dashboards/CaisseDashboard';
 import EmployeDashboard from '../dashboards/EmployeDashboard';
+import ConseillerRapporteurDashboard from '../dashboards/ConseillerRapporteurDashboard';
 
 function DashboardRouter() {
   const { user } = useAuth();
@@ -23,6 +24,9 @@ function DashboardRouter() {
   }
   if (user.idService === 3 || serviceName.includes('ouverture') || serviceName.includes('فتح الملفات')) {
     return <CaisseDashboard />;
+  }
+  if (user.idService === 15 || serviceName.includes('conseiller') || serviceName.includes('المستشار')) {
+    return <ConseillerRapporteurDashboard />;
   }
   return <EmployeDashboard />;
 }

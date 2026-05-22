@@ -47,7 +47,8 @@ function MainLayout({ children }) {
       { labelKey: 'gestion_copies', icon: 'folder', path: '/gestion-copies' },
       { labelKey: 'equipements', icon: 'settings', path: '/equipements' },
       { labelKey: 'services', icon: 'service', path: '/services' },
-      { labelKey: 'utilisateurs', icon: 'users', path: '/utilisateurs' }
+      { labelKey: 'utilisateurs', icon: 'users', path: '/utilisateurs' },
+      { labelKey: 'gestion_listes', icon: 'settings', path: '/gestion-listes' }
     ];
 
     if (isServiceChief || serviceId === 1 || serviceName.includes('informatique')) {

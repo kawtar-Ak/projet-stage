@@ -20,6 +20,7 @@ import DossiersOuverture from './pages/DossiersOuverture';
 import GererArchivesJuridiques from './pages/GererArchivesJuridiques';
 import Circulations from './pages/Circulations';
 import GestionCopies from './pages/GestionCopies';
+import GestionListes from './pages/GestionListes';
 // ... puis dans les routes
 
 // ... importez toutes vos pages (equipements, transactions, etc.)
@@ -52,6 +53,7 @@ function AppRoutes() {
       <Route path="/equipements" element={<PrivateRoute><MainLayout><GererEquipements /></MainLayout></PrivateRoute>} />
       <Route path="/services" element={<PrivateRoute><MainLayout><GererServices /></MainLayout></PrivateRoute>} />
       <Route path="/utilisateurs" element={<PrivateRoute><MainLayout><GererUtilisateurs /></MainLayout></PrivateRoute>} />
+      <Route path="/gestion-listes" element={<PrivateRoute><MainLayout><GestionListes /></MainLayout></PrivateRoute>} />
       {/* ... ajoutez les autres routes */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />

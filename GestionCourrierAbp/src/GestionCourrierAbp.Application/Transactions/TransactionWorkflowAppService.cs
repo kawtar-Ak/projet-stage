@@ -43,6 +43,7 @@ namespace GestionCourrierAbp.Transactions;
 public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITransactionWorkflowAppService
 {
     private const int OpeningFilesServiceId = 3;
+    private const int ConseillerRapporteurServiceId = 15;
     private const string JudicialRecordDocumentLie = "DocumentLie";
 
     // Repository principal pour accéder aux transactions
@@ -172,15 +173,18 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     public async Task<ListResultDto<TransactionListDto>> GetPendingReturnsAsync(int sourceServiceId)
     {
         var query = await _repository.GetQueryableAsync();
+        var accepted = WorkflowStatus.Accepte.ToStorageValue();
 
         // Statut accepté
         // Recherche des transactions acceptées, envoyées par ce service,
         // et dont le document doit revenir
         var transactions = await AsyncExecuter.ToListAsync(
             query
-                .Where(x => x.SourceServiceId == sourceServiceId &&
-                            x.DoitRevenir &&
-                            x.Statut == WorkflowStatus.Accepte.ToStorageValue())
+                .Where(x =>
+                    x.DoitRevenir &&
+                    x.Statut == accepted &&
+                    (x.SourceServiceId == sourceServiceId ||
+                     x.DestinationServiceId == ConseillerRapporteurServiceId))
                 .OrderByDescending(x => x.DateEnvoi));
 
         return new ListResultDto<TransactionListDto>(
@@ -203,6 +207,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
         // Vérifie qu’il n’existe pas déjà une transaction active pour ce document
         await EnsureNoActiveTransactionAsync(input.DocumentId, documentType, input.SourceServiceId, input.DestinationServiceId);
+        var isConseillerRapporteurDestination = await IsConseillerRapporteurServiceAsync(input.DestinationServiceId);
 
         // Création de la transaction avec le statut initial "En attente"
         var transaction = await _repository.InsertAsync(new Transaction
@@ -214,7 +219,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             DestinationUserId = input.DestinationUserId,
             SenderUserName = input.SenderUserName?.Trim(),
             SenderServiceName = input.SenderServiceName?.Trim() ?? await GetServiceNameAsync(input.SourceServiceId),
-            DoitRevenir = input.DoitRevenir,
+            DoitRevenir = isConseillerRapporteurDestination || input.DoitRevenir,
             Message = input.Message?.Trim() ?? string.Empty,
             Statut = WorkflowStatus.EnAttente.ToStorageValue(),
             DateEnvoi = input.DateEnvoi ?? DateTime.Now
@@ -222,6 +227,20 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
         await _workflowService.SendDocumentToDestinationServiceAsync(transaction);
         await RegisterCirculationAsync(transaction);
+
+        if (isConseillerRapporteurDestination)
+        {
+            await _workflowService.RespondAsync(
+                transaction,
+                accepted: true,
+                message: "Acceptation automatique - المستشار المقرر",
+                responderUserName: input.SenderUserName?.Trim(),
+                responderServiceId: transaction.DestinationServiceId,
+                responderServiceName: await GetServiceNameAsync(transaction.DestinationServiceId));
+
+            await UpdateCirculationFromTransactionAsync(transaction);
+            return await ToDtoAsync(transaction);
+        }
 
         // Lancement du workflow après la création de la transaction
         await _workflowHost.StartWorkflow(
@@ -240,6 +259,41 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
         // Retourne la transaction créée sous forme de DTO
         return await ToDtoAsync(transaction);
+    }
+
+    public async Task<TransactionDto> ForwardReturnAsync(int id, CreateTransactionDto input)
+    {
+        var original = await _repository.GetAsync(id);
+
+        if (!original.DoitRevenir || !original.Statut.IsSameAs(WorkflowStatus.Accepte))
+        {
+            throw new BusinessException("TransactionRetourImpossible")
+                .WithData("Statut", original.Statut);
+        }
+
+        if (input.SourceServiceId != original.DestinationServiceId ||
+            !await IsConseillerRapporteurServiceAsync(input.SourceServiceId))
+        {
+            throw new BusinessException("TransactionTransfertRetourNonAutorise");
+        }
+
+        input.DocumentId = original.DocumentId;
+        input.DocumentType = original.DocumentType;
+
+        var forwarded = await CreateAsync(input);
+
+        original.DoitRevenir = false;
+        original.Statut = WorkflowStatus.Retourne.ToStorageValue();
+        original.DateReponse = DateTime.Now;
+        original.MessageReponse = $"Transfere par المستشار المقرر vers {await GetServiceNameAsync(input.DestinationServiceId)}";
+        original.ResponderServiceId = input.SourceServiceId;
+        original.ResponderServiceName = await GetServiceNameAsync(input.SourceServiceId);
+        original.ResponderUserName = input.SenderUserName?.Trim();
+
+        await _repository.UpdateAsync(original, autoSave: true);
+        await UpdateCirculationFromTransactionAsync(original);
+
+        return forwarded;
     }
 
     /// <summary>
@@ -312,9 +366,11 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     public async Task<TransactionDto> MarkReturnedAsync(int id, int sourceServiceId)
     {
         var transaction = await _repository.GetAsync(id);
+        var isConseillerRapporteurReturn =
+            await IsConseillerRapporteurServiceAsync(transaction.DestinationServiceId);
 
         // Vérifie que seul le service source peut marquer le retour
-        if (transaction.SourceServiceId != sourceServiceId)
+        if (transaction.SourceServiceId != sourceServiceId && !isConseillerRapporteurReturn)
         {
             throw new BusinessException("TransactionRetourNonAutorise");
         }
@@ -722,6 +778,19 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     private async Task<string> GetServiceNameAsync(int serviceId)
     {
         return (await _serviceRepository.FindAsync(serviceId))?.NomService ?? string.Empty;
+    }
+
+    private async Task<bool> IsConseillerRapporteurServiceAsync(int serviceId)
+    {
+        if (serviceId == ConseillerRapporteurServiceId)
+        {
+            return true;
+        }
+
+        var service = await _serviceRepository.FindAsync(serviceId);
+        return service != null &&
+            (service.NomService.Contains("المستشار المقرر", StringComparison.OrdinalIgnoreCase) ||
+             service.Description.Contains("Conseiller rapporteur", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

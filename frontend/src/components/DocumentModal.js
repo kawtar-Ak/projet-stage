@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { ABP_API_URL } from '../api/axiosConfig';
 
 function DocumentModal({ document, onClose }) {
     const { t } = useTranslation();
@@ -14,6 +15,9 @@ function DocumentModal({ document, onClose }) {
     };
 
     const emptyValue = t('non_renseigne');
+    const documentLink = getDocumentHref(document.lienPdf || document.pdfPath);
+    const documentName = getDocumentName(document.lienPdf || document.pdfPath);
+    const isPdf = /\.pdf($|[?#])/i.test(documentLink);
 
     return (
         <div className="modal-overlay" onClick={handleOverlayClick}>
@@ -62,6 +66,19 @@ function DocumentModal({ document, onClose }) {
                         <div className="form-field"><label>{t('dossier_judiciaire_lie')}</label><span>{document.dossierParentNumero}</span></div>
                     )}
                     <div className="form-field"><label>{t('etat')}</label><span>{document.etat || document.etatArchive || emptyValue}</span></div>
+                    {documentLink && (
+                        <div className="form-field full-width">
+                            <label>{t('document_pdf_word')}</label>
+                            <a href={documentLink} target="_blank" rel="noreferrer">{documentName || t('ouvrir')}</a>
+                            {isPdf && (
+                                <iframe
+                                    title={documentName || t('document')}
+                                    src={documentLink}
+                                    style={{ width: '100%', minHeight: '520px', border: '1px solid #d7e3f3', borderRadius: '8px', marginTop: '0.75rem' }}
+                                />
+                            )}
+                        </div>
+                    )}
                 </div>
                 <div className="form-actions">
                     <button className="btn-primary" onClick={onClose}>{t('fermer')}</button>
@@ -69,6 +86,20 @@ function DocumentModal({ document, onClose }) {
             </div>
         </div>
     );
+}
+
+function getDocumentHref(value) {
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value)) return value;
+
+    const normalizedValue = value.startsWith('/') ? value : `/${value}`;
+    return `${ABP_API_URL}${normalizedValue}`;
+}
+
+function getDocumentName(value) {
+    if (!value) return '';
+    const cleanValue = String(value).split('?')[0].split('#')[0];
+    return decodeURIComponent(cleanValue.split('/').filter(Boolean).pop() || cleanValue);
 }
 
 function parseImportedDetails(description) {

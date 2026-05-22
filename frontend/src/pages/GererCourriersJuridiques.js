@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { DEFAULT_SERVICES } from "../constants/defaultServices";
 import DocumentModal from "../components/DocumentModal";
 import ActionIcon from "../components/ActionIcon";
+import { ABP_API_URL } from "../api/axiosConfig";
+import { getLookupItems, itemsToOptions } from "../api/lookups";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 const BUREAU_ORDRE_SERVICE_ID = 2;
@@ -11,7 +13,13 @@ const OUVERTURE_DOSSIERS_SERVICE_ID = 3;
 const JUDICIAL_RECORD_DOSSIER = "Dossier";
 const JUDICIAL_RECORD_DOCUMENT_LIE = "DocumentLie";
 const DEFAULT_JUDICIAL_DESTINATAIRE = "محكمة الاستئناف الإدارية فاس";
-const JUDICIAL_DOCUMENT_TYPES = [];
+const JUDICIAL_DOCUMENT_TYPES = [
+  "Requete",
+  "Jugement",
+  "Arret",
+  "Convocation",
+  "Notification"
+];
 
 function GererCourriersJuridiques({ embedded = false }) {
   const { t } = useTranslation();
@@ -40,6 +48,10 @@ function GererCourriersJuridiques({ embedded = false }) {
   const [selectedTransferItem, setSelectedTransferItem] = useState(null);
   const [transferForm, setTransferForm] = useState(getInitialTransferForm());
   const [sentJudicialDocumentIds, setSentJudicialDocumentIds] = useState(new Set());
+  const [etatOptions, setEtatOptions] = useState(getDefaultCourrierEtatOptions(t));
+  const [documentTypeOptions, setDocumentTypeOptions] = useState(
+    JUDICIAL_DOCUMENT_TYPES.map((type) => ({ value: type, label: type }))
+  );
   const courriersRegistre = useMemo(
     () => enrichJudicialCourriers(courriers),
     [courriers]
@@ -68,6 +80,7 @@ function GererCourriersJuridiques({ embedded = false }) {
   useEffect(() => {
     fetchCourriers();
     fetchServices();
+    fetchLookups();
     fetchSentJudicialTransactions();
   }, []);
 
@@ -98,6 +111,22 @@ function GererCourriersJuridiques({ embedded = false }) {
         ...prev,
         idService: prev.idService || currentServiceId || DEFAULT_SERVICES[0].idService,
       }));
+    }
+  };
+
+  const fetchLookups = async () => {
+    try {
+      const [etats, documentTypes] = await Promise.all([
+        getLookupItems("courrier.etat"),
+        getLookupItems("judiciaire.typeDocument")
+      ]);
+      setEtatOptions(itemsToOptions(etats, getDefaultCourrierEtatOptions(t)));
+      setDocumentTypeOptions(
+        itemsToOptions(documentTypes, JUDICIAL_DOCUMENT_TYPES.map((type) => ({ value: type, label: type })))
+      );
+    } catch (err) {
+      setEtatOptions(getDefaultCourrierEtatOptions(t));
+      setDocumentTypeOptions(JUDICIAL_DOCUMENT_TYPES.map((type) => ({ value: type, label: type })));
     }
   };
 
@@ -602,8 +631,8 @@ function GererCourriersJuridiques({ embedded = false }) {
                   onChange={handleChange}
                 >
                   <option value="">{t("selectionner_type_document_judiciaire")}</option>
-                  {JUDICIAL_DOCUMENT_TYPES.map((type) => (
-                    <option key={type} value={type}>{type}</option>
+                  {documentTypeOptions.map((type) => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
                   ))}
                 </select>
               </div>
@@ -639,10 +668,9 @@ function GererCourriersJuridiques({ embedded = false }) {
             <div className="form-field">
               <label>{t("etat")}</label>
               <select name="etatArchive" value={form.etatArchive} onChange={handleChange}>
-                <option value="Nouveau">{t("etat_nouveau")}</option>
-                <option value="En cours">{t("etat_en_cours")}</option>
-                <option value="Traite">{t("etat_traite")}</option>
-                <option value="Archive">{t("etat_archive")}</option>
+                {etatOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
 
@@ -1317,7 +1345,7 @@ function getDocumentHref(value) {
   const normalizedValue = value.startsWith("/") ? value : `/${value}`;
   const isReactDevServer = window.location.hostname === "localhost" && window.location.port === "3000";
 
-  return isReactDevServer ? `http://localhost:5127${normalizedValue}` : normalizedValue;
+  return isReactDevServer ? `${ABP_API_URL}${normalizedValue}` : normalizedValue;
 }
 
 function getDocumentName(value) {
@@ -1331,6 +1359,15 @@ function formatEtat(value, t) {
   if (value === "Traite") return t("etat_traite");
   if (value === "Archive") return t("etat_archive");
   return t("etat_nouveau");
+}
+
+function getDefaultCourrierEtatOptions(t) {
+  return [
+    { value: "Nouveau", label: t("etat_nouveau") },
+    { value: "En cours", label: t("etat_en_cours") },
+    { value: "Traite", label: t("etat_traite") },
+    { value: "Archive", label: t("etat_archive") },
+  ];
 }
 
 function formatJudicialRecordType(value, t) {

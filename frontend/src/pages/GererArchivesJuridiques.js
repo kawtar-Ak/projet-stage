@@ -12,6 +12,7 @@ function GererArchivesJuridiques() {
   const [selectedRetourRetrait, setSelectedRetourRetrait] = useState(null);
   const [showRetraitModal, setShowRetraitModal] = useState(false);
   const [motCle, setMotCle] = useState("");
+  const [dateRecherche, setDateRecherche] = useState("");
   const [retraitMotCle, setRetraitMotCle] = useState("");
   const [retraitDate, setRetraitDate] = useState("");
   const [error, setError] = useState("");
@@ -22,10 +23,14 @@ function GererArchivesJuridiques() {
   const [importFile, setImportFile] = useState(null);
   const [importHeaders, setImportHeaders] = useState([]);
   const [showImportMapping, setShowImportMapping] = useState(false);
-  const [importMapping, setImportMapping] = useState({ colIdentifiant: "", colCabinet: "", colEmplacement: "" });
+  const [importMapping, setImportMapping] = useState({ colIdentifiant: "", colCabinet: "", colEmplacement: "", colDate: "" });
   const filteredRetraits = useMemo(
     () => filterRetraits(selectedItem?.retraits || [], retraitMotCle, retraitDate),
     [selectedItem, retraitMotCle, retraitDate]
+  );
+  const filteredItems = useMemo(
+    () => filterArchivesByDate(items, dateRecherche),
+    [items, dateRecherche]
   );
 
   useEffect(() => {
@@ -189,7 +194,7 @@ function GererArchivesJuridiques() {
       const response = await axios.post("/api/acteursjudiciaires/import-archive/preview", formData);
       setImportFile(file);
       setImportHeaders(Array.isArray(response.data) ? response.data : []);
-      setImportMapping({ colIdentifiant: "", colCabinet: "", colEmplacement: "" });
+      setImportMapping({ colIdentifiant: "", colCabinet: "", colEmplacement: "", colDate: "" });
       setShowImportMapping(true);
       setError("");
       setSuccess("");
@@ -212,6 +217,7 @@ function GererArchivesJuridiques() {
       colIdentifiant: importMapping.colIdentifiant,
       colCabinet: importMapping.colCabinet || "",
       colEmplacement: importMapping.colEmplacement || "",
+      colDate: importMapping.colDate || "",
     });
 
     try {
@@ -294,7 +300,15 @@ function GererArchivesJuridiques() {
             onChange={(event) => setMotCle(event.target.value)}
             placeholder={t("rechercher_archives_judiciaires")}
           />
-          <button type="button" className="btn-secondary" onClick={() => setMotCle("")}>
+          <input
+            type="date"
+            value={dateRecherche}
+            onChange={(event) => setDateRecherche(event.target.value)}
+          />
+          <button type="button" className="btn-secondary" onClick={() => {
+            setMotCle("");
+            setDateRecherche("");
+          }}>
             {t("reinitialiser")}
           </button>
         </div>
@@ -339,6 +353,18 @@ function GererArchivesJuridiques() {
                   ))}
                 </select>
               </div>
+              <div className="form-field">
+                <label>{translate(t, "colonne_date_archivage", "Colonne date")}</label>
+                <select
+                  value={importMapping.colDate}
+                  onChange={(event) => setImportMapping((prev) => ({ ...prev, colDate: event.target.value }))}
+                >
+                  <option value="">--</option>
+                  {importHeaders.map((header) => (
+                    <option key={header} value={header}>{header}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="form-actions">
               <button type="button" className="btn-primary" onClick={executeArchiveImport}>{t("importer")}</button>
@@ -354,6 +380,7 @@ function GererArchivesJuridiques() {
                 <th>{t("numero_dossier_appel")}</th>
                 <th>{translate(t, "numero_premiere_instance", "Numero premiere instance")}</th>
                 <th>{t("date")}</th>
+                <th>{translate(t, "date_archivage", "Date archivage")}</th>
                 <th>{t("tribunal_source")}</th>
                 <th>{t("objet")}</th>
                 <th>{t("emplacement")}</th>
@@ -364,14 +391,15 @@ function GererArchivesJuridiques() {
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 ? (
-                <tr><td colSpan="10" style={{ textAlign: "center" }}>{t("aucune_archive_judiciaire")}</td></tr>
+              {filteredItems.length === 0 ? (
+                <tr><td colSpan="11" style={{ textAlign: "center" }}>{t("aucune_archive_judiciaire")}</td></tr>
               ) : (
-                items.map((item) => (
+                filteredItems.map((item) => (
                   <tr key={item.id} onClick={() => selectItem(item)}>
                     <td>{item.numeroDossier || "-"}</td>
                     <td>{item.numeroPremiereInstance || "-"}</td>
                     <td>{formatDate(item.date)}</td>
+                    <td>{formatDate(item.dateArchivage)}</td>
                     <td>{item.tribunalSource || "-"}</td>
                     <td>{item.sujet || "-"}</td>
                     <td>{item.emplacement || "-"}</td>
@@ -648,6 +676,16 @@ function hasActiveRetrait(item) {
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString();
+}
+
+function filterArchivesByDate(items, dateRecherche) {
+  if (!dateRecherche) return items;
+
+  return items.filter((item) =>
+    toDateInputValue(item.date) === dateRecherche ||
+    toDateInputValue(item.dateArchivage) === dateRecherche ||
+    toDateInputValue(item.creationTime) === dateRecherche
+  );
 }
 
 function filterRetraits(retraits, motCle, dateRecherche) {

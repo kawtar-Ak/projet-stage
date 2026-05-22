@@ -95,6 +95,7 @@ public class DocumentsController : ControllerBase
             Description = document.Description,
             NumeroCourrier = document.NumeroDeCourrier,
             Etat = document.Etat,
+            LienPdf = document.LienPdf,
             IdService = document.IdService,
             ServiceNom = document.ServiceNom,
             EstTransmissible = document.EstTransmissible
@@ -115,6 +116,7 @@ public class DocumentsController : ControllerBase
             Description = document.Description,
             NumeroDossierJudiciaire = document.NumeroDossier,
             EtatArchive = document.EtatArchive,
+            LienPdf = document.LienPdf,
             IdService = document.IdService,
             ServiceNom = document.ServiceNom,
             EstTransmissible = document.EstTransmissible
@@ -137,6 +139,7 @@ public class DocumentCirculationDto
     public string? NumeroDossierJudiciaire { get; set; }
     public string? Etat { get; set; }
     public string? EtatArchive { get; set; }
+    public string? LienPdf { get; set; }
     public int IdService { get; set; }
     public string? ServiceNom { get; set; }
     public bool EstTransmissible { get; set; }

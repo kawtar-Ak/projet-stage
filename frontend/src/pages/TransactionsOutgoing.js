@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 
@@ -15,7 +15,10 @@ function TransactionsOutgoing() {
     const [filtered, setFiltered] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
+    const [selectedTransaction, setSelectedTransaction] = useState(null);
+    const importInputRef = useRef(null);
 
     const fetchTransactions = useCallback(() => {
         Promise.all([
@@ -102,16 +105,43 @@ function TransactionsOutgoing() {
                 responseType: 'blob',
                 headers: { 'Content-Type': 'application/json' }
             });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', 'transactions_en_attente_et_acceptees.xlsx');
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
+            downloadBlob(response.data, 'transactions_en_attente_et_acceptees.xlsx');
         } catch (err) {
             alert(t('erreur_export'));
+        }
+    };
+
+    const downloadExcel = async (url, fileName) => {
+        try {
+            const response = await axios.get(url, { responseType: 'blob' });
+            downloadBlob(response.data, fileName);
+        } catch (err) {
+            setError(getErrorMessage(err, t('erreur_export')));
+        }
+    };
+
+    const handleImportExcel = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        setError('');
+        setSuccess('');
+
+        try {
+            const response = await axios.post('/api/transactions/import/excel', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            const imported = response.data?.imported ?? 0;
+            const errors = response.data?.errors || [];
+            setSuccess(errors.length > 0
+                ? translate(t, 'import_termine_avec_erreurs', `Import termine: ${imported} ligne(s), erreurs: ${errors.join(' | ')}`)
+                : translate(t, 'import_lignes_ajoutees', `${imported} ligne(s) importee(s).`).replace('{{count}}', imported));
+            fetchTransactions();
+        } catch (err) {
+            setError(getErrorMessage(err, t('erreur_import')));
         }
     };
 
@@ -119,7 +149,24 @@ function TransactionsOutgoing() {
         <div className="page-container">
             <h1 className="page-title">{translate(t, 'historique_transactions', 'Historique des transactions')}</h1>
             {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
             <div className="filters">
+                <button type="button" className="btn-secondary" onClick={() => downloadExcel('/api/transactions/template', 'modele-import-transactions.xlsx')}>
+                    {t('telecharger_modele')}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => importInputRef.current?.click()}>
+                    {t('importer_excel')}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => downloadExcel('/api/transactions/export/excel', 'transactions.xlsx')}>
+                    {t('exporter_excel')}
+                </button>
+                <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleImportExcel}
+                    style={{ display: 'none' }}
+                />
                 <div className="scope-filter" role="group" aria-label={translate(t, 'filtre_transactions', 'Filtre transactions')}>
                     <button
                         type="button"
@@ -165,12 +212,13 @@ function TransactionsOutgoing() {
                             <th>{translate(t, 'envoye_par', 'Envoyé par')}</th>
                             <th>{translate(t, 'traite_par', 'Traité par')}</th>
                             <th>{t('etat')}</th>
+                            <th>{translate(t, 'derniere_transaction', 'Derniere transaction')}</th>
                             <th>{t('actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filtered.map(tx => (
-                            <tr key={tx.id}>
+                            <tr key={tx.id} onClick={() => setSelectedTransaction(tx)} style={{ cursor: 'pointer' }}>
                                 <td>{tx.id}</td>
                                 <td>{tx.documentId || '-'}</td>
                                 <td>{tx.documentType || '-'}</td>
@@ -183,7 +231,8 @@ function TransactionsOutgoing() {
                                 <td>{formatActor(tx.senderUserName, tx.sourceServiceNom)}</td>
                                 <td>{formatActor(tx.responderUserName, tx.responderServiceName || tx.destinationServiceNom)}</td>
                                 <td>{formatStatus(tx.statut, t)}</td>
-                                <td className="action-icons">
+                                <td>{isLatestTransaction(tx, filtered) ? translate(t, 'oui', 'Oui') : '-'}</td>
+                                <td className="action-icons" onClick={(event) => event.stopPropagation()}>
                                     <label className="checkbox-field">
                                         <input
                                             type="checkbox"
@@ -196,10 +245,47 @@ function TransactionsOutgoing() {
                             </tr>
                         ))}
                         {filtered.length === 0 && (
-                            <tr className="empty-row"><td colSpan="13">{translate(t, 'aucune_transaction', 'Aucune transaction trouvée')}</td></tr>
+                            <tr className="empty-row"><td colSpan="14">{translate(t, 'aucune_transaction', 'Aucune transaction trouvée')}</td></tr>
                         )}
                     </tbody>
                 </table>
+            </div>
+            {selectedTransaction && (
+                <TransactionDetailsModal
+                    transaction={selectedTransaction}
+                    locale={locale}
+                    t={t}
+                    onClose={() => setSelectedTransaction(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+function TransactionDetailsModal({ transaction, locale, t, onClose }) {
+    return (
+        <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
+            <div className="modal" onClick={(event) => event.stopPropagation()}>
+                <h2>{translate(t, 'details_mouvement', 'Details du mouvement')}</h2>
+                <div className="form-grid">
+                    <div className="form-field"><label>ID</label><span>{transaction.id}</span></div>
+                    <div className="form-field"><label>{t('document_id')}</label><span>{transaction.documentId || '-'}</span></div>
+                    <div className="form-field"><label>{t('type_document')}</label><span>{transaction.documentType || '-'}</span></div>
+                    <div className="form-field"><label>{t('numero_bureau_ordre')}</label><span>{transaction.numeroBureauOrdre || transaction.numeroCourrier || '-'}</span></div>
+                    <div className="form-field"><label>{t('numero_dossier_appel')}</label><span>{transaction.numeroDossierJudiciaire || '-'}</span></div>
+                    <div className="form-field"><label>{t('emetteur_service')}</label><span>{transaction.sourceServiceNom || '-'}</span></div>
+                    <div className="form-field"><label>{t('recepteur')}</label><span>{transaction.destinationServiceNom || '-'}</span></div>
+                    <div className="form-field"><label>{translate(t, 'envoye_par', 'Envoye par')}</label><span>{formatActor(transaction.senderUserName, transaction.sourceServiceNom)}</span></div>
+                    <div className="form-field"><label>{translate(t, 'traite_par', 'Traite par')}</label><span>{formatActor(transaction.responderUserName, transaction.responderServiceName || transaction.destinationServiceNom)}</span></div>
+                    <div className="form-field"><label>{t('date_envoi')}</label><span>{formatDateTime(transaction.dateEnvoi, locale)}</span></div>
+                    <div className="form-field"><label>{t('traite_le')}</label><span>{formatDateTime(transaction.dateReponse, locale)}</span></div>
+                    <div className="form-field"><label>{t('etat')}</label><span>{formatStatus(transaction.statut, t)}</span></div>
+                    <div className="form-field full-width"><label>{t('message')}</label><span>{transaction.message || '-'}</span></div>
+                    <div className="form-field full-width"><label>{t('reponse_note')}</label><span>{transaction.messageReponse || formatResponseNote(transaction.messageReponse, transaction.statut, t)}</span></div>
+                </div>
+                <div className="form-actions">
+                    <button type="button" className="btn-primary" onClick={onClose}>{t('fermer')}</button>
+                </div>
             </div>
         </div>
     );
@@ -230,6 +316,24 @@ function formatResponseNote(value, status, t) {
     }
 
     return note;
+}
+
+function isLatestTransaction(transaction, transactions) {
+    const key = getTransactionDocumentKey(transaction);
+    if (!key) return false;
+
+    const latest = transactions
+        .filter((item) => getTransactionDocumentKey(item) === key)
+        .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi))[0];
+
+    return latest?.id === transaction.id;
+}
+
+function getTransactionDocumentKey(transaction) {
+    return [
+        transaction.documentType,
+        transaction.documentId || transaction.numeroDossierJudiciaire || transaction.numeroCourrier || transaction.numeroBureauOrdre
+    ].filter(Boolean).join(':');
 }
 
 function formatActor(userName, serviceName) {
@@ -316,9 +420,27 @@ function toArray(data) {
     return [];
 }
 
+function downloadBlob(blob, fileName) {
+    const url = window.URL.createObjectURL(new Blob([blob]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+}
+
+function getErrorMessage(error, fallback) {
+    if (typeof error.response?.data === 'string') return error.response.data;
+    if (error.response?.data?.message) return error.response.data.message;
+    return fallback;
+}
+
 function translate(t, key, fallback) {
     const value = t(key);
     return value === key ? fallback : value;
 }
 
 export default TransactionsOutgoing;
+

@@ -278,6 +278,7 @@ public class GestionCourrierAbpHttpApiHostModule : AbpModule
             app.UseErrorPage();
         }
 
+        app.UseStaticFiles();
         app.UseRouting();
         app.MapAbpStaticAssets();
         app.UseAbpStudioLink();
