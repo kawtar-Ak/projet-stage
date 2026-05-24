@@ -1858,6 +1858,10 @@ button:disabled {
   isolation: isolate;
 }
 
+.login-page-rtl .login-card {
+  text-align: right;
+}
+
 .login-language-switcher {
   position: fixed;
   top: 1.15rem;
@@ -2304,6 +2308,11 @@ button:disabled {
   text-align: left;
 }
 
+.login-page-rtl .login-card input {
+  direction: rtl;
+  text-align: right;
+}
+
 .login-input-shell {
   position: relative;
   display: grid;
@@ -2336,6 +2345,10 @@ button:disabled {
   font-weight: 750;
 }
 
+.login-page-rtl .login-field input {
+  padding: 0.7rem 3rem 0.7rem 3.7rem;
+}
+
 .login-field input:focus {
   outline: none;
   border-color: #c9973f;
@@ -2350,6 +2363,11 @@ button:disabled {
   color: #b6aa9b;
   font-size: 1.15rem;
   font-weight: 900;
+}
+
+.login-page-rtl .field-icon {
+  left: auto;
+  right: 1.05rem;
 }
 
 .password-toggle {
@@ -2369,6 +2387,11 @@ button:disabled {
   transform: translateY(-50%);
 }
 
+.login-page-rtl .password-toggle {
+  right: auto;
+  left: 0.35rem;
+}
+
 .password-toggle:hover {
   transform: translateY(-50%);
   background: #f8f4ec;
@@ -2385,6 +2408,10 @@ button:disabled {
   align-items: center;
   gap: 1rem;
   margin: 0.35rem 0 1.25rem;
+}
+
+.login-page-rtl .login-options {
+  justify-content: flex-end;
 }
 
 .login-submit {
@@ -2431,6 +2458,11 @@ button:disabled {
   font-size: 1.05rem;
 }
 
+.login-page-rtl .submit-icon {
+  margin-right: 0;
+  margin-left: 0.75rem;
+}
+
 .login-card .checkbox {
   display: flex;
   align-items: center;
@@ -2441,6 +2473,10 @@ button:disabled {
   font-weight: 750;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.login-page-rtl .login-card .checkbox {
+  text-align: right;
 }
 
 .login-card .checkbox input {

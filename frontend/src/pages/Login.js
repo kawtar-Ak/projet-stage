@@ -14,6 +14,7 @@ function Login() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const currentLanguage = (i18n.resolvedLanguage || i18n.language || 'fr').split('-')[0];
+  const isArabic = currentLanguage === 'ar';
 
   const changeLanguage = (lng) => {
     i18n.changeLanguage(lng);
@@ -45,7 +46,7 @@ function Login() {
   };
 
   return (
-    <div className="login-page">
+    <div className={`login-page ${isArabic ? 'login-page-rtl' : ''}`} dir={isArabic ? 'rtl' : 'ltr'}>
       <div className="login-ambient" aria-hidden="true">
         <span className="login-orb login-orb-one" />
         <span className="login-orb login-orb-two" />
