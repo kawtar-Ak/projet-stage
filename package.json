@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "backend": "dotnet run --project GestionCourrierAbp/src/GestionCourrierAbp.HttpApi.Host/GestionCourrierAbp.HttpApi.Host.csproj",
+    "backend": "powershell -NoProfile -ExecutionPolicy Bypass -File GestionCourrierAbp/etc/scripts/start-backend.ps1",
     "frontend": "npm start --prefix frontend"
   },
   "dependencies": {

@@ -367,13 +367,41 @@ function getDossierSortTime(dossier) {
 
 function getDocumentTransactions(dossier, transactions) {
   const sourceIds = new Set((dossier.sourceIds || [dossier.id]).map((id) => Number(id)));
+  const dossierHasNumber = hasDossierNumber(dossier);
   const matches = transactions.filter((tx) => {
-    return sourceIds.has(Number(tx.documentId)) ||
-      normalizeSearchText(tx.numeroDossierJudiciaire) === normalizeSearchText(dossier.numeroDossier) ||
-      normalizeSearchText(tx.numeroCourrier) === normalizeSearchText(dossier.idBureauOrdre);
+    if (!isJudicialTransaction(tx)) return false;
+
+    if (sourceIds.has(Number(tx.documentId))) return true;
+    if (isSameDossierNumber(tx.numeroDossierJudiciaire, dossier)) return true;
+
+    return !dossierHasNumber &&
+      normalizeSearchText(tx.numeroCourrier || tx.numeroBureauOrdre) === normalizeSearchText(dossier.idBureauOrdre);
   });
 
   return matches.sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
+}
+
+function isJudicialTransaction(transaction) {
+  return normalizeSearchText(transaction?.documentType).includes('judiciaire');
+}
+
+function hasDossierNumber(dossier) {
+  return getDossierNumberCandidates(dossier).some((value) => normalizeSearchText(value));
+}
+
+function isSameDossierNumber(transactionNumber, dossier) {
+  const transactionParts = getNumberParts(transactionNumber);
+  if (transactionParts.length < 3) return false;
+
+  return getDossierNumberCandidates(dossier)
+    .filter(Boolean)
+    .some((candidate) => {
+      const candidateParts = getNumberParts(candidate);
+      return normalizeSearchText(transactionNumber) === normalizeSearchText(candidate) ||
+        sameNumberParts(transactionParts, candidate) ||
+        sameNumberSet(transactionParts, candidate) ||
+        sameNumberSet(candidateParts, transactionNumber);
+    });
 }
 
 function getCurrentServiceLabel(dossier, services, i18n) {

@@ -8,29 +8,23 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $solutionRoot = Resolve-Path (Join-Path $scriptRoot "../..")
 $hostProject = Join-Path $solutionRoot "src/GestionCourrierAbp.HttpApi.Host/GestionCourrierAbp.HttpApi.Host.csproj"
 $hostDirectory = Join-Path $solutionRoot "src/GestionCourrierAbp.HttpApi.Host"
-$hostDllFragment = "GestionCourrierAbp.HttpApi.Host.dll"
+$backendPort = 44301
 
 function Stop-ExistingBackend {
-    $escapedHostDirectory = [Regex]::Escape((Resolve-Path $hostDirectory).Path)
-    $escapedHostProject = [Regex]::Escape((Resolve-Path $hostProject).Path)
+    $processIds = @()
 
-    $processes = Get-CimInstance Win32_Process |
-        Where-Object {
-            ($_.Name -eq "GestionCourrierAbp.HttpApi.Host.exe") -or
-            (
-                $_.Name -eq "dotnet.exe" -and
-                $_.CommandLine -and
-                (
-                    $_.CommandLine -match $escapedHostProject -or
-                    $_.CommandLine -match $escapedHostDirectory -or
-                    $_.CommandLine -like "*$hostDllFragment*"
-                )
-            )
-        }
+    $portProcesses = netstat -ano |
+        Select-String ":$backendPort" |
+        ForEach-Object { ($_ -split "\s+")[-1] } |
+        Where-Object { $_ -and $_ -ne "0" }
 
-    foreach ($process in $processes) {
-        Write-Host "Stopping existing backend process $($process.ProcessId)..."
-        Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+    $processIds += $portProcesses
+    $processIds += Get-Process -Name "GestionCourrierAbp.HttpApi.Host" -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty Id
+
+    foreach ($processId in ($processIds | Sort-Object -Unique)) {
+        Write-Host "Stopping existing backend process $processId..."
+        Stop-Process -Id ([int]$processId) -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -52,7 +46,7 @@ if ($Migrate) {
 
 $env:ASPNETCORE_ENVIRONMENT = "Development"
 
-Write-Host "Starting backend on http://localhost:44301 ..."
+Write-Host "Starting backend on http://localhost:$backendPort ..."
 dotnet run --project $hostProject --launch-profile "GestionCourrierAbp.HttpApi.Host"
 
 if ($LASTEXITCODE -ne 0) {
