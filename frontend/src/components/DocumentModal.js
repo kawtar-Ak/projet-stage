@@ -99,7 +99,8 @@ function getDocumentHref(value) {
 function getDocumentName(value) {
     if (!value) return '';
     const cleanValue = String(value).split('?')[0].split('#')[0];
-    return decodeURIComponent(cleanValue.split('/').filter(Boolean).pop() || cleanValue);
+    const fileName = decodeURIComponent(cleanValue.split('/').filter(Boolean).pop() || cleanValue);
+    return fileName.replace(/^\d{17}-[a-f0-9]{32}-/i, '');
 }
 
 function parseImportedDetails(description) {

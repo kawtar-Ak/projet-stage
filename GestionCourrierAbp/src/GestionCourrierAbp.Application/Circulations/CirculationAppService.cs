@@ -40,7 +40,8 @@ public class CirculationAppService : GestionCourrierAbpAppService, ICirculationA
         var items = await AsyncExecuter.ToListAsync(
             query.OrderByDescending(x => x.DateDeReception).Skip(input.SkipCount).Take(input.MaxResultCount));
 
-        return new PagedResultDto<CirculationDto>(totalCount, await ToDtosAsync(items));
+        var dtoItems = await ToDtosAsync(items);
+        return new PagedResultDto<CirculationDto>(dtoItems.Count, dtoItems);
     }
 
     public async Task<List<CirculationDto>> GetHistoryAsync(int documentId, string documentType)
@@ -95,10 +96,31 @@ public class CirculationAppService : GestionCourrierAbpAppService, ICirculationA
         var result = new List<CirculationDto>();
         foreach (var item in items)
         {
+            if (!await DocumentExistsAsync(item.DocumentId, item.DocumentType))
+            {
+                continue;
+            }
+
             result.Add(await ToDtoAsync(item));
         }
 
         return result;
+    }
+
+    private async Task<bool> DocumentExistsAsync(int documentId, string documentType)
+    {
+        if (IsJudiciaireType(documentType))
+        {
+            return await _courrierJudiciaireRepository.FindAsync(documentId) != null;
+        }
+
+        if (IsAdministratifType(documentType))
+        {
+            return await _courrierAdministratifRepository.FindAsync(documentId) != null;
+        }
+
+        return await _courrierJudiciaireRepository.FindAsync(documentId) != null ||
+               await _courrierAdministratifRepository.FindAsync(documentId) != null;
     }
 
     private async Task<CirculationDto> ToDtoAsync(Circulation entity)

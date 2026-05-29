@@ -188,6 +188,12 @@ function Dashboard() {
             {isNotificationCopiesService ? (
                 <div className="quick-links-grid">
                     <QuickLink
+                        icon="F"
+                        label={t('menu_dossiers_juridiques')}
+                        description={t('quick_link_desc')}
+                        onClick={() => navigate('/courriers-juridiques')}
+                    />
+                    <QuickLink
                         icon="D"
                         label={t('mes_entites')}
                         description={t('quick_link_desc')}
@@ -209,10 +215,37 @@ function Dashboard() {
             ) : isOpeningFilesService ? (
                 <div className="quick-links-grid">
                     <QuickLink
+                        icon="D"
+                        label={t('mes_entites')}
+                        description={t('quick_link_desc')}
+                        onClick={() => navigate('/mes-entites')}
+                    />
+                    <QuickLink
                         icon="OD"
                         label={t('dossiers_acceptes_ouverture')}
                         description={t('dossiers_acceptes_ouverture_desc')}
                         onClick={() => navigate('/dossiers-ouverture')}
+                    />
+                    <QuickLink
+                        icon="NT"
+                        label={t('notifications')}
+                        description={t('notification_transaction')}
+                        onClick={() => navigate('/notifications')}
+                    />
+                </div>
+            ) : isArchiveService ? (
+                <div className="quick-links-grid">
+                    <QuickLink
+                        icon="D"
+                        label={t('mes_entites')}
+                        description={t('quick_link_desc')}
+                        onClick={() => navigate('/mes-entites')}
+                    />
+                    <QuickLink
+                        icon="AR"
+                        label={t('menu_archives_juridiques')}
+                        description={t('quick_link_desc')}
+                        onClick={() => navigate('/archives-juridiques')}
                     />
                     <QuickLink
                         icon="NT"

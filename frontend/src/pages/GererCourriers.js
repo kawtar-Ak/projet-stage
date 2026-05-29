@@ -1112,7 +1112,7 @@ function GererCourriers() {
         </div>
       </div>
 
-      <table className="modern-table">
+      <table className="modern-table registry-table">
         <thead>
           <tr>
             <th className="selection-column">
@@ -1533,17 +1533,22 @@ function GererCourriers() {
                 *
               </label>
               {isStructuredAdminForm ? (
-                <select
-                  name="source"
-                  value={form.source}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">{t("choisir")}</option>
-                  {sourceOptions.map((source) => (
-                    <option key={source.value} value={source.value}>{source.label}</option>
-                  ))}
-                </select>
+                <>
+                  <input
+                    type="text"
+                    name="source"
+                    list="administrative-source-options"
+                    value={form.source}
+                    onChange={handleChange}
+                    placeholder={t("placeholder_source")}
+                    required
+                  />
+                  <datalist id="administrative-source-options">
+                    {sourceOptions.map((source) => (
+                      <option key={source.value} value={source.value}>{source.label}</option>
+                    ))}
+                  </datalist>
+                </>
               ) : (
                 <input
                   type="text"
@@ -1684,25 +1689,6 @@ function GererCourriers() {
                   )}
                 </div>
 
-                <div className="document-link-input">
-                  <input
-                    type="text"
-                    name="lienPdf"
-                    value={form.lienPdf}
-                    onChange={handleChange}
-                    placeholder={t("placeholder_lien_pdf")}
-                  />
-
-                  {form.lienPdf && (
-                    <a
-                      href={getDocumentHref(form.lienPdf)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {t("ouvrir")}
-                    </a>
-                  )}
-                </div>
               </div>
             </div>
             )}
@@ -1718,7 +1704,7 @@ function GererCourriers() {
                   checked={form.estTransmissible}
                   onChange={handleChange}
                 />
-                {t("transmissible")}
+                {t("oui")}
               </label>
             </div>
 
@@ -2379,9 +2365,7 @@ function getDefaultCourrierEtatOptions(t) {
 }
 
 function buildAdministrativeSelectionWorkbook(courriers, allCourriers, t) {
-  const rows = courriers.map((courrier) =>
-    buildAdministrativeSelectionRow(courrier, allCourriers, t)
-  );
+  const rows = buildAdministrativeExportRows(courriers, allCourriers, t);
   const emptyRowsCount = Math.max(0, 12 - rows.length);
   const emptyRows = Array.from({ length: emptyRowsCount }, () =>
     "<tr>" + Array.from({ length: 12 }, () => "<td></td>").join("") + "</tr>"
@@ -2431,33 +2415,90 @@ function buildAdministrativeSelectionWorkbook(courriers, allCourriers, t) {
 </html>`;
 }
 
-function buildAdministrativeSelectionRow(courrier, allCourriers, t) {
-  const cells = Array.from({ length: 12 }, () => "");
-  const typeRegistre =
-    courrier.typeRegistre || (courrier.parentId ? TYPE_MORASALAT : TYPE_WARIDAT);
-  const isMorasalat = typeRegistre === TYPE_MORASALAT;
-  const isIncoming = isMorasalat && courrier.typeCorrespondance === CORRESPONDANCE_ENTRANTE;
-  const displayNumber = getDisplayIdBureauOrdre(courrier, allCourriers);
+function buildAdministrativeExportRows(courriers, allCourriers, t) {
+  const rows = [];
+  const seen = new Set();
 
-  if (!isMorasalat) {
-    cells[0] = displayNumber;
-    cells[1] = formatExcelDate(courrier.date);
-    cells[2] = courrier.numeroDeCourrier || "";
-    cells[3] = formatExcelDate(courrier.date);
-    cells[4] = courrier.source || "";
-    cells[5] = courrier.sujet || "";
-  } else if (isIncoming) {
-    cells[0] = displayNumber;
-    cells[9] = formatExcelDate(courrier.date);
-    cells[10] = [courrier.source, courrier.sujet].filter(Boolean).join(" | ");
-  } else {
-    cells[0] = displayNumber;
-    cells[6] = formatExcelDate(courrier.date);
-    cells[7] = courrier.destinataire || "";
-    cells[8] = courrier.sujet || "";
+  courriers.forEach((courrier) => {
+    const rowData = getAdministrativeExportRowData(courrier, allCourriers);
+    const key = [
+      rowData.warida?.id || "",
+      rowData.morasala?.id || "",
+      rowData.response?.id || ""
+    ].join(":");
+
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push(buildAdministrativeSelectionRow(rowData, allCourriers, t));
+  });
+
+  return rows;
+}
+
+function getAdministrativeExportRowData(courrier, allCourriers) {
+  if (isMorasalatResponse(courrier)) {
+    const morasala = findMorasalatParent(courrier, allCourriers);
+    return {
+      warida: morasala?.parentId ? findMorasalatParent(morasala, allCourriers) : null,
+      morasala,
+      response: courrier
+    };
   }
 
-  cells[11] = formatEtat(courrier.etat, t);
+  if (isMainMorasalat(courrier)) {
+    return {
+      warida: courrier.parentId ? findMorasalatParent(courrier, allCourriers) : null,
+      morasala: courrier,
+      response: findMorasalatResponse(courrier, allCourriers)
+    };
+  }
+
+  const linkedMorasala = findLinkedMorasala(courrier, allCourriers);
+
+  return {
+    warida: courrier,
+    morasala: linkedMorasala,
+    response: linkedMorasala ? findMorasalatResponse(linkedMorasala, allCourriers) : null
+  };
+}
+
+function findLinkedMorasala(courrier, courriers = []) {
+  return courriers
+    .filter((item) =>
+      String(item.parentId || "") === String(courrier.id || "") &&
+      isMainMorasalat(item)
+    )
+    .sort((a, b) => getTime(b.date) - getTime(a.date))[0] || null;
+}
+
+function buildAdministrativeSelectionRow({ warida, morasala, response }, allCourriers, t) {
+  const cells = Array.from({ length: 12 }, () => "");
+
+  if (warida) {
+    const displayNumber = getDisplayIdBureauOrdre(warida, allCourriers);
+    cells[0] = displayNumber;
+    cells[1] = formatExcelDate(warida.dateMessage || warida.date);
+    cells[2] = warida.numeroDeCourrier || "";
+    cells[3] = formatExcelDate(warida.dateArrivee || warida.date);
+    cells[4] = warida.source || "";
+    cells[5] = warida.sujet || "";
+  }
+
+  if (morasala) {
+    cells[0] = cells[0] || getDisplayIdBureauOrdre(morasala, allCourriers);
+    cells[6] = formatExcelDate(morasala.dateMessage || morasala.date);
+    cells[7] = morasala.destinataire || "";
+    cells[8] = morasala.sujet || "";
+  }
+
+  if (response) {
+    cells[0] = cells[0] || getDisplayIdBureauOrdre(response, allCourriers);
+    cells[9] = formatExcelDate(response.dateMessage || response.date);
+    cells[10] = [response.source, response.sujet].filter(Boolean).join(" | ");
+  }
+
+  const statusSource = response || morasala || warida;
+  cells[11] = statusSource ? formatEtat(statusSource.etat, t) : "";
 
   return `<tr class="data">${cells.map((value) => `<td>${escapeExcelHtml(value)}</td>`).join("")}</tr>`;
 }
@@ -2614,10 +2655,11 @@ function getDocumentName(value) {
   if (!value) return "";
 
   const cleanValue = String(value).split("?")[0].split("#")[0];
-
-  return decodeURIComponent(
+  const fileName = decodeURIComponent(
     cleanValue.split("/").filter(Boolean).pop() || cleanValue
   );
+
+  return fileName.replace(/^\d{17}-[a-f0-9]{32}-/i, "");
 }
 
 

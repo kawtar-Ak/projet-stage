@@ -1,5 +1,10 @@
 {
   "dashboard": "Tableau de bord",
+  "menu_group_documents": "Gestion des dossiers et documents",
+  "menu_group_transactions": "Gestion des transactions et registre",
+  "menu_group_special": "Tableau de bord et services speciaux",
+  "menu_group_work": "Travail et dossiers",
+  "menu_group_administration": "Administration et organisation",
   "administrateur": "Administrateur",
   "connecte": "Connecté",
   "changer_langue": "Changer la langue",

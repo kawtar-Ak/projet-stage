@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GestionCourrierAbp.Circulations;
+using GestionCourrierAbp.Transactions;
 using GestionCourrierAbp.Workflows;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -12,10 +14,17 @@ namespace GestionCourrierAbp.Courriers;
 public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICourrierAdministratifAppService
 {
     private readonly IRepository<CourrierAdministratif, int> _repository;
+    private readonly IRepository<Transaction, int> _transactionRepository;
+    private readonly IRepository<Circulation, int> _circulationRepository;
 
-    public CourrierAdministratifAppService(IRepository<CourrierAdministratif, int> repository)
+    public CourrierAdministratifAppService(
+        IRepository<CourrierAdministratif, int> repository,
+        IRepository<Transaction, int> transactionRepository,
+        IRepository<Circulation, int> circulationRepository)
     {
         _repository = repository;
+        _transactionRepository = transactionRepository;
+        _circulationRepository = circulationRepository;
     }
 
     public async Task<CourrierAdministratifDto> GetAsync(int id)
@@ -26,7 +35,7 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     public async Task<PagedResultDto<CourrierAdministratifDto>> GetListAsync(PagedAndSortedResultRequestDto input)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!))!.Where(x => !x.EstArchive);
+        var query = await GetVisibleQueryAsync();
         var total = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date).Skip(input.SkipCount).Take(input.MaxResultCount));
         return new PagedResultDto<CourrierAdministratifDto>(total, items.Select(ToDto).ToList());
@@ -53,12 +62,23 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     public async Task DeleteAsync(int id)
     {
+        var documentIds = await GetDocumentIdsToDeleteAsync(id);
+        foreach (var documentId in documentIds)
+        {
+            await DeleteTrackingAsync(documentId);
+        }
+
+        foreach (var childId in documentIds.Where(x => x != id))
+        {
+            await _repository.DeleteAsync(childId, autoSave: false);
+        }
+
         await _repository.DeleteAsync(id, autoSave: true);
     }
 
     public async Task<List<CourrierAdministratifDto>> SearchAsync(string? motCle)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!))!.Where(x => !x.EstArchive);
+        var query = await GetVisibleQueryAsync();
         if (!string.IsNullOrWhiteSpace(motCle))
         {
             var value = motCle.Trim();
@@ -76,8 +96,8 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
 
     public async Task<List<CourrierAdministratifDto>> GetWaridatAsync()
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!))!
-            .Where(x => !x.EstArchive && x.TypeRegistre == "Waridat");
+        var query = (await GetVisibleQueryAsync())
+            .Where(x => x.TypeRegistre == "Waridat");
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date));
         return items.Select(ToDto).ToList();
     }
@@ -193,6 +213,61 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
+    private async Task DeleteTrackingAsync(int documentId)
+    {
+        var transactionsQuery = await _transactionRepository.GetQueryableAsync();
+        var transactions = await AsyncExecuter.ToListAsync(
+            transactionsQuery.Where(x => x.DocumentId == documentId));
+
+        foreach (var transaction in transactions.Where(x => IsAdministratifDocumentType(x.DocumentType)))
+        {
+            await _transactionRepository.DeleteAsync(transaction, autoSave: false);
+        }
+
+        var circulationsQuery = await _circulationRepository.GetQueryableAsync();
+        var circulations = await AsyncExecuter.ToListAsync(
+            circulationsQuery.Where(x => x.DocumentId == documentId));
+
+        foreach (var circulation in circulations.Where(x => IsAdministratifDocumentType(x.DocumentType)))
+        {
+            await _circulationRepository.DeleteAsync(circulation, autoSave: false);
+        }
+    }
+
+    private async Task<IQueryable<CourrierAdministratif>> GetVisibleQueryAsync()
+    {
+        var query = (await _repository.WithDetailsAsync(x => x.Service!))!.Where(x => !x.EstArchive);
+        var existingIds = (await _repository.GetQueryableAsync()).Select(x => x.Id);
+
+        return query.Where(x => !x.ParentId.HasValue || existingIds.Contains(x.ParentId.Value));
+    }
+
+    private async Task<List<int>> GetDocumentIdsToDeleteAsync(int id)
+    {
+        var query = await _repository.GetQueryableAsync();
+        var ids = new List<int> { id };
+        var index = 0;
+
+        while (index < ids.Count)
+        {
+            var parentId = ids[index++];
+            var childIds = await AsyncExecuter.ToListAsync(
+                query
+                    .Where(x => x.ParentId == parentId)
+                    .Select(x => x.Id));
+
+            foreach (var childId in childIds)
+            {
+                if (!ids.Contains(childId))
+                {
+                    ids.Add(childId);
+                }
+            }
+        }
+
+        return ids;
+    }
+
     private static CourrierAdministratifDto ToDto(CourrierAdministratif entity)
     {
         return new CourrierAdministratifDto
@@ -221,5 +296,11 @@ public class CourrierAdministratifAppService : GestionCourrierAbpAppService, ICo
             LastModificationTime = entity.LastModificationTime,
             LastModifierId = entity.LastModifierId
         };
+    }
+
+    private static bool IsAdministratifDocumentType(string? documentType)
+    {
+        var value = (documentType ?? string.Empty).Trim().ToLowerInvariant();
+        return value.Contains("administratif") || value.Contains("admin") || value.Contains("courrier");
     }
 }

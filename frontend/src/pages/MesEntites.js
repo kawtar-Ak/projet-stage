@@ -1,31 +1,58 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import ActionIcon from '../components/ActionIcon';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
+import { useAuth } from '../context/AuthContext';
 
 function MesEntites() {
     const { t } = useTranslation();
+    const { user } = useAuth();
     const [documents, setDocuments] = useState([]);
     const [services, setServices] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [selectedDoc, setSelectedDoc] = useState(null);
     const [transferForm, setTransferForm] = useState(getInitialTransferForm());
+    const [sentDocumentKeys, setSentDocumentKeys] = useState(new Set());
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalDocument, setModalDocument] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedKeys, setSelectedKeys] = useState(new Set());
+    const filteredDocuments = useMemo(
+        () => filterDocuments(documents, searchTerm),
+        [documents, searchTerm]
+    );
+    const selectedDocuments = useMemo(
+        () => filteredDocuments.filter((doc) => selectedKeys.has(getDocumentKey(doc))),
+        [filteredDocuments, selectedKeys]
+    );
+    const allVisibleSelected = filteredDocuments.length > 0 &&
+        filteredDocuments.every((doc) => selectedKeys.has(getDocumentKey(doc)));
 
     useEffect(() => {
         fetchDocuments();
         fetchServices();
-    }, []);
+    }, [user?.idService]);
 
     const fetchDocuments = async () => {
         try {
-            const res = await axios.get('/api/documents');
-            setDocuments(normalizeDocuments(res.data));
+            const currentServiceId = Number(user?.idService || localStorage.getItem('idService') || 0);
+            const documentsRes = await axios.get('/api/documents')
+                .catch(() => ({ data: [] }));
+            const endpointDocuments = toArray(documentsRes.data);
+            const existingDocumentKeys = new Set(endpointDocuments.map(getDocumentKey));
+            const visibleDocuments = endpointDocuments
+                .filter((doc) => Number(doc.idService) === currentServiceId);
+
+            setDocuments(normalizeDocuments(visibleDocuments));
+            setSelectedKeys((previous) => {
+                const existingKeys = new Set(visibleDocuments.map(getDocumentKey));
+                return new Set(Array.from(previous).filter((key) => existingKeys.has(key)));
+            });
+            fetchSentTransactions(existingDocumentKeys);
             setError('');
         } catch (err) {
             setError(t('erreur_chargement'));
@@ -41,7 +68,24 @@ function MesEntites() {
         }
     };
 
+    const fetchSentTransactions = async (existingDocumentKeys = null) => {
+        try {
+            const res = await axios.get('/api/transactions/outgoing');
+            setSentDocumentKeys(
+                new Set(toArray(res.data)
+                    .map((transaction) => getDocumentKey({
+                        idEntite: transaction.documentId,
+                        type: transaction.documentType
+                    }))
+                    .filter((key) => !existingDocumentKeys || existingDocumentKeys.has(key)))
+            );
+        } catch (err) {
+            setSentDocumentKeys(new Set());
+        }
+    };
+
     const openTransferModal = (doc) => {
+        if (!canShowTransferButton(doc, sentDocumentKeys)) return;
         setSelectedDoc(doc);
         setTransferForm(getInitialTransferForm());
         setShowModal(true);
@@ -66,6 +110,11 @@ function MesEntites() {
                 return;
             }
 
+            if (isAlreadySentFromService(selectedDoc, sentDocumentKeys)) {
+                setError(translate(t, 'document_deja_transmis', 'Ce dossier ou fichier a deja ete transmis par ce service.'));
+                return;
+            }
+
             await axios.post('/api/transactions', {
                 documentId: selectedDoc.idEntite,
                 documentType: selectedDoc.type,
@@ -80,6 +129,7 @@ function MesEntites() {
             setSuccess(t('transaction_envoyee'));
             setError('');
             fetchDocuments();
+            fetchSentTransactions();
         } catch (err) {
             setError(getErrorMessage(err, t('erreur_transaction')));
         }
@@ -95,6 +145,50 @@ function MesEntites() {
         setIsModalOpen(true);
     };
 
+    const toggleDocumentSelection = (doc) => {
+        const key = getDocumentKey(doc);
+        setSelectedKeys((previous) => {
+            const next = new Set(previous);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+
+            return next;
+        });
+    };
+
+    const toggleAllVisibleSelection = () => {
+        setSelectedKeys((previous) => {
+            const next = new Set(previous);
+            if (allVisibleSelected) {
+                filteredDocuments.forEach((doc) => next.delete(getDocumentKey(doc)));
+            } else {
+                filteredDocuments.forEach((doc) => next.add(getDocumentKey(doc)));
+            }
+
+            return next;
+        });
+    };
+
+    const handleExport = () => {
+        const rows = selectedDocuments.length > 0 ? selectedDocuments : filteredDocuments;
+        if (rows.length === 0) {
+            setError(translate(t, 'aucun_element_exporter', 'Aucun element a exporter.'));
+            return;
+        }
+
+        exportDocumentsCsv(rows, t);
+        setSuccess(translate(t, 'export_effectue', 'Export effectue.'));
+        setError('');
+    };
+
+    const resetSearch = () => {
+        setSearchTerm('');
+        setSelectedKeys(new Set());
+    };
+
     const closeModal = () => {
         setIsModalOpen(false);
         setModalDocument(null);
@@ -106,11 +200,54 @@ function MesEntites() {
             {error && <div className="error-message">{error}</div>}
             {success && <div className="success-message">{success}</div>}
 
-            <div className="data-table-wrapper">
-                <h3>{translate(t, 'tous_les_dossiers', 'Tous les dossiers')} ({documents.length})</h3>
-                <table className="modern-table">
+            <div className="registry-panel">
+                <div className="registry-panel-header">
+                    <h3>{translate(t, 'recherche_registre', 'Recherche registre')}</h3>
+                </div>
+
+                <div className="filters">
+                    <form className="search-form" onSubmit={(event) => event.preventDefault()}>
+                        <div className="search-input-row">
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(event) => setSearchTerm(event.target.value)}
+                                placeholder={translate(t, 'rechercher', 'Rechercher')}
+                            />
+                        </div>
+
+                        <div className="search-control-row">
+                            <span className="selection-summary">
+                                {formatSelectionCount(t, selectedDocuments.length)}
+                            </span>
+                            <button type="button" className="btn-secondary" onClick={resetSearch}>
+                                {t('reinitialiser')}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div className="data-table-wrapper search-results-table">
+                    <div className="data-table-header">
+                        <h3>{translate(t, 'tous_les_dossiers', 'Tous les dossiers')} ({filteredDocuments.length})</h3>
+                        <div className="registry-tools table-registry-tools">
+                            <button type="button" className="btn-primary" onClick={handleExport}>
+                                {t('exporter_excel')}
+                            </button>
+                        </div>
+                    </div>
+
+                    <table className="modern-table registry-table">
                     <thead>
                         <tr>
+                            <th className="selection-column">
+                                <input
+                                    type="checkbox"
+                                    checked={allVisibleSelected}
+                                    onChange={toggleAllVisibleSelection}
+                                    aria-label={translate(t, 'selectionner_tout', 'Selectionner tout')}
+                                />
+                            </th>
                             <th>{translate(t, 'ordre', 'Ordre')}</th>
                             <th>{t('id')}</th>
                             <th>{t('titre')}</th>
@@ -126,37 +263,53 @@ function MesEntites() {
                         </tr>
                     </thead>
                     <tbody>
-                        {documents.length === 0 ? (
+                        {filteredDocuments.length === 0 ? (
                             <tr>
-                                <td colSpan="12" className="loading">{t('aucun_document')}</td>
+                                <td colSpan="13" className="loading">{t('aucun_document')}</td>
                             </tr>
                         ) : (
-                            documents.map(doc => (
-                                <tr key={`${doc.idEntite}_${doc.type}`}>
-                                    <td>{doc.ordre}</td>
-                                    <td>{doc.idEntite}</td>
-                                    <td>{doc.sujet || '-'}</td>
-                                    <td>{doc.type}</td>
-                                    <td>{doc.numeroCourrier || doc.numeroDossierJudiciaire || '-'}</td>
-                                    <td>{doc.dateCreation ? new Date(doc.dateCreation).toLocaleString('ar-MA') : '-'}</td>
-                                    <td>{doc.dateEnregistrement ? new Date(doc.dateEnregistrement).toLocaleString('ar-MA') : '-'}</td>
-                                    <td>{doc.source || '-'}</td>
-                                    <td>{doc.destinataire || '-'}</td>
-                                    <td>{doc.serviceNom || doc.idService || '-'}</td>
-                                    <td>{doc.estTransmissible ? t('oui') : t('non')}</td>
-                                    <td className="action-icons">
-                                        <button type="button" onClick={() => handleConsult(doc)} title={t('consulter')} aria-label={t('consulter')} className="action-icon action-view">
-                                            <ActionIcon name="view" />
-                                        </button>
-                                        <button type="button" onClick={() => openTransferModal(doc)} disabled={!doc.estTransmissible} title={t('transferer')} aria-label={t('transferer')} className="action-icon action-transfer">
-                                            <ActionIcon name="transfer" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
+                            filteredDocuments.map(doc => {
+                                const showTransferButton = canShowTransferButton(doc, sentDocumentKeys);
+                                const documentKey = getDocumentKey(doc);
+
+                                return (
+                                    <tr key={`${doc.idEntite}_${doc.type}`}>
+                                        <td>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedKeys.has(documentKey)}
+                                                onChange={() => toggleDocumentSelection(doc)}
+                                                aria-label={translate(t, 'selectionner', 'Selectionner')}
+                                            />
+                                        </td>
+                                        <td>{doc.ordre}</td>
+                                        <td>{doc.idEntite}</td>
+                                        <td>{doc.sujet || '-'}</td>
+                                        <td>{doc.type}</td>
+                                        <td>{doc.numeroCourrier || doc.numeroDossierJudiciaire || '-'}</td>
+                                        <td>{doc.dateCreation ? new Date(doc.dateCreation).toLocaleString('ar-MA') : '-'}</td>
+                                        <td>{doc.dateEnregistrement ? new Date(doc.dateEnregistrement).toLocaleString('ar-MA') : '-'}</td>
+                                        <td>{doc.source || '-'}</td>
+                                        <td>{doc.destinataire || '-'}</td>
+                                        <td>{doc.serviceNom || doc.idService || '-'}</td>
+                                        <td>{doc.estTransmissible ? t('oui') : t('non')}</td>
+                                        <td className="action-icons">
+                                            <button type="button" onClick={() => handleConsult(doc)} title={t('consulter')} aria-label={t('consulter')} className="action-icon action-view">
+                                                <ActionIcon name="view" />
+                                            </button>
+                                            {showTransferButton && (
+                                                <button type="button" onClick={() => openTransferModal(doc)} title={t('transferer')} aria-label={t('transferer')} className="action-icon action-transfer">
+                                                    <ActionIcon name="transfer" />
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
+                </div>
             </div>
 
             {showModal && selectedDoc && (
@@ -231,6 +384,122 @@ function normalizeDocuments(data) {
             ordre: item.ordre || index + 1
         }))
         .sort((a, b) => Number(a.ordre || 0) - Number(b.ordre || 0));
+}
+
+function formatSelectionCount(t, count) {
+    const translated = t('selection_count', { count });
+    return translated === 'selection_count' ? `${count} selectionne(s)` : translated;
+}
+
+function filterDocuments(documents, searchTerm) {
+    const keyword = normalizeSearch(searchTerm);
+    if (!keyword) return documents;
+
+    return documents.filter((doc) => normalizeSearch([
+        doc.ordre,
+        doc.idEntite,
+        doc.sujet,
+        doc.type,
+        doc.numeroCourrier,
+        doc.numeroDossierJudiciaire,
+        doc.dateCreation,
+        doc.dateEnregistrement,
+        doc.source,
+        doc.destinataire,
+        doc.serviceNom,
+        doc.idService,
+        doc.etat,
+        doc.etatArchive,
+        doc.description
+    ].join(' ')).includes(keyword));
+}
+
+function exportDocumentsCsv(documents, t) {
+    const headers = [
+        translate(t, 'ordre', 'Ordre'),
+        t('id'),
+        t('titre'),
+        t('type'),
+        translate(t, 'numero', 'Numero'),
+        t('date'),
+        translate(t, 'date_enregistrement', 'Date enregistrement'),
+        t('source'),
+        t('destinataire'),
+        t('service'),
+        t('transmissible'),
+        translate(t, 'etat', 'Etat'),
+        t('description')
+    ];
+
+    const rows = documents.map((doc) => [
+        doc.ordre,
+        doc.idEntite,
+        doc.sujet,
+        doc.type,
+        doc.numeroCourrier || doc.numeroDossierJudiciaire,
+        formatExportDate(doc.dateCreation),
+        formatExportDate(doc.dateEnregistrement),
+        doc.source,
+        doc.destinataire,
+        doc.serviceNom || doc.idService,
+        doc.estTransmissible ? t('oui') : t('non'),
+        doc.etat || doc.etatArchive,
+        doc.description
+    ]);
+
+    const csv = [headers, ...rows]
+        .map((row) => row.map(escapeCsvValue).join(';'))
+        .join('\r\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `mes-entites-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+function escapeCsvValue(value) {
+    const text = String(value ?? '').replace(/\r?\n/g, ' ').trim();
+    return `"${text.replace(/"/g, '""')}"`;
+}
+
+function formatExportDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('fr-FR');
+}
+
+function normalizeSearch(value) {
+    return String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+function canShowTransferButton(doc, sentDocumentKeys) {
+    return Boolean(doc?.estTransmissible) && !isAlreadySentFromService(doc, sentDocumentKeys);
+}
+
+function isAlreadySentFromService(doc, sentDocumentKeys) {
+    return sentDocumentKeys.has(getDocumentKey(doc));
+}
+
+function getDocumentKey(doc) {
+    return `${normalizeDocumentType(doc?.type)}:${doc?.idEntite ?? ''}`;
+}
+
+function normalizeDocumentType(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function toArray(data) {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.items)) return data.items;
+    return [];
 }
 
 function translate(t, key, fallback) {

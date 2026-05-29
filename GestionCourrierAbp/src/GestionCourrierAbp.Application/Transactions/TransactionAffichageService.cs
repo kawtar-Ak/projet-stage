@@ -51,6 +51,7 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
 
             var serviceName = await GetServiceNameAsync(document.ServiceId);
             return new DocumentInfo(
+                true,
                 document.Sujet,
                 document.IdBureauOrdre,
                 document.NumeroDeCourrier,
@@ -74,6 +75,7 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
                 : $"{serviceName} - {document.Emplacement}";
 
             return new DocumentInfo(
+                true,
                 document.Sujet,
                 document.IdBureauOrdre,
                 null,
@@ -219,6 +221,10 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
         foreach (var transaction in transactions)
         {
             var documentInfo = await GetEffectiveDocumentInfoAsync(transaction);
+            if (!documentInfo.Exists)
+            {
+                continue;
+            }
 
             result.Add(new TransactionListDto
             {
@@ -340,6 +346,7 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
     }
 
     private sealed record DocumentInfo(
+        bool Exists,
         string Subject,
         string? NumeroBureauOrdre,
         string? NumeroCourrier,
@@ -348,6 +355,6 @@ public class TransactionAffichageService : GestionCourrierAbpAppService, ITransi
         string CurrentServiceNom,
         string CurrentLocation)
     {
-        public static DocumentInfo Empty { get; } = new(string.Empty, null, null, null, null, string.Empty, string.Empty);
+        public static DocumentInfo Empty { get; } = new(false, string.Empty, null, null, null, null, string.Empty, string.Empty);
     }
 }

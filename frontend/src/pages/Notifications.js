@@ -176,14 +176,32 @@ function Notifications() {
     if (loading) return <div className="loading">{t('chargement')}</div>;
 
     return (
-        <div className="page-container">
+        <div className="page-container notifications-page">
             <h1 className="page-title">{t('notifications')}</h1>
             {error && <div className="error-message">{error}</div>}
             {success && <div className="success-message">{success}</div>}
 
+            <div className="stats-grid notification-summary">
+                <div className="stat-card pending">
+                    <div className="stat-label">{t('demandes_attente')}</div>
+                    <div className="stat-value">{notifications.length}</div>
+                </div>
+                <div className="stat-card accepted">
+                    <div className="stat-label">{t('transactions_traitees')}</div>
+                    <div className="stat-value">{processedTransactions.length}</div>
+                </div>
+                <div className="stat-card cancelled">
+                    <div className="stat-label">{t('documents_retourner')}</div>
+                    <div className="stat-value">{pendingReturns.length}</div>
+                </div>
+            </div>
+
             <section className="registry-panel">
                 <div className="registry-panel-header">
-                    <h3>{t('demandes_attente')}</h3>
+                    <div>
+                        <h3>{t('demandes_attente')}</h3>
+                        <p>{translate(t, 'notifications_attente_desc', 'Documents recus qui attendent une decision.')}</p>
+                    </div>
                 </div>
                 {notifications.length === 0 ? (
                     <p className="text-muted">{t('aucune_demande')}</p>
@@ -192,7 +210,12 @@ function Notifications() {
                         {notifications.map(n => (
                             <div key={n.id} className="notification-card">
                                 <div className="notification-header">
-                                    <span className="notification-title">{n.documentSujet}</span>
+                                    <div>
+                                        <span className="notification-title">{getDocumentLabel(n)}</span>
+                                        <span className="notification-subtitle">
+                                            {getLocalizedServiceName({ idService: n.sourceServiceId, nomService: n.sourceServiceNom }, i18n)}
+                                        </span>
+                                    </div>
                                     <span className="notification-badge">{t('en_attente')}</span>
                                 </div>
                                 <div className="notification-details">
@@ -209,26 +232,28 @@ function Notifications() {
                                         <span className="detail-value">{formatLocalizedDateTime(n.dateEnvoi, i18n)}</span>
                                     </div>
                                 </div>
-                                <textarea
-                                    className="response-textarea"
-                                    placeholder={t('votre_reponse')}
-                                    value={responseMsg[n.id] || ''}
-                                    onChange={e => setResponseMsg({ ...responseMsg, [n.id]: e.target.value })}
-                                    rows="2"
-                                />
-                                <div className="notification-actions">
-                                    <button type="button" className="action-icon action-view" onClick={() => handleConsult(n)} title={t('consulter')} aria-label={t('consulter')}>
-                                        <ActionIcon name="view" />
-                                    </button>
-                                    <button type="button" className={isArchiveAccount ? 'action-icon action-archive' : 'action-icon action-accept'} onClick={() => handleRespond(n.id, true)} title={isArchiveAccount ? t('archiver') : t('accepter')} aria-label={isArchiveAccount ? t('archiver') : t('accepter')}>
-                                        <ActionIcon name={isArchiveAccount ? 'archive' : 'accept'} />
-                                    </button>
-                                    <button type="button" className="action-icon action-cancel" onClick={() => handleRespond(n.id, false)} title={t('refuser')} aria-label={t('refuser')}>
-                                        <ActionIcon name="cancel" />
-                                    </button>
-                                    <button type="button" className="action-icon action-transfer" onClick={() => openTransferModal(n)} title={t('transferer')} aria-label={t('transferer')}>
-                                        <ActionIcon name="transfer" />
-                                    </button>
+                                <div className="notification-response">
+                                    <textarea
+                                        className="response-textarea"
+                                        placeholder={t('votre_reponse')}
+                                        value={responseMsg[n.id] || ''}
+                                        onChange={e => setResponseMsg({ ...responseMsg, [n.id]: e.target.value })}
+                                        rows="2"
+                                    />
+                                    <div className="notification-actions">
+                                        <button type="button" className="action-icon action-view" onClick={() => handleConsult(n)} title={t('consulter')} aria-label={t('consulter')}>
+                                            <ActionIcon name="view" />
+                                        </button>
+                                        <button type="button" className={isArchiveAccount ? 'action-icon action-archive' : 'action-icon action-accept'} onClick={() => handleRespond(n.id, true)} title={isArchiveAccount ? t('archiver') : t('accepter')} aria-label={isArchiveAccount ? t('archiver') : t('accepter')}>
+                                            <ActionIcon name={isArchiveAccount ? 'archive' : 'accept'} />
+                                        </button>
+                                        <button type="button" className="action-icon action-cancel" onClick={() => handleRespond(n.id, false)} title={t('refuser')} aria-label={t('refuser')}>
+                                            <ActionIcon name="cancel" />
+                                        </button>
+                                        <button type="button" className="action-icon action-transfer" onClick={() => openTransferModal(n)} title={t('transferer')} aria-label={t('transferer')}>
+                                            <ActionIcon name="transfer" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -238,32 +263,35 @@ function Notifications() {
 
             <section className="registry-panel">
                 <div className="registry-panel-header">
-                    <h3>{t('transactions_traitees')}</h3>
+                    <div>
+                        <h3>{t('transactions_traitees')}</h3>
+                        <p dir="auto">{translate(t, 'transactions_traitees_desc', 'Dernieres decisions et reponses enregistrees.')}</p>
+                    </div>
                 </div>
-                <div className="data-table-wrapper">
-                    <table className="modern-table">
+                <div className="data-table-wrapper search-results-table notification-table-wrapper">
+                    <table className="modern-table registry-table notifications-table">
                         <thead>
                             <tr>
-                                <th>{t('document')}</th>
+                                <th className="notification-document-col">{t('document')}</th>
                                 <th>{t('service_destinataire')}</th>
                                 <th>{t('etat')}</th>
                                 <th>{translate(t, 'traite_par', 'Traité par')}</th>
-                                <th>{translate(t, 'service_traitant', 'Service traitant')}</th>
                                 <th>{t('traite_le')}</th>
                                 <th>{t('reponse_note')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {processedTransactions.length === 0 ? (
-                                <tr><td colSpan="7" style={{ textAlign: 'center' }}>{t('aucune_transaction')}</td></tr>
+                                <tr><td colSpan="6" style={{ textAlign: 'center' }}>{t('aucune_transaction')}</td></tr>
                             ) : (
                                 processedTransactions.map(tx => (
                                     <tr key={tx.id}>
-                                        <td>{getDocumentLabel(tx)}</td>
+                                        <td className="notification-document-cell">
+                                            <DocumentCell transaction={tx} />
+                                        </td>
                                         <td>{getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</td>
                                         <td>{formatStatus(tx.statut, t)}</td>
-                                        <td>{tx.responderUserName || '-'}</td>
-                                        <td>{getLocalizedServiceName({ idService: tx.responderServiceId || tx.destinationServiceId, nomService: tx.responderServiceName || tx.destinationServiceNom }, i18n)}</td>
+                                        <td>{tx.responderUserName || getLocalizedServiceName({ idService: tx.responderServiceId || tx.destinationServiceId, nomService: tx.responderServiceName || tx.destinationServiceNom }, i18n) || '-'}</td>
                                         <td>{formatLocalizedDateTime(tx.dateReponse || tx.dateEnvoi, i18n)}</td>
                                         <td>{getLocalizedResponseMessage(tx.messageReponse, t)}</td>
                                     </tr>
@@ -276,13 +304,22 @@ function Notifications() {
 
             <section className="registry-panel">
                 <div className="registry-panel-header">
-                    <h3>{t('documents_retourner')}</h3>
+                    <div>
+                        <h3>{t('documents_retourner')}</h3>
+                        <p dir="auto">{translate(t, 'documents_retourner_desc', 'Documents acceptes qui doivent revenir ou etre retransmis.')}</p>
+                    </div>
                 </div>
-                <div className="data-table-wrapper">
-                    <table className="modern-table">
+                <div className="data-table-wrapper search-results-table notification-table-wrapper">
+                    <table className="modern-table registry-table notifications-table returns-table">
+                        <colgroup>
+                            <col className="returns-document-col" />
+                            <col className="returns-service-col" />
+                            <col className="returns-date-col" />
+                            <col className="returns-actions-col" />
+                        </colgroup>
                         <thead>
                             <tr>
-                                <th>{t('document')}</th>
+                                <th className="notification-document-col">{t('document')}</th>
                                 <th>{t('service_destinataire')}</th>
                                 <th>{t('envoye_le')}</th>
                                 <th>{t('actions')}</th>
@@ -294,7 +331,9 @@ function Notifications() {
                             ) : (
                                 pendingReturns.map(tx => (
                                     <tr key={tx.id}>
-                                        <td>{getDocumentLabel(tx)}</td>
+                                        <td className="notification-document-cell">
+                                            <DocumentCell transaction={tx} />
+                                        </td>
                                         <td>{getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</td>
                                         <td>{formatLocalizedDateTime(tx.dateEnvoi, i18n)}</td>
                                         <td className="action-icons">
@@ -433,6 +472,18 @@ function formatStatus(value, t) {
 function getDocumentLabel(transaction) {
     const numero = transaction.numeroCourrier || transaction.numeroDossierJudiciaire;
     return [transaction.documentSujet || transaction.document || '-', numero].filter(Boolean).join(' - ');
+}
+
+function DocumentCell({ transaction }) {
+    const title = transaction.documentSujet || transaction.document || '-';
+    const numero = transaction.numeroCourrier || transaction.numeroDossierJudiciaire;
+
+    return (
+        <span className="notification-document-content">
+            <span className="notification-document-title">{title}</span>
+            {numero && <span className="notification-document-number">{numero}</span>}
+        </span>
+    );
 }
 
 function translate(t, key, fallback) {

@@ -377,20 +377,23 @@ function GererUtilisateurs() {
             </div>
 
             {showPasswordModal && (
-                <div className="modal" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'white', padding: '2rem', borderRadius: '1rem', zIndex: 1000, boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                    <h3>{t('changer_mot_de_passe')}</h3>
-                    <input
-                        type="password"
-                        placeholder={t('nouveau_mot_de_passe')}
-                        value={newPassword}
-                        onChange={e => setNewPassword(e.target.value)}
-                        style={{ width: '100%', padding: '0.5rem', margin: '1rem 0' }}
-                    />
-                    <div className="form-actions" style={{ marginTop: '1rem' }}>
-                        <button className="btn-primary" onClick={changePassword}>{t('valider')}</button>
-                        <button className="btn-secondary" onClick={() => { setShowPasswordModal(false); setNewPassword(''); }}>{t('annuler')}</button>
+                <>
+                    <div className="modal-overlay" onClick={() => { setShowPasswordModal(false); setNewPassword(''); }} />
+                    <div className="modal" onClick={(event) => event.stopPropagation()}>
+                        <h3>{t('changer_mot_de_passe')}</h3>
+                        <input
+                            type="password"
+                            placeholder={t('nouveau_mot_de_passe')}
+                            value={newPassword}
+                            onChange={e => setNewPassword(e.target.value)}
+                            style={{ width: '100%', padding: '0.5rem', margin: '1rem 0' }}
+                        />
+                        <div className="form-actions" style={{ marginTop: '1rem' }}>
+                            <button className="btn-primary" onClick={changePassword}>{t('valider')}</button>
+                            <button className="btn-secondary" onClick={() => { setShowPasswordModal(false); setNewPassword(''); }}>{t('annuler')}</button>
+                        </div>
                     </div>
-                </div>
+                </>
             )}
         </div>
     );

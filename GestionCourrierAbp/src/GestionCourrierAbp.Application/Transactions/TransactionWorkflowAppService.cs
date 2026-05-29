@@ -116,10 +116,14 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         var dtoItems = new List<TransactionDto>();
         foreach (var item in items)
         {
-            dtoItems.Add(await ToDtoAsync(item));
+            var dto = await ToDtoAsync(item);
+            if (dto.CurrentServiceId.HasValue || !string.IsNullOrWhiteSpace(dto.DocumentSujet))
+            {
+                dtoItems.Add(dto);
+            }
         }
 
-        return new PagedResultDto<TransactionDto>(totalCount, dtoItems);
+        return new PagedResultDto<TransactionDto>(dtoItems.Count, dtoItems);
     }
 
     /// <summary>
@@ -614,6 +618,10 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         foreach (var transaction in transactions)
         {
             var documentInfo = await GetEffectiveDocumentInfoAsync(transaction);
+            if (!documentInfo.Exists)
+            {
+                continue;
+            }
 
             result.Add(new TransactionListDto
             {
@@ -674,6 +682,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
             var serviceName = await GetServiceNameAsync(document.ServiceId);
             return new DocumentInfo(
+                true,
                 document.Sujet,
                 document.IdBureauOrdre,
                 document.NumeroDeCourrier,
@@ -697,6 +706,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
                 : $"{serviceName} - {document.Emplacement}";
 
             return new DocumentInfo(
+                true,
                 document.Sujet,
                 document.IdBureauOrdre,
                 null,
@@ -854,6 +864,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     }
 
     private sealed record DocumentInfo(
+        bool Exists,
         string Sujet,
         string? NumeroBureauOrdre,
         string? NumeroCourrier,
@@ -862,6 +873,6 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         string CurrentServiceNom,
         string CurrentLocation)
     {
-        public static DocumentInfo Empty { get; } = new(string.Empty, null, null, null, null, string.Empty, string.Empty);
+        public static DocumentInfo Empty { get; } = new(false, string.Empty, null, null, null, null, string.Empty, string.Empty);
     }
 }

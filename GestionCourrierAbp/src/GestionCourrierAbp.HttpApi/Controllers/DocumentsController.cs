@@ -47,11 +47,12 @@ public class DocumentsController : ControllerBase
         var judiciaires = await _courrierJudiciaireAppService.GetListAsync(input);
 
         var documents = administratifs.Items
-            .Where(x => !serviceId.HasValue || x.IdService == serviceId.Value)
             .Select(MapAdministratif)
-            .Concat(judiciaires.Items
-                .Where(x => !serviceId.HasValue || x.IdService == serviceId.Value)
-                .Select(MapJudiciaire))
+            .Concat(judiciaires.Items.Select(MapJudiciaire))
+            .Where(x => !serviceId.HasValue || x.IdService == serviceId.Value)
+            .ToList();
+
+        documents = documents
             .OrderBy(x => x.DateEnregistrement ?? x.DateCreation)
             .ThenBy(x => x.Type)
             .ThenBy(x => x.IdEntite)
@@ -122,6 +123,7 @@ public class DocumentsController : ControllerBase
             EstTransmissible = document.EstTransmissible
         };
     }
+
 }
 
 public class DocumentCirculationDto

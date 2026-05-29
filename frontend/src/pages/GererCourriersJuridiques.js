@@ -141,8 +141,7 @@ function GererCourriersJuridiques({ embedded = false }) {
           transactions
             .filter((transaction) =>
               String(transaction.documentType || "").toLowerCase() === "judiciaire" &&
-              Number(transaction.sourceServiceId) === currentServiceId &&
-              isPendingTransactionStatus(transaction.statut)
+              Number(transaction.sourceServiceId) === currentServiceId
             )
             .map((transaction) => String(transaction.documentId))
         )
@@ -259,11 +258,7 @@ function GererCourriersJuridiques({ embedded = false }) {
       typeEnregistrementJudiciaire: isLinkedJudicialDocument ? JUDICIAL_RECORD_DOCUMENT_LIE : JUDICIAL_RECORD_DOSSIER,
       courrierJudiciaireParentId: isLinkedJudicialDocument ? Number(form.courrierJudiciaireParentId) : null,
       numeroDossier: isLinkedJudicialDocument || isBureauOrdreService ? "" : form.numeroDossier.trim(),
-      estTransmissible: isLinkedJudicialDocument
-        ? true
-        : isOuvertureDossiersService
-        ? hasCompleteNumeroDossier(form.numeroDossier)
-        : Boolean(form.estTransmissible) && !isLinkedJudicialDocument && !isBureauOrdreService && hasCompleteNumeroDossier(form.numeroDossier),
+      estTransmissible: true,
     };
 
     try {
@@ -675,20 +670,6 @@ function GererCourriersJuridiques({ embedded = false }) {
             </div>
 
             <div className="form-field">
-              <label>{t("transmissible")}</label>
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  name="estTransmissible"
-                  checked={form.estTransmissible}
-                  onChange={handleChange}
-                  disabled={!isLinkedJudicialDocument && (isBureauOrdreService || isOuvertureDossiersService)}
-                />
-                {t("oui")}
-              </label>
-            </div>
-
-            <div className="form-field">
               <label>{t("emplacement")}</label>
               <input name="emplacement" value={form.emplacement} onChange={handleChange} />
             </div>
@@ -702,14 +683,6 @@ function GererCourriersJuridiques({ embedded = false }) {
                 </label>
                 <div className={form.lienPdf ? "document-link-preview filled" : "document-link-preview"}>
                   <span title={form.lienPdf || ""}>{form.lienPdf ? getDocumentName(form.lienPdf) : t("aucun_fichier_selectionne")}</span>
-                  {form.lienPdf && (
-                    <a href={getDocumentHref(form.lienPdf)} target="_blank" rel="noreferrer">
-                      {t("ouvrir")}
-                    </a>
-                  )}
-                </div>
-                <div className="document-link-input">
-                  <input name="lienPdf" value={form.lienPdf} onChange={handleChange} placeholder="/uploads/documents/..." />
                   {form.lienPdf && (
                     <a href={getDocumentHref(form.lienPdf)} target="_blank" rel="noreferrer">
                       {t("ouvrir")}
@@ -1093,7 +1066,7 @@ function getInitialForm(services = [], currentServiceId = 0, mode = JUDICIAL_REC
     typeEnregistrementJudiciaire: mode,
     courrierJudiciaireParentId: "",
     idService: currentServiceId || getDefaultServiceId(services),
-    estTransmissible: isLinkedDocument,
+    estTransmissible: true,
   };
 }
 
@@ -1152,11 +1125,6 @@ function canTransferCourrier(courrier, sentDocumentIds = new Set()) {
   if (isLinkedJudicialRecord(courrier)) return true;
   if (courrier?.estTransmissible) return true;
   return Number(courrier?.idService) === BUREAU_ORDRE_SERVICE_ID && isIncompleteJudicialFile(courrier);
-}
-
-function isPendingTransactionStatus(statut) {
-  const value = String(statut || "").toLowerCase();
-  return value === "enattente" || value === "en attente" || value === "pending";
 }
 
 function getDefaultTransferServiceId(courrier) {
@@ -1351,7 +1319,8 @@ function getDocumentHref(value) {
 function getDocumentName(value) {
   if (!value) return "";
   const cleanValue = String(value).split("?")[0].split("#")[0];
-  return decodeURIComponent(cleanValue.split("/").filter(Boolean).pop() || cleanValue);
+  const fileName = decodeURIComponent(cleanValue.split("/").filter(Boolean).pop() || cleanValue);
+  return fileName.replace(/^\d{17}-[a-f0-9]{32}-/i, "");
 }
 
 function formatEtat(value, t) {

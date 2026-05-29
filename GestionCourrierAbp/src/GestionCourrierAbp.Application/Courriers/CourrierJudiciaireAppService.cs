@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GestionCourrierAbp.Circulations;
+using GestionCourrierAbp.Transactions;
 using GestionCourrierAbp.Workflows;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -17,13 +19,19 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     private readonly IRepository<CourrierJudiciaire, int> _repository;
     private readonly IRepository<RetraitJudiciaire, int> _retraitRepository;
+    private readonly IRepository<Transaction, int> _transactionRepository;
+    private readonly IRepository<Circulation, int> _circulationRepository;
 
     public CourrierJudiciaireAppService(
         IRepository<CourrierJudiciaire, int> repository,
-        IRepository<RetraitJudiciaire, int> retraitRepository)
+        IRepository<RetraitJudiciaire, int> retraitRepository,
+        IRepository<Transaction, int> transactionRepository,
+        IRepository<Circulation, int> circulationRepository)
     {
         _repository = repository;
         _retraitRepository = retraitRepository;
+        _transactionRepository = transactionRepository;
+        _circulationRepository = circulationRepository;
     }
 
     public async Task<CourrierJudiciaireDto> GetAsync(int id)
@@ -34,7 +42,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<PagedResultDto<CourrierJudiciaireDto>> GetListAsync(PagedAndSortedResultRequestDto input)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits, x => x.CourrierJudiciaireParent!))!.Where(x => !x.EstArchive);
+        var query = (await GetVisibleQueryAsync()).Where(x => !x.EstArchive);
         var total = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date).Skip(input.SkipCount).Take(input.MaxResultCount));
         return new PagedResultDto<CourrierJudiciaireDto>(total, items.Select(ToDto).ToList());
@@ -61,12 +69,23 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task DeleteAsync(int id)
     {
+        var documentIds = await GetDocumentIdsToDeleteAsync(id);
+        foreach (var documentId in documentIds)
+        {
+            await DeleteTrackingAsync(documentId);
+        }
+
+        foreach (var childId in documentIds.Where(x => x != id))
+        {
+            await _repository.DeleteAsync(childId, autoSave: false);
+        }
+
         await _repository.DeleteAsync(id, autoSave: true);
     }
 
     public async Task<List<CourrierJudiciaireDto>> SearchAsync(string? motCle)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits, x => x.CourrierJudiciaireParent!))!.Where(x => !x.EstArchive);
+        var query = (await GetVisibleQueryAsync()).Where(x => !x.EstArchive);
         query = ApplySearch(query, motCle);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date));
         return items.Select(ToDto).ToList();
@@ -74,7 +93,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
     public async Task<List<CourrierJudiciaireDto>> GetArchivesAsync(string? motCle)
     {
-        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits, x => x.CourrierJudiciaireParent!))!.Where(x => x.EstArchive);
+        var query = (await GetVisibleQueryAsync()).Where(x => x.EstArchive);
         query = ApplySearch(query, motCle);
         var items = await AsyncExecuter.ToListAsync(query.OrderByDescending(x => x.Date));
         return items.Select(ToDto).ToList();
@@ -247,13 +266,7 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         entity.NumeroDossierAnnee = parsed.annee;
         entity.NumeroDossierNombre = parsed.nombre;
         entity.NumeroDossierSujet = parsed.sujet;
-        entity.EstTransmissible = IsLinkedJudicialDocument(input)
-            ? true
-            : input.EstTransmissible || HasCompleteNumeroDossier(parsed);
-        if (!IsLinkedJudicialDocument(input) && entity.ServiceId == OpeningFilesServiceId && HasCompleteNumeroDossier(parsed))
-        {
-            entity.EstTransmissible = true;
-        }
+        entity.EstTransmissible = true;
 
         return entity;
     }
@@ -389,6 +402,62 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
+    private async Task<List<int>> GetDocumentIdsToDeleteAsync(int id)
+    {
+        var query = await _repository.GetQueryableAsync();
+        var ids = new List<int> { id };
+        var index = 0;
+
+        while (index < ids.Count)
+        {
+            var parentId = ids[index++];
+            var childIds = await AsyncExecuter.ToListAsync(
+                query
+                    .Where(x => x.CourrierJudiciaireParentId == parentId)
+                    .Select(x => x.Id));
+
+            foreach (var childId in childIds)
+            {
+                if (!ids.Contains(childId))
+                {
+                    ids.Add(childId);
+                }
+            }
+        }
+
+        return ids;
+    }
+
+    private async Task DeleteTrackingAsync(int documentId)
+    {
+        var transactionsQuery = await _transactionRepository.GetQueryableAsync();
+        var transactions = await AsyncExecuter.ToListAsync(
+            transactionsQuery.Where(x => x.DocumentId == documentId));
+
+        foreach (var transaction in transactions.Where(x => IsJudiciaireDocumentType(x.DocumentType)))
+        {
+            await _transactionRepository.DeleteAsync(transaction, autoSave: false);
+        }
+
+        var circulationsQuery = await _circulationRepository.GetQueryableAsync();
+        var circulations = await AsyncExecuter.ToListAsync(
+            circulationsQuery.Where(x => x.DocumentId == documentId));
+
+        foreach (var circulation in circulations.Where(x => IsJudiciaireDocumentType(x.DocumentType)))
+        {
+            await _circulationRepository.DeleteAsync(circulation, autoSave: false);
+        }
+    }
+
+    private async Task<IQueryable<CourrierJudiciaire>> GetVisibleQueryAsync()
+    {
+        var query = (await _repository.WithDetailsAsync(x => x.Service!, x => x.Retraits, x => x.CourrierJudiciaireParent!))!;
+        var existingIds = (await _repository.GetQueryableAsync()).Select(x => x.Id);
+
+        return query.Where(x => !x.CourrierJudiciaireParentId.HasValue ||
+            existingIds.Contains(x.CourrierJudiciaireParentId.Value));
+    }
+
     private static string? BuildNumeroDossier(CourrierJudiciaire? entity)
     {
         return entity?.NumeroDossierAnnee.HasValue == true &&
@@ -456,5 +525,11 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
             LastModificationTime = entity.LastModificationTime,
             LastModifierId = entity.LastModifierId
         };
+    }
+
+    private static bool IsJudiciaireDocumentType(string? documentType)
+    {
+        var value = (documentType ?? string.Empty).Trim().ToLowerInvariant();
+        return value.Contains("judiciaire") || value.Contains("juridique") || value.Contains("appel");
     }
 }

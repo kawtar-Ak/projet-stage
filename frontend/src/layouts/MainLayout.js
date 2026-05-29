@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ function MainLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+  const [openGroupKey, setOpenGroupKey] = useState('');
 
   const currentLanguage = (i18n.resolvedLanguage || i18n.language || 'fr').split('-')[0];
 
@@ -69,6 +70,7 @@ function MainLayout({ children }) {
     if (serviceId === 13 || serviceName.includes('archivage') || serviceName.includes('archive')) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
         { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
         { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' }
@@ -78,6 +80,8 @@ function MainLayout({ children }) {
     if (serviceId === 3 || serviceName.includes('ouverture')) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        { labelKey: 'menu_dossiers_juridiques', icon: 'folder', path: '/courriers-juridiques' },
+        { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
         { labelKey: 'dossiers_acceptes_ouverture', icon: 'folder', path: '/dossiers-ouverture' },
         { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' }
@@ -98,7 +102,53 @@ function MainLayout({ children }) {
     return commonLinks;
   };
 
+  const buildMenuGroups = (items) => {
+    const groupedItems = items.filter((item) => item.path !== '/dashboard');
+    const groupDefinitions = [
+      {
+        key: 'documents',
+        labelKey: 'menu_group_documents',
+        icon: 'folder',
+        paths: ['/courriers', '/courriers-juridiques', '/mes-entites']
+      },
+      {
+        key: 'transactions',
+        labelKey: 'menu_group_transactions',
+        icon: 'send',
+        paths: ['/notifications', '/circulations', '/transactions-outgoing']
+      },
+      {
+        key: 'administration',
+        labelKey: 'menu_group_administration',
+        icon: 'settings',
+        paths: ['/equipements', '/services', '/utilisateurs', '/gestion-listes']
+      },
+      {
+        key: 'special',
+        labelKey: 'menu_group_special',
+        icon: 'grid',
+        paths: []
+      }
+    ];
+
+    const grouped = groupedItems.reduce(
+      (acc, item) => {
+        const matchedGroup = groupDefinitions.find((group) => group.paths.includes(item.path));
+        const groupKey = matchedGroup?.key || 'special';
+        acc[groupKey].push(item);
+        return acc;
+      },
+      { documents: [], transactions: [], administration: [], special: [] }
+    );
+
+    return groupDefinitions
+      .map((group) => ({ ...group, items: grouped[group.key] }))
+      .filter((group) => group.items.length > 0);
+  };
+
   const menuItems = getMenuItems();
+  const topMenuItems = menuItems.filter((item) => item.path === '/dashboard');
+  const menuGroups = buildMenuGroups(menuItems);
   const displayName = user?.nomComplet || user?.login || t('administrateur');
   const serviceLabel = user?.nomService || t('service_informatique');
   const menuPositionClass = currentLanguage === 'ar' ? 'menu-right' : 'menu-left';
@@ -132,15 +182,45 @@ function MainLayout({ children }) {
         </div>
 
         <nav className="sidebar-nav">
-          {menuItems.map((item, idx) => (
+          {topMenuItems.map((item, idx) => (
             <NavLink
               key={`${item.path}-${idx}`}
               to={item.path}
-              className={({ isActive }) => (isActive ? 'active' : undefined)}
+              className={({ isActive }) => `sidebar-main-link${isActive ? ' active' : ''}`}
             >
               <span className={`nav-icon nav-icon-${item.icon}`} aria-hidden="true"></span>
               <span>{t(item.labelKey)}</span>
             </NavLink>
+          ))}
+
+          {menuGroups.map((group) => (
+            <section className={`sidebar-section${openGroupKey === group.key ? ' open' : ''}`} key={group.key}>
+              <button
+                type="button"
+                className="sidebar-section-title"
+                onClick={() => setOpenGroupKey((currentGroupKey) => (currentGroupKey === group.key ? '' : group.key))}
+                aria-expanded={openGroupKey === group.key}
+              >
+                <span>{t(group.labelKey)}</span>
+                <span className="sidebar-section-title-icons">
+                  <span className={`nav-icon nav-icon-${group.icon}`} aria-hidden="true"></span>
+                  <span className="sidebar-section-chevron" aria-hidden="true"></span>
+                </span>
+              </button>
+
+              <div className="sidebar-section-links" hidden={openGroupKey !== group.key}>
+                {group.items.map((item, idx) => (
+                  <NavLink
+                    key={`${item.path}-${idx}`}
+                    to={item.path}
+                    className={({ isActive }) => (isActive ? 'active' : undefined)}
+                  >
+                    <span className={`nav-icon nav-icon-${item.icon}`} aria-hidden="true"></span>
+                    <span>{t(item.labelKey)}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </section>
           ))}
         </nav>
 
