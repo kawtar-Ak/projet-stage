@@ -16,6 +16,8 @@ public class TransactionLifecycleWorkflow : IWorkflow<TransactionWorkflowData>
                 .Input(step => step.TransactionId, data => data.TransactionId)
                 .Input(step => step.DocumentId, data => data.DocumentId)
                 .Input(step => step.DocumentType, data => data.DocumentType)
+            .Then<TransactionDispatchStep>()
+                .Input(step => step.TransactionId, data => data.TransactionId)
             .Then<TransactionAwaitingResponseStep>()
                 .Input(step => step.TransactionId, data => data.TransactionId)
                 .Input(step => step.DestinationServiceId, data => data.DestinationServiceId)

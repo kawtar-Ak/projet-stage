@@ -256,6 +256,12 @@ public class GestionCourrierAbpHttpApiHostModule : AbpModule
     private static void ConfigureWorkflowCore(ServiceConfigurationContext context)
     {
         context.Services.AddWorkflow();
+        context.Services.AddTransient<TransactionCreatedStep>();
+        context.Services.AddTransient<TransactionDispatchStep>();
+        context.Services.AddTransient<TransactionAwaitingResponseStep>();
+        context.Services.AddTransient<TransactionRespondStep>();
+        context.Services.AddTransient<TransactionCancelStep>();
+        context.Services.AddTransient<TransactionReturnStep>();
     }
 
 
@@ -307,6 +313,9 @@ public class GestionCourrierAbpHttpApiHostModule : AbpModule
 
         var workflowHost = context.ServiceProvider.GetRequiredService<IWorkflowHost>();
         workflowHost.RegisterWorkflow<TransactionLifecycleWorkflow, TransactionWorkflowData>();
+        workflowHost.RegisterWorkflow<TransactionResponseWorkflow, TransactionWorkflowCommandData>();
+        workflowHost.RegisterWorkflow<TransactionCancelWorkflow, TransactionWorkflowCommandData>();
+        workflowHost.RegisterWorkflow<TransactionReturnWorkflow, TransactionWorkflowCommandData>();
         workflowHost.Start();
 
         var applicationLifetime = context.ServiceProvider.GetRequiredService<IHostApplicationLifetime>();

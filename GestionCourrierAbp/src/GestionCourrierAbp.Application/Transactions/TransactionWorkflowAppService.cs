@@ -228,24 +228,6 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             Statut = WorkflowStatus.EnAttente.ToStorageValue(),
             DateEnvoi = input.DateEnvoi ?? DateTime.Now
         }, autoSave: true);
-
-        await _workflowService.SendDocumentToDestinationServiceAsync(transaction);
-        await RegisterCirculationAsync(transaction);
-
-        if (isConseillerRapporteurDestination)
-        {
-            await _workflowService.RespondAsync(
-                transaction,
-                accepted: true,
-                message: "Acceptation automatique - المستشار المقرر",
-                responderUserName: input.SenderUserName?.Trim(),
-                responderServiceId: transaction.DestinationServiceId,
-                responderServiceName: await GetServiceNameAsync(transaction.DestinationServiceId));
-
-            await UpdateCirculationFromTransactionAsync(transaction);
-            return await ToDtoAsync(transaction);
-        }
-
         // Lancement du workflow après la création de la transaction
         await _workflowHost.StartWorkflow(
             TransactionLifecycleWorkflow.WorkflowId,
@@ -262,6 +244,16 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             });
 
         // Retourne la transaction créée sous forme de DTO
+        if (isConseillerRapporteurDestination)
+        {
+            transaction = await WaitForTransactionStatusAsync(transaction.Id, WorkflowStatus.Accepte);
+        }
+        else
+        {
+            await Task.Delay(150);
+            transaction = await _repository.GetAsync(transaction.Id);
+        }
+
         return await ToDtoAsync(transaction);
     }
 
@@ -306,27 +298,23 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     public async Task<TransactionDto> RespondAsync(int id, RespondTransactionDto input)
     {
         // Récupération de la transaction par son ID
-        var transaction = await _repository.GetAsync(id);
-        var responderServiceId = input.ResponderServiceId ?? transaction.DestinationServiceId;
+        await _workflowHost.StartWorkflow(
+            TransactionResponseWorkflow.WorkflowId,
+            1,
+            new TransactionWorkflowCommandData
+            {
+                TransactionId = id,
+                Accepte = input.Accepte,
+                Message = input.Message,
+                ResponderUserName = input.ResponderUserName,
+                ResponderServiceId = input.ResponderServiceId,
+                ResponderServiceName = input.ResponderServiceName
+            });
 
-        if (responderServiceId != transaction.DestinationServiceId)
-        {
-            throw new BusinessException("TransactionReponseNonAutorisee")
-                .WithData("DestinationServiceId", transaction.DestinationServiceId)
-                .WithData("ResponderServiceId", responderServiceId);
-        }
-
+        var transaction = await WaitForTransactionStatusAsync(
+            id,
+            input.Accepte ? WorkflowStatus.Accepte : WorkflowStatus.Refuse);
         // Traitement de l’acceptation ou du refus via le service workflow
-        await _workflowService.RespondAsync(
-            transaction,
-            input.Accepte,
-            input.Message,
-            input.ResponderUserName,
-            responderServiceId,
-            input.ResponderServiceName ?? await GetServiceNameAsync(transaction.DestinationServiceId));
-
-        await UpdateCirculationFromTransactionAsync(transaction);
-
         return await ToDtoAsync(transaction);
     }
 
@@ -336,29 +324,16 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     /// </summary>
     public async Task<TransactionDto> CancelAsync(int id, int sourceServiceId)
     {
-        var transaction = await _repository.GetAsync(id);
+        await _workflowHost.StartWorkflow(
+            TransactionCancelWorkflow.WorkflowId,
+            1,
+            new TransactionWorkflowCommandData
+            {
+                TransactionId = id,
+                SourceServiceId = sourceServiceId
+            });
 
-        // Vérifie que le service qui demande l’annulation est bien le service source
-        if (transaction.SourceServiceId != sourceServiceId)
-        {
-            throw new BusinessException("TransactionAnnulationNonAutorisee");
-        }
-
-        // Une transaction ne peut être annulée que si elle est encore en attente
-        if (!transaction.Statut.IsSameAs(WorkflowStatus.EnAttente))
-        {
-            throw new BusinessException("TransactionAnnulationImpossible")
-                .WithData("Statut", transaction.Statut);
-        }
-
-        // Mise à jour du statut vers "Annulé"
-        transaction.Statut = WorkflowStatus.Annule.ToStorageValue();
-        transaction.DateReponse = DateTime.Now;
-        transaction.MessageReponse = "Annulée par l'émetteur";
-
-        await _workflowService.ReturnDocumentToSourceServiceAsync(transaction);
-        await _repository.UpdateAsync(transaction, autoSave: true);
-        await UpdateCirculationFromTransactionAsync(transaction);
+        var transaction = await WaitForTransactionStatusAsync(id, WorkflowStatus.Annule);
 
         return await ToDtoAsync(transaction);
     }
@@ -369,41 +344,18 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     /// </summary>
     public async Task<TransactionDto> MarkReturnedAsync(int id, int sourceServiceId)
     {
-        var transaction = await _repository.GetAsync(id);
-        var isConseillerRapporteurReturn =
-            await IsConseillerRapporteurServiceAsync(transaction.DestinationServiceId);
+        await _workflowHost.StartWorkflow(
+            TransactionReturnWorkflow.WorkflowId,
+            1,
+            new TransactionWorkflowCommandData
+            {
+                TransactionId = id,
+                SourceServiceId = sourceServiceId
+            });
 
-        // Vérifie que seul le service source peut marquer le retour
-        if (transaction.SourceServiceId != sourceServiceId && !isConseillerRapporteurReturn)
-        {
-            throw new BusinessException("TransactionRetourNonAutorise");
-        }
+        var returnedTransaction = await WaitForTransactionStatusAsync(id, WorkflowStatus.Retourne);
+        return await ToDtoAsync(returnedTransaction);
 
-        // Vérifie que cette transaction est bien prévue avec retour
-        if (!transaction.DoitRevenir)
-        {
-            throw new BusinessException("TransactionSansRetour");
-        }
-
-        // Le retour est possible seulement si la transaction a été acceptée
-        if (!transaction.Statut.IsSameAs(WorkflowStatus.Accepte))
-        {
-            throw new BusinessException("TransactionRetourImpossible")
-                .WithData("Statut", transaction.Statut);
-        }
-
-        // Le document est considéré comme retourné
-        await _workflowService.ReturnDocumentToSourceServiceAsync(transaction);
-
-        transaction.DoitRevenir = false;
-        transaction.Statut = WorkflowStatus.Retourne.ToStorageValue();
-        transaction.DateReponse = DateTime.Now;
-        transaction.MessageReponse = "Document retourne au service source";
-
-        await _repository.UpdateAsync(transaction, autoSave: true);
-        await UpdateCirculationFromTransactionAsync(transaction);
-
-        return await ToDtoAsync(transaction);
     }
 
     /// <summary>
@@ -431,6 +383,26 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
         // Suppression de la transaction
         await _repository.DeleteAsync(transaction, autoSave: true);
+    }
+
+    private async Task<Transaction> WaitForTransactionStatusAsync(int id, WorkflowStatus expectedStatus)
+    {
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var transaction = await _repository.GetAsync(id);
+            if (transaction.Statut.IsSameAs(expectedStatus))
+            {
+                return transaction;
+            }
+
+            await Task.Delay(100);
+        }
+
+        var currentTransaction = await _repository.GetAsync(id);
+        throw new BusinessException("TransactionWorkflowExecutionFailed")
+            .WithData("TransactionId", id)
+            .WithData("ExpectedStatus", expectedStatus.ToStorageValue())
+            .WithData("CurrentStatus", currentTransaction.Statut);
     }
 
     private async Task RegisterCirculationAsync(Transaction transaction)
