@@ -176,13 +176,14 @@ function Circulations() {
 
       <div className="filters">
         <button type="button" className="btn-secondary" onClick={() => downloadExcel('/api/circulations/template', 'modele-import-circulations.xlsx')}>
+          <ActionIcon name="fileText" />
           {t('telecharger_modele')}
         </button>
-        <button type="button" className="btn-secondary" onClick={() => importInputRef.current?.click()}>
-          {t('importer_excel')}
+        <button type="button" className="btn-secondary icon-only-button" data-tooltip={t('importer_excel')} aria-label={t('importer_excel')} onClick={() => importInputRef.current?.click()}>
+          <ActionIcon name="upload" />
         </button>
-        <button type="button" className="btn-secondary" onClick={() => downloadExcel('/api/circulations/export/excel', 'circulations.xlsx')}>
-          {t('exporter_excel')}
+        <button type="button" className="btn-secondary icon-only-button" data-tooltip={t('exporter_excel')} aria-label={t('exporter_excel')} onClick={() => downloadExcel('/api/circulations/export/excel', 'circulations.xlsx')}>
+          <ActionIcon name="download" />
         </button>
         <input
           ref={importInputRef}

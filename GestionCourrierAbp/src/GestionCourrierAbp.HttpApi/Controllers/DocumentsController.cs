@@ -94,6 +94,7 @@ public class DocumentsController : ControllerBase
             Source = document.Source,
             Destinataire = document.Destinataire,
             Description = document.Description,
+            NumeroBureauOrdre = document.IdBureauOrdre,
             NumeroCourrier = document.NumeroDeCourrier,
             Etat = document.Etat,
             LienPdf = document.LienPdf,
@@ -115,6 +116,7 @@ public class DocumentsController : ControllerBase
             Source = document.TribunalSource,
             Destinataire = document.Destinataire,
             Description = document.Description,
+            NumeroBureauOrdre = document.IdBureauOrdre,
             NumeroDossierJudiciaire = document.NumeroDossier,
             EtatArchive = document.EtatArchive,
             LienPdf = document.LienPdf,
@@ -137,6 +139,7 @@ public class DocumentCirculationDto
     public string Source { get; set; } = string.Empty;
     public string Destinataire { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public string? NumeroBureauOrdre { get; set; }
     public string? NumeroCourrier { get; set; }
     public string? NumeroDossierJudiciaire { get; set; }
     public string? Etat { get; set; }

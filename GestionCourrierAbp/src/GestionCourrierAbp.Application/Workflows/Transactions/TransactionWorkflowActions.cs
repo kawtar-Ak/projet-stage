@@ -17,6 +17,7 @@ namespace GestionCourrierAbp.Workflows.Transactions;
 public class TransactionWorkflowActions : ITransientDependency
 {
     private const int ConseillerRapporteurServiceId = 15;
+    private static readonly HashSet<int> ReturnManagerServiceIds = new() { 1, 3, 5, 6, 12, 14, 15 };
 
     private readonly IRepository<Transaction, int> _transactionRepository;
     private readonly IRepository<CourrierAdministratif, int> _courrierAdministratifRepository;
@@ -44,6 +45,10 @@ public class TransactionWorkflowActions : ITransientDependency
     public async Task DispatchCreatedTransactionAsync(int transactionId)
     {
         var transaction = await _transactionRepository.GetAsync(transactionId);
+        if (!transaction.Statut.IsSameAs(WorkflowStatus.EnAttente))
+        {
+            return;
+        }
 
         await MoveDocumentToDestinationServiceAsync(transaction, finalizeArchive: false);
         await RegisterCirculationAsync(transaction);
@@ -118,10 +123,8 @@ public class TransactionWorkflowActions : ITransientDependency
     public async Task MarkReturnedAsync(int transactionId, int sourceServiceId)
     {
         var transaction = await _transactionRepository.GetAsync(transactionId);
-        var isConseillerRapporteurReturn =
-            await IsConseillerRapporteurServiceAsync(transaction.DestinationServiceId);
-
-        if (transaction.SourceServiceId != sourceServiceId && !isConseillerRapporteurReturn)
+        if (transaction.SourceServiceId != sourceServiceId &&
+            !ReturnManagerServiceIds.Contains(sourceServiceId))
         {
             throw new BusinessException("TransactionRetourNonAutorise");
         }
@@ -146,6 +149,7 @@ public class TransactionWorkflowActions : ITransientDependency
 
         await _transactionRepository.UpdateAsync(transaction, autoSave: true);
         await UpdateCirculationFromTransactionAsync(transaction);
+        await EnsureReturnNotificationAsync(transaction);
     }
 
     private async Task RespondAsync(
@@ -244,6 +248,42 @@ public class TransactionWorkflowActions : ITransientDependency
         circulation.Notes = string.Join(" | ", notes);
 
         await _circulationRepository.UpdateAsync(circulation, autoSave: true);
+    }
+
+    private async Task EnsureReturnNotificationAsync(Transaction returnedTransaction)
+    {
+        var query = await _transactionRepository.GetQueryableAsync();
+        var enAttente = WorkflowStatus.EnAttente.ToStorageValue();
+        var notificationSourceServiceId = returnedTransaction.DestinationServiceId;
+        var notificationDestinationServiceId = returnedTransaction.SourceServiceId;
+
+        var exists = await _asyncExecuter.AnyAsync(
+            query.Where(x =>
+                x.DocumentId == returnedTransaction.DocumentId &&
+                x.DocumentType == returnedTransaction.DocumentType &&
+                x.SourceServiceId == notificationSourceServiceId &&
+                x.DestinationServiceId == notificationDestinationServiceId &&
+                x.Statut == enAttente));
+
+        if (exists)
+        {
+            return;
+        }
+
+        var returnNotification = await _transactionRepository.InsertAsync(new Transaction
+        {
+            DocumentId = returnedTransaction.DocumentId,
+            DocumentType = returnedTransaction.DocumentType,
+            SourceServiceId = notificationSourceServiceId,
+            DestinationServiceId = notificationDestinationServiceId,
+            SenderServiceName = await GetServiceNameAsync(notificationSourceServiceId),
+            DoitRevenir = false,
+            Message = returnedTransaction.MessageReponse ?? "Document retourne au service source",
+            Statut = enAttente,
+            DateEnvoi = DateTime.Now
+        }, autoSave: true);
+
+        await RegisterCirculationAsync(returnNotification);
     }
 
     private async Task ReturnDocumentToSourceServiceAsync(Transaction transaction)

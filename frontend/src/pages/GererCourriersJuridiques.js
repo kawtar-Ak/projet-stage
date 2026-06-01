@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { DEFAULT_SERVICES } from "../constants/defaultServices";
 import DocumentModal from "../components/DocumentModal";
 import ActionIcon from "../components/ActionIcon";
+import ConseillerRapporteurSelect, { isConseillerRapporteurService } from "../components/ConseillerRapporteurSelect";
 import { ABP_API_URL } from "../api/axiosConfig";
 import { getLookupItems, itemsToOptions } from "../api/lookups";
 
@@ -141,7 +142,8 @@ function GererCourriersJuridiques({ embedded = false }) {
           transactions
             .filter((transaction) =>
               String(transaction.documentType || "").toLowerCase() === "judiciaire" &&
-              Number(transaction.sourceServiceId) === currentServiceId
+              Number(transaction.sourceServiceId) === currentServiceId &&
+              isPendingTransactionStatus(transaction.statut)
             )
             .map((transaction) => String(transaction.documentId))
         )
@@ -174,7 +176,11 @@ function GererCourriersJuridiques({ embedded = false }) {
 
   const handleTransferServiceChange = (event) => {
     const serviceId = event.target.value;
-    setTransferForm((prev) => ({ ...prev, serviceId }));
+    setTransferForm((prev) => ({
+      ...prev,
+      serviceId,
+      destinationUserId: isConseillerRapporteurService(serviceId) ? prev.destinationUserId : "",
+    }));
   };
 
   const handleDocumentSelect = async (event) => {
@@ -394,13 +400,15 @@ function GererCourriersJuridiques({ embedded = false }) {
         typeEnregistrementJudiciaire: selectedTransferItem.typeEnregistrementJudiciaire,
         sourceServiceId,
         destinationServiceId,
-        destinationUserId: null,
+        destinationUserId: isConseillerRapporteurService(destinationServiceId)
+          ? Number(transferForm.destinationUserId)
+          : null,
         doitRevenir: transferForm.doitRevenir,
         dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
         message: transferForm.message.trim(),
       });
 
-      setSuccess(t("transaction_envoyee"));
+      setSuccess(translate(t, "transaction_envoyee_message", "Transaction envoyee avec succes."));
       closeTransferModal();
       await fetchCourriers();
       await fetchSentJudicialTransactions();
@@ -862,6 +870,14 @@ function GererCourriersJuridiques({ embedded = false }) {
                 </select>
               </div>
 
+              <ConseillerRapporteurSelect
+                serviceId={transferForm.serviceId}
+                value={transferForm.destinationUserId}
+                onChange={(destinationUserId) => setTransferForm((prev) => ({ ...prev, destinationUserId }))}
+                t={t}
+                required
+              />
+
               <div className="form-field">
                 <label>{t("date")} *</label>
                 <input
@@ -919,8 +935,8 @@ function GererCourriersJuridiques({ embedded = false }) {
         </div>
       )}
       <div className="registry-tools">
-  <button type="button" className="btn-primary" onClick={exportToExcel}>
-    {t("exporter_excel")}
+  <button type="button" className="btn-primary icon-only-button" data-tooltip={t("exporter_excel")} aria-label={t("exporter_excel")} onClick={exportToExcel}>
+    <ActionIcon name="download" />
   </button>
 
   <button
@@ -928,10 +944,11 @@ function GererCourriersJuridiques({ embedded = false }) {
     className="btn-secondary"
     onClick={exportRegistreModele}
   >
+    <ActionIcon name="fileText" />
     {t("telecharger_modele")}
   </button>
-  <label className="btn-secondary import-label">
-    {importing ? t("import_en_cours") : t("importer_excel")}
+  <label className="btn-secondary import-label icon-only-button" data-tooltip={importing ? t("import_en_cours") : t("importer_excel")} aria-label={importing ? t("import_en_cours") : t("importer_excel")}>
+    <ActionIcon name="upload" />
     <input type="file" accept=".xlsx" onChange={handleImportExcel} />
   </label>
 </div>
@@ -970,7 +987,9 @@ function GererCourriersJuridiques({ embedded = false }) {
               {filteredCourriers.length === 0 ? (
                 <tr><td colSpan="15" style={{ textAlign: "center" }}>{t("aucun_courrier_judiciaire")}</td></tr>
               ) : (
-                filteredCourriers.map((courrier) => (
+                filteredCourriers.map((courrier) => {
+                  const transferAlreadySent = sentJudicialDocumentIds.has(String(courrier?.id));
+                  return (
                   <tr key={courrier.id}>
                     <td>{formatDate(courrier.date)}</td>
                     <td>{courrier.idBureauOrdre || "-"}</td>
@@ -1013,8 +1032,9 @@ function GererCourriersJuridiques({ embedded = false }) {
                         <button
                           type="button"
                           onClick={() => openTransferModal(courrier)}
-                          title={t("transferer")}
-                          aria-label={t("transferer")}
+                          disabled={transferAlreadySent}
+                          title={transferAlreadySent ? translate(t, "document_deja_transmis", "Ce dossier a deja ete transmis par ce service.") : t("transferer")}
+                          aria-label={transferAlreadySent ? translate(t, "document_deja_transmis", "Ce dossier a deja ete transmis par ce service.") : t("transferer")}
                           className="action-icon action-transfer"
                         >
                           <ActionIcon name="transfer" />
@@ -1031,7 +1051,8 @@ function GererCourriersJuridiques({ embedded = false }) {
                       </button>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -1082,6 +1103,7 @@ function getInitialRetraitForm() {
 function getInitialTransferForm(serviceId = "") {
   return {
     serviceId,
+    destinationUserId: "",
     dateEnvoi: new Date().toISOString().slice(0, 10),
     doitRevenir: false,
     message: "",
@@ -1120,11 +1142,15 @@ function isIncompleteJudicialFile(courrier) {
   return !hasCompleteNumeroDossier(courrier?.numeroDossier);
 }
 
-function canTransferCourrier(courrier, sentDocumentIds = new Set()) {
-  if (sentDocumentIds.has(String(courrier?.id))) return false;
+function canTransferCourrier(courrier) {
   if (isLinkedJudicialRecord(courrier)) return true;
   if (courrier?.estTransmissible) return true;
   return Number(courrier?.idService) === BUREAU_ORDRE_SERVICE_ID && isIncompleteJudicialFile(courrier);
+}
+
+function isPendingTransactionStatus(statut) {
+  const value = String(statut || "").toLowerCase();
+  return value === "enattente" || value === "en attente" || value === "pending";
 }
 
 function getDefaultTransferServiceId(courrier) {

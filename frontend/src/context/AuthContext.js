@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
     const isNotificationCopiesLogin = normalizedLogin === 'notificationcopies';
     const isConseillerRapporteurLogin = normalizedLogin === 'conseiller' || normalizedLogin === 'conseillerrapporteur';
     const profileServiceId = Number(profile?.idService || profile?.serviceId || 0);
-    const readOnly = isServiceChiefLogin || profileServiceId === 5;
+    const readOnly = isServiceChiefLogin || profileServiceId === 5 || isConseillerRapporteurLogin || profileServiceId === 15;
 
     const nomComplet = profile?.nomComplet ||
       (isArchiveLogin ? 'Service Archive' :

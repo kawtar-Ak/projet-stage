@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import ActionIcon from '../components/ActionIcon';
+import ConseillerRapporteurSelect, { isConseillerRapporteurService } from '../components/ConseillerRapporteurSelect';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
 import { useAuth } from '../context/AuthContext';
 
@@ -71,8 +72,13 @@ function MesEntites() {
     const fetchSentTransactions = async (existingDocumentKeys = null) => {
         try {
             const res = await axios.get('/api/transactions/outgoing');
+            const currentServiceId = Number(user?.idService || localStorage.getItem('idService') || 0);
             setSentDocumentKeys(
                 new Set(toArray(res.data)
+                    .filter((transaction) =>
+                        Number(transaction.sourceServiceId) === currentServiceId &&
+                        isPendingTransactionStatus(transaction.statut)
+                    )
                     .map((transaction) => getDocumentKey({
                         idEntite: transaction.documentId,
                         type: transaction.documentType
@@ -95,7 +101,11 @@ function MesEntites() {
 
     const handleServiceChange = (serviceId) => {
         const nextServiceId = serviceId || '';
-        setTransferForm({ ...transferForm, serviceId: nextServiceId });
+        setTransferForm({
+            ...transferForm,
+            serviceId: nextServiceId,
+            destinationUserId: isConseillerRapporteurService(nextServiceId) ? transferForm.destinationUserId : ''
+        });
     };
 
     const handleTransfer = async () => {
@@ -110,23 +120,21 @@ function MesEntites() {
                 return;
             }
 
-            if (isAlreadySentFromService(selectedDoc, sentDocumentKeys)) {
-                setError(translate(t, 'document_deja_transmis', 'Ce dossier ou fichier a deja ete transmis par ce service.'));
-                return;
-            }
-
             await axios.post('/api/transactions', {
                 documentId: selectedDoc.idEntite,
                 documentType: selectedDoc.type,
+                sourceServiceId: Number(selectedDoc.idService || user?.idService || localStorage.getItem('idService') || 0),
                 destinationServiceId: Number(transferForm.serviceId),
-                destinationUserId: null,
+                destinationUserId: isConseillerRapporteurService(transferForm.serviceId)
+                    ? Number(transferForm.destinationUserId)
+                    : null,
                 doitRevenir: transferForm.doitRevenir,
                 dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
                 message: transferForm.message
             });
             setShowModal(false);
             setSelectedDoc(null);
-            setSuccess(t('transaction_envoyee'));
+            setSuccess(translate(t, 'transaction_envoyee_message', 'Transaction envoyee avec succes.'));
             setError('');
             fetchDocuments();
             fetchSentTransactions();
@@ -138,7 +146,12 @@ function MesEntites() {
     const handleConsult = async (doc) => {
         try {
             const res = await axios.get(`/api/documents/${doc.idEntite}?type=${encodeURIComponent(doc.type)}`);
-            setModalDocument(res.data);
+            setModalDocument({
+                ...res.data,
+                numeroBureauOrdre: res.data.numeroBureauOrdre || doc.numeroBureauOrdre || doc.idBureauOrdre || doc.numeroCourrier,
+                numeroCourrier: res.data.numeroCourrier || doc.numeroCourrier || doc.numeroBureauOrdre || doc.idBureauOrdre,
+                numeroDossierJudiciaire: res.data.numeroDossierJudiciaire || doc.numeroDossierJudiciaire
+            });
         } catch (err) {
             setModalDocument(doc);
         }
@@ -231,8 +244,8 @@ function MesEntites() {
                     <div className="data-table-header">
                         <h3>{translate(t, 'tous_les_dossiers', 'Tous les dossiers')} ({filteredDocuments.length})</h3>
                         <div className="registry-tools table-registry-tools">
-                            <button type="button" className="btn-primary" onClick={handleExport}>
-                                {t('exporter_excel')}
+                            <button type="button" className="btn-primary icon-only-button" data-tooltip={t('exporter_excel')} aria-label={t('exporter_excel')} onClick={handleExport}>
+                                <ActionIcon name="download" />
                             </button>
                         </div>
                     </div>
@@ -271,6 +284,7 @@ function MesEntites() {
                             filteredDocuments.map(doc => {
                                 const showTransferButton = canShowTransferButton(doc, sentDocumentKeys);
                                 const documentKey = getDocumentKey(doc);
+                                const transferAlreadySent = sentDocumentKeys.has(documentKey);
 
                                 return (
                                     <tr key={`${doc.idEntite}_${doc.type}`}>
@@ -298,7 +312,14 @@ function MesEntites() {
                                                 <ActionIcon name="view" />
                                             </button>
                                             {showTransferButton && (
-                                                <button type="button" onClick={() => openTransferModal(doc)} title={t('transferer')} aria-label={t('transferer')} className="action-icon action-transfer">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openTransferModal(doc)}
+                                                    disabled={transferAlreadySent}
+                                                    title={transferAlreadySent ? translate(t, 'document_deja_transmis', 'Ce dossier a deja ete transmis par ce service.') : t('transferer')}
+                                                    aria-label={transferAlreadySent ? translate(t, 'document_deja_transmis', 'Ce dossier a deja ete transmis par ce service.') : t('transferer')}
+                                                    className="action-icon action-transfer"
+                                                >
                                                     <ActionIcon name="transfer" />
                                                 </button>
                                             )}
@@ -327,6 +348,13 @@ function MesEntites() {
                                     ))}
                                 </select>
                             </div>
+                            <ConseillerRapporteurSelect
+                                serviceId={transferForm.serviceId}
+                                value={transferForm.destinationUserId}
+                                onChange={destinationUserId => setTransferForm({ ...transferForm, destinationUserId })}
+                                t={t}
+                                required
+                            />
                             <div className="form-field">
                                 <label>{t('date')} *</label>
                                 <input
@@ -369,6 +397,7 @@ function MesEntites() {
 function getInitialTransferForm() {
     return {
         serviceId: '',
+        destinationUserId: '',
         dateEnvoi: new Date().toISOString().slice(0, 10),
         doitRevenir: false,
         message: ''
@@ -480,12 +509,17 @@ function normalizeSearch(value) {
         .trim();
 }
 
-function canShowTransferButton(doc, sentDocumentKeys) {
-    return Boolean(doc?.estTransmissible) && !isAlreadySentFromService(doc, sentDocumentKeys);
+function canShowTransferButton(doc) {
+    return Boolean(doc?.estTransmissible);
 }
 
 function isAlreadySentFromService(doc, sentDocumentKeys) {
     return sentDocumentKeys.has(getDocumentKey(doc));
+}
+
+function isPendingTransactionStatus(statut) {
+    const value = String(statut || '').toLowerCase();
+    return value === 'enattente' || value === 'en attente' || value === 'pending';
 }
 
 function getDocumentKey(doc) {

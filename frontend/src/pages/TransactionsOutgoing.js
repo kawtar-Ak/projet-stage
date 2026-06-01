@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import ActionIcon from '../components/ActionIcon';
 
 function TransactionsOutgoing() {
     const { t, i18n } = useTranslation();
@@ -152,13 +153,14 @@ function TransactionsOutgoing() {
             {success && <div className="success-message">{success}</div>}
             <div className="filters">
                 <button type="button" className="btn-secondary" onClick={() => downloadExcel('/api/transactions/template', 'modele-import-transactions.xlsx')}>
+                    <ActionIcon name="fileText" />
                     {t('telecharger_modele')}
                 </button>
-                <button type="button" className="btn-secondary" onClick={() => importInputRef.current?.click()}>
-                    {t('importer_excel')}
+                <button type="button" className="btn-secondary icon-only-button" data-tooltip={t('importer_excel')} aria-label={t('importer_excel')} onClick={() => importInputRef.current?.click()}>
+                    <ActionIcon name="upload" />
                 </button>
-                <button type="button" className="btn-secondary" onClick={() => downloadExcel('/api/transactions/export/excel', 'transactions.xlsx')}>
-                    {t('exporter_excel')}
+                <button type="button" className="btn-secondary icon-only-button" data-tooltip={t('exporter_excel')} aria-label={t('exporter_excel')} onClick={() => downloadExcel('/api/transactions/export/excel', 'transactions.xlsx')}>
+                    <ActionIcon name="download" />
                 </button>
                 <input
                     ref={importInputRef}
@@ -190,6 +192,7 @@ function TransactionsOutgoing() {
                     onChange={e => setSearchTerm(e.target.value)}
                 />
                 <button className="btn-primary" onClick={exportSelected}>
+                    <ActionIcon name="download" />
                     {t('exporter_selection')}
                 </button>
                 <button type="button" className="btn-secondary" onClick={fetchTransactions}>
@@ -226,7 +229,7 @@ function TransactionsOutgoing() {
                                 <td>{tx.numeroDossierJudiciaire || '-'}</td>
                                 <td>{formatDateTime(tx.dateReponse, locale)}</td>
                                 <td>{formatDateTime(tx.dateEnvoi, locale)}</td>
-                                <td>{tx.destinationServiceNom || '-'}</td>
+                                <td>{formatDestination(tx)}</td>
                                 <td>{tx.sourceServiceNom || '-'}</td>
                                 <td>{formatActor(tx.senderUserName, tx.sourceServiceNom)}</td>
                                 <td>{formatActor(tx.responderUserName, tx.responderServiceName || tx.destinationServiceNom)}</td>
@@ -274,7 +277,7 @@ function TransactionDetailsModal({ transaction, locale, t, onClose }) {
                     <div className="form-field"><label>{t('numero_bureau_ordre')}</label><span>{transaction.numeroBureauOrdre || transaction.numeroCourrier || '-'}</span></div>
                     <div className="form-field"><label>{t('numero_dossier_appel')}</label><span>{transaction.numeroDossierJudiciaire || '-'}</span></div>
                     <div className="form-field"><label>{t('emetteur_service')}</label><span>{transaction.sourceServiceNom || '-'}</span></div>
-                    <div className="form-field"><label>{t('recepteur')}</label><span>{transaction.destinationServiceNom || '-'}</span></div>
+                    <div className="form-field"><label>{t('recepteur')}</label><span>{formatDestination(transaction)}</span></div>
                     <div className="form-field"><label>{translate(t, 'envoye_par', 'Envoye par')}</label><span>{formatActor(transaction.senderUserName, transaction.sourceServiceNom)}</span></div>
                     <div className="form-field"><label>{translate(t, 'traite_par', 'Traite par')}</label><span>{formatActor(transaction.responderUserName, transaction.responderServiceName || transaction.destinationServiceNom)}</span></div>
                     <div className="form-field"><label>{t('date_envoi')}</label><span>{formatDateTime(transaction.dateEnvoi, locale)}</span></div>
@@ -341,6 +344,10 @@ function formatActor(userName, serviceName) {
     const service = String(serviceName || '').trim();
     if (user && user !== service) return user;
     return service || '-';
+}
+
+function formatDestination(transaction) {
+    return formatActor(transaction.destinationUserName, transaction.destinationServiceNom);
 }
 
 function formatDateTime(value, locale) {

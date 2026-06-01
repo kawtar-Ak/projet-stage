@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import GererCourriersJuridiques from "./GererCourriersJuridiques";
 import ActionIcon from "../components/ActionIcon";
 import DocumentModal from "../components/DocumentModal";
+import ConseillerRapporteurSelect, { isConseillerRapporteurService } from "../components/ConseillerRapporteurSelect";
 import { ABP_API_URL } from "../api/axiosConfig";
 import { getLookupItems, itemsToOptions } from "../api/lookups";
 
@@ -789,6 +790,7 @@ function GererCourriers() {
     setTransferForm((prev) => ({
       ...prev,
       serviceId: event.target.value,
+      destinationUserId: isConseillerRapporteurService(event.target.value) ? prev.destinationUserId : "",
     }));
   };
 
@@ -808,7 +810,11 @@ function GererCourriers() {
         ? prev.serviceIds.filter((id) => id !== value)
         : [...prev.serviceIds, value];
 
-      return { ...prev, serviceIds };
+      return {
+        ...prev,
+        serviceIds,
+        destinationUserId: serviceIds.some(isConseillerRapporteurService) ? prev.destinationUserId : "",
+      };
     });
   };
 
@@ -838,7 +844,9 @@ function GererCourriers() {
             documentType: "Administratif",
             sourceServiceId,
             destinationServiceId: Number(serviceId),
-            destinationUserId: null,
+            destinationUserId: isConseillerRapporteurService(serviceId)
+              ? Number(transferForm.destinationUserId)
+              : null,
             doitRevenir: transferForm.doitRevenir,
             dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
             message: transferForm.message.trim(),
@@ -846,7 +854,7 @@ function GererCourriers() {
         )
       );
 
-      setSuccess(t("transaction_envoyee"));
+      setSuccess(translate(t, "transaction_envoyee_message", "Transaction envoyee avec succes."));
       closeTransferModal();
       await fetchCourriers();
       await fetchWaridat();
@@ -1082,11 +1090,13 @@ function GererCourriers() {
         <div className="registry-tools table-registry-tools">
           <button
             type="button"
-            className="btn-primary"
+            className="btn-primary icon-only-button"
+            data-tooltip={t("exporter_excel")}
+            aria-label={t("exporter_excel")}
             onClick={exportToExcel}
             disabled={selectedExportIds.length === 0}
           >
-            {t("exporter_excel")}
+            <ActionIcon name="download" />
           </button>
 
           <select
@@ -1100,8 +1110,8 @@ function GererCourriers() {
             <option value="MorasalatSortante">{translate(t, "import_correspondances_sortantes", "Correspondances sortantes")}</option>
           </select>
 
-          <label className="btn-secondary import-label">
-            {importing ? t("import_en_cours") : t("importer_excel")}
+          <label className="btn-secondary import-label icon-only-button" data-tooltip={importing ? t("import_en_cours") : t("importer_excel")} aria-label={importing ? t("import_en_cours") : t("importer_excel")}>
+            <ActionIcon name="upload" />
 
             <input
               type="file"
@@ -1262,8 +1272,9 @@ function GererCourriers() {
                     <button
                       type="button"
                       onClick={() => openTransferModal(courrier)}
-                      title={t("transferer")}
-                      aria-label={t("transferer")}
+                      disabled={actionState.transferAlreadySent}
+                      title={actionState.transferAlreadySent ? translate(t, "document_deja_transmis", "Ce dossier a deja ete transmis par ce service.") : t("transferer")}
+                      aria-label={actionState.transferAlreadySent ? translate(t, "document_deja_transmis", "Ce dossier a deja ete transmis par ce service.") : t("transferer")}
                       className="action-icon action-transfer"
                     >
                       <ActionIcon name="transfer" />
@@ -2007,6 +2018,18 @@ function GererCourriers() {
                   )}
                 </div>
 
+                {(transferForm.mode === "single"
+                  ? isConseillerRapporteurService(transferForm.serviceId)
+                  : transferForm.serviceIds.some(isConseillerRapporteurService)) && (
+                  <ConseillerRapporteurSelect
+                    serviceId={15}
+                    value={transferForm.destinationUserId}
+                    onChange={(destinationUserId) => setTransferForm((prev) => ({ ...prev, destinationUserId }))}
+                    t={t}
+                    required
+                  />
+                )}
+
                 <div className="transfer-options-row">
                 <div className="form-field">
                   <label>{t("date")} *</label>
@@ -2112,6 +2135,7 @@ function getInitialTransferForm(serviceId = "") {
     serviceId,
     serviceIds: [],
     mode: "single",
+    destinationUserId: "",
     dateEnvoi: new Date().toISOString().slice(0, 10),
     doitRevenir: false,
     message: "",
@@ -2565,16 +2589,18 @@ function getAdministrativeActionState(courrier, courriers = [], sentDocumentIds 
   const canAddResponse =
     isMainMorasalat(courrier) && !hasMorasalatResponse(courrier, courriers);
   const canTransfer = canTransferAdministrative(courrier, sentDocumentIds);
+  const transferAlreadySent = sentDocumentIds.has(String(courrier?.id));
 
   return {
     canAddLinkedMorasalat,
     canAddResponse,
     canTransfer,
+    transferAlreadySent,
   };
 }
 
-function canTransferAdministrative(courrier, sentDocumentIds = new Set()) {
-  return Boolean(courrier?.id && !sentDocumentIds.has(String(courrier.id)));
+function canTransferAdministrative(courrier) {
+  return Boolean(courrier?.id);
 }
 
 function isPendingTransactionStatus(statut) {

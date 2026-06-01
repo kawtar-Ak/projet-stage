@@ -281,14 +281,15 @@ function GererArchivesJuridiques() {
         <div className="registry-panel-header">
           <h3>{t("archives")}</h3>
           <div className="registry-tools">
-            <button type="button" className="btn-primary" onClick={exportArchives}>
-              {t("exporter_excel")}
+            <button type="button" className="btn-primary icon-only-button" data-tooltip={t("exporter_excel")} aria-label={t("exporter_excel")} onClick={exportArchives}>
+              <ActionIcon name="download" />
             </button>
-            <label className="btn-secondary import-label">
-              {t("importer_excel")}
+            <label className="btn-secondary import-label icon-only-button" data-tooltip={t("importer_excel")} aria-label={t("importer_excel")}>
+              <ActionIcon name="upload" />
               <input type="file" accept=".xlsx" onChange={handleImportFileSelect} />
             </label>
             <button type="button" className="btn-secondary" onClick={downloadTemplate}>
+              <ActionIcon name="fileText" />
               {t("telecharger_modele")}
             </button>
           </div>
@@ -434,8 +435,8 @@ function GererArchivesJuridiques() {
             <h3>{t("registre_retraits")}</h3>
             <p>{selectedItem ? `${selectedItem.numeroDossier || "-"} - ${selectedItem.sujet || "-"}` : "-"}</p>
           </div>
-          <button type="button" className="btn-primary" onClick={exportRetraits} disabled={!selectedItem}>
-            {t("exporter_excel")}
+          <button type="button" className="btn-primary icon-only-button" data-tooltip={t("exporter_excel")} aria-label={t("exporter_excel")} onClick={exportRetraits} disabled={!selectedItem}>
+            <ActionIcon name="download" />
           </button>
         </div>
 

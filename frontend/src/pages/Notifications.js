@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import ActionIcon from '../components/ActionIcon';
+import ConseillerRapporteurSelect, { isConseillerRapporteurService } from '../components/ConseillerRapporteurSelect';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
 import {
     formatLocalizedDateTime,
@@ -15,6 +16,7 @@ function Notifications() {
     const { t, i18n } = useTranslation();
     const serviceId = Number(localStorage.getItem('idService') || 0);
     const serviceName = String(localStorage.getItem('nomService') || '').toLowerCase();
+    const readOnly = localStorage.getItem('readOnly') === 'true';
     const isArchiveAccount = serviceId === 13 || serviceName.includes('archive') || serviceName.includes('archivage');
     const [notifications, setNotifications] = useState([]);
     const [processedTransactions, setProcessedTransactions] = useState([]);
@@ -47,6 +49,10 @@ function Notifications() {
             const outgoing = toArray(outgoingRes.data);
             const returns = toArray(pendingReturnsRes.data);
             const allTransactions = toArray(allTransactionsRes.data);
+            const fallbackReturns = allTransactions.filter(tx =>
+                isReturnTransferTarget(tx) &&
+                canServiceManageReturn(tx, serviceId)
+            );
             const fallbackIncoming = allTransactions.filter(tx =>
                 Number(tx.destinationServiceId) === serviceId &&
                 isPendingStatus(tx.statut)
@@ -68,7 +74,10 @@ function Notifications() {
                     .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi))
                     .slice(0, 20)
             );
-            setPendingReturns(returns);
+            setPendingReturns(
+                mergeTransactions(returns, fallbackReturns)
+                    .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi))
+            );
             setError('');
         } catch (err) {
             setError(t('erreur_chargement'));
@@ -94,7 +103,12 @@ function Notifications() {
             }
 
             const res = await axios.get(`/api/documents/${notification.documentId}?type=${encodeURIComponent(notification.documentType)}`);
-            setCurrentDocument(res.data);
+            setCurrentDocument({
+                ...res.data,
+                numeroBureauOrdre: res.data.numeroBureauOrdre || notification.numeroBureauOrdre || notification.numeroCourrier,
+                numeroCourrier: res.data.numeroCourrier || notification.numeroCourrier || notification.numeroBureauOrdre,
+                numeroDossierJudiciaire: res.data.numeroDossierJudiciaire || notification.numeroDossierJudiciaire
+            });
             setError('');
         } catch (err) {
             setError(t('impossible_charger'));
@@ -106,7 +120,9 @@ function Notifications() {
         try {
             await axios.post(`/api/transactions/${id}/respond`, buildResponsePayload(accepte, message));
             await fetchNotificationData();
-            setSuccess(accepte ? t('acceptees') : t('refusees'));
+            setSuccess(accepte
+                ? translate(t, 'transaction_acceptee_message', 'Transaction acceptee avec succes.')
+                : translate(t, 'transaction_refusee_message', 'Transaction refusee avec succes.'));
             setError('');
         } catch (err) {
             setError(getErrorMessage(err, t('erreur_reponse')));
@@ -136,9 +152,13 @@ function Notifications() {
             const payload = {
                 documentId: transferTarget.documentId,
                 documentType: transferTarget.documentType,
-                sourceServiceId: transferTarget.destinationServiceId,
+                sourceServiceId: isReturnTransferTarget(transferTarget)
+                    ? serviceId
+                    : transferTarget.destinationServiceId,
                 destinationServiceId: Number(transferForm.serviceId),
-                destinationUserId: null,
+                destinationUserId: isConseillerRapporteurService(transferForm.serviceId)
+                    ? Number(transferForm.destinationUserId)
+                    : null,
                 doitRevenir: transferForm.doitRevenir,
                 dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
                 message: transferForm.message
@@ -152,7 +172,9 @@ function Notifications() {
             }
 
             await fetchNotificationData();
-            setSuccess(t('transaction_envoyee'));
+            setSuccess(isReturnTransferTarget(transferTarget)
+                ? translate(t, 'transaction_transferee_message', 'Transaction transferee avec succes.')
+                : translate(t, 'transaction_acceptee_transferee_message', 'Transaction acceptee et transferee avec succes.'));
             setError('');
             closeTransferModal();
         } catch (err) {
@@ -166,7 +188,7 @@ function Notifications() {
         try {
             await axios.post(`/api/transactions/${transaction.id}/mark-returned`);
             await fetchNotificationData();
-            setSuccess(translate(t, 'retour_enregistre', 'Retour enregistre'));
+            setSuccess(translate(t, 'transaction_retournee_message', 'Retour du document enregistre avec succes.'));
             setError('');
         } catch (err) {
             setError(getErrorMessage(err, t('erreur_transaction')));
@@ -244,15 +266,19 @@ function Notifications() {
                                         <button type="button" className="action-icon action-view" onClick={() => handleConsult(n)} title={t('consulter')} aria-label={t('consulter')}>
                                             <ActionIcon name="view" />
                                         </button>
-                                        <button type="button" className={isArchiveAccount ? 'action-icon action-archive' : 'action-icon action-accept'} onClick={() => handleRespond(n.id, true)} title={isArchiveAccount ? t('archiver') : t('accepter')} aria-label={isArchiveAccount ? t('archiver') : t('accepter')}>
-                                            <ActionIcon name={isArchiveAccount ? 'archive' : 'accept'} />
-                                        </button>
-                                        <button type="button" className="action-icon action-cancel" onClick={() => handleRespond(n.id, false)} title={t('refuser')} aria-label={t('refuser')}>
-                                            <ActionIcon name="cancel" />
-                                        </button>
-                                        <button type="button" className="action-icon action-transfer" onClick={() => openTransferModal(n)} title={t('transferer')} aria-label={t('transferer')}>
-                                            <ActionIcon name="transfer" />
-                                        </button>
+                                        {!readOnly && (
+                                            <>
+                                                <button type="button" className={isArchiveAccount ? 'action-icon action-archive' : 'action-icon action-accept'} onClick={() => handleRespond(n.id, true)} title={isArchiveAccount ? t('archiver') : t('accepter')} aria-label={isArchiveAccount ? t('archiver') : t('accepter')}>
+                                                    <ActionIcon name={isArchiveAccount ? 'archive' : 'accept'} />
+                                                </button>
+                                                <button type="button" className="action-icon action-cancel" onClick={() => handleRespond(n.id, false)} title={t('refuser')} aria-label={t('refuser')}>
+                                                    <ActionIcon name="cancel" />
+                                                </button>
+                                                <button type="button" className="action-icon action-transfer" onClick={() => openTransferModal(n)} title={t('transferer')} aria-label={t('transferer')}>
+                                                    <ActionIcon name="transfer" />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -289,7 +315,7 @@ function Notifications() {
                                         <td className="notification-document-cell">
                                             <DocumentCell transaction={tx} />
                                         </td>
-                                        <td>{getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</td>
+                                        <td>{formatDestinationName(tx, i18n)}</td>
                                         <td>{formatStatus(tx.statut, t)}</td>
                                         <td>{tx.responderUserName || getLocalizedServiceName({ idService: tx.responderServiceId || tx.destinationServiceId, nomService: tx.responderServiceName || tx.destinationServiceNom }, i18n) || '-'}</td>
                                         <td>{formatLocalizedDateTime(tx.dateReponse || tx.dateEnvoi, i18n)}</td>
@@ -334,19 +360,23 @@ function Notifications() {
                                         <td className="notification-document-cell">
                                             <DocumentCell transaction={tx} />
                                         </td>
-                                        <td>{getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</td>
+                                        <td>{formatDestinationName(tx, i18n)}</td>
                                         <td>{formatLocalizedDateTime(tx.dateEnvoi, i18n)}</td>
                                         <td className="action-icons">
                                             <button type="button" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')} className="action-icon action-view">
                                                 <ActionIcon name="view" />
                                             </button>
-                                            <button type="button" onClick={() => handleMarkReturned(tx)} title={t('marquer_retourne')} aria-label={t('marquer_retourne')} className="action-icon action-return">
-                                                <ActionIcon name="return" />
-                                            </button>
-                                            {isReturnTransferTarget(tx) && (
-                                                <button type="button" onClick={() => openTransferModal(tx)} title={t('transferer')} aria-label={t('transferer')} className="action-icon action-transfer">
-                                                    <ActionIcon name="transfer" />
-                                                </button>
+                                            {!readOnly && (
+                                                <>
+                                                    <button type="button" onClick={() => handleMarkReturned(tx)} title={t('marquer_retourne')} aria-label={t('marquer_retourne')} className="action-icon action-return">
+                                                        <ActionIcon name="return" />
+                                                    </button>
+                                                    {isReturnTransferTarget(tx) && (
+                                                        <button type="button" onClick={() => openTransferModal(tx)} title={t('transferer')} aria-label={t('transferer')} className="action-icon action-transfer">
+                                                            <ActionIcon name="transfer" />
+                                                        </button>
+                                                    )}
+                                                </>
                                             )}
                                         </td>
                                     </tr>
@@ -370,7 +400,11 @@ function Notifications() {
                                 <label>{t('service_destinataire')} *</label>
                                 <select
                                     value={transferForm.serviceId}
-                                    onChange={e => setTransferForm({ ...transferForm, serviceId: e.target.value })}
+                                    onChange={e => setTransferForm({
+                                        ...transferForm,
+                                        serviceId: e.target.value,
+                                        destinationUserId: isConseillerRapporteurService(e.target.value) ? transferForm.destinationUserId : ''
+                                    })}
                                 >
                                     <option value="">--</option>
                                     {services.filter(s => Number(s.idService) !== Number(transferTarget.destinationServiceId)).map(s => (
@@ -387,6 +421,13 @@ function Notifications() {
                                     required
                                 />
                             </div>
+                            <ConseillerRapporteurSelect
+                                serviceId={transferForm.serviceId}
+                                value={transferForm.destinationUserId}
+                                onChange={destinationUserId => setTransferForm({ ...transferForm, destinationUserId })}
+                                t={t}
+                                required
+                            />
                             <div className="form-field">
                                 <label className="checkbox-field">
                                     <input
@@ -460,6 +501,13 @@ function isReturnTransferTarget(transaction) {
     );
 }
 
+function canServiceManageReturn(transaction, serviceId) {
+    const currentServiceId = Number(serviceId);
+    if ([1, 5, 6].includes(currentServiceId)) return true;
+    if (![3, 12, 14].includes(currentServiceId)) return false;
+    return true;
+}
+
 function getTime(value) {
     const date = new Date(value || 0);
     return Number.isNaN(date.getTime()) ? 0 : date.getTime();
@@ -470,13 +518,13 @@ function formatStatus(value, t) {
 }
 
 function getDocumentLabel(transaction) {
-    const numero = transaction.numeroCourrier || transaction.numeroDossierJudiciaire;
+    const numero = transaction.numeroBureauOrdre || transaction.numeroCourrier || transaction.numeroDossierJudiciaire;
     return [transaction.documentSujet || transaction.document || '-', numero].filter(Boolean).join(' - ');
 }
 
 function DocumentCell({ transaction }) {
     const title = transaction.documentSujet || transaction.document || '-';
-    const numero = transaction.numeroCourrier || transaction.numeroDossierJudiciaire;
+    const numero = transaction.numeroBureauOrdre || transaction.numeroCourrier || transaction.numeroDossierJudiciaire;
 
     return (
         <span className="notification-document-content">
@@ -484,6 +532,14 @@ function DocumentCell({ transaction }) {
             {numero && <span className="notification-document-number">{numero}</span>}
         </span>
     );
+}
+
+function formatDestinationName(transaction, i18n) {
+    const service = getLocalizedServiceName(
+        { idService: transaction.destinationServiceId, nomService: transaction.destinationServiceNom },
+        i18n
+    );
+    return transaction.destinationUserName || service || '-';
 }
 
 function translate(t, key, fallback) {
@@ -494,6 +550,7 @@ function translate(t, key, fallback) {
 function getInitialTransferForm() {
     return {
         serviceId: '',
+        destinationUserId: '',
         dateEnvoi: new Date().toISOString().slice(0, 10),
         doitRevenir: false,
         message: ''

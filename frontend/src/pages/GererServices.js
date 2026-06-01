@@ -139,8 +139,11 @@ function GererServices() {
                 <input type="text" placeholder={t('rechercher_service')} value={search} onChange={e => setSearch(e.target.value)} />
                 <input type="text" placeholder={t('filtrer_etage')} value={filterEtage} onChange={e => setFilterEtage(e.target.value)} />
                 <button className="btn-secondary" onClick={() => { setSearch(''); setFilterEtage(''); }}>{t('reinitialiser')}</button>
-                <button className="btn-primary" onClick={exportToExcel}>{t('exporter_excel')}</button>
-                <label className="btn-secondary" style={{ cursor: 'pointer' }}>📂 {t('importer_excel')}
+                <button className="btn-primary icon-only-button" data-tooltip={t('exporter_excel')} aria-label={t('exporter_excel')} onClick={exportToExcel}>
+                    <ActionIcon name="download" />
+                </button>
+                <label className="btn-secondary icon-only-button" data-tooltip={t('importer_excel')} aria-label={t('importer_excel')} style={{ cursor: 'pointer' }}>
+                    <ActionIcon name="upload" />
                     <input type="file" accept=".xlsx" onChange={handleFileSelect} style={{ display: 'none' }} />
                 </label>
             </div>

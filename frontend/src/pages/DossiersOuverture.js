@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import ActionIcon from '../components/ActionIcon';
+import ConseillerRapporteurSelect, { isConseillerRapporteurService } from '../components/ConseillerRapporteurSelect';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
 
 const OUVERTURE_DOSSIERS_SERVICE_ID = 3;
@@ -151,6 +152,12 @@ function DossiersOuverture() {
   };
 
   const openTransferModal = (dossier) => {
+    if (!hasCompleteNumeroDossier(dossier.numeroDossier)) {
+      setError(translate(t, 'erreur_numero_dossier_avant_transfert', "Veuillez entrer d'abord le numero d'appel du dossier."));
+      setSuccess('');
+      return;
+    }
+
     setTransferTarget(dossier);
     setTransferForm(getInitialTransferForm());
     setError('');
@@ -166,7 +173,8 @@ function DossiersOuverture() {
     const { name, value, type, checked } = event.target;
     setTransferForm((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : value,
+      ...(name === 'serviceId' && !isConseillerRapporteurService(value) ? { destinationUserId: '' } : {})
     }));
   };
 
@@ -182,19 +190,26 @@ function DossiersOuverture() {
       return;
     }
 
+    if (isConseillerRapporteurService(transferForm.serviceId) && !transferForm.destinationUserId) {
+      setError(translate(t, 'conseiller_destinataire_requis', 'Veuillez choisir un conseiller rapporteur destinataire.'));
+      return;
+    }
+
     try {
       await axios.post('/api/transactions', {
         documentId: transferTarget.id,
         documentType: 'Judiciaire',
         sourceServiceId: OUVERTURE_DOSSIERS_SERVICE_ID,
         destinationServiceId: Number(transferForm.serviceId),
-        destinationUserId: null,
+        destinationUserId: isConseillerRapporteurService(transferForm.serviceId)
+          ? Number(transferForm.destinationUserId)
+          : null,
         doitRevenir: transferForm.doitRevenir,
         dateEnvoi: new Date(transferForm.dateEnvoi).toISOString(),
         message: transferForm.message.trim()
       });
 
-      setSuccess(t('transaction_envoyee'));
+      setSuccess(translate(t, 'transaction_envoyee_message', 'Transaction envoyee avec succes.'));
       setError('');
       closeTransferModal();
       await fetchData();
@@ -321,6 +336,13 @@ function DossiersOuverture() {
                       ))}
                   </select>
                 </div>
+                <ConseillerRapporteurSelect
+                  serviceId={transferForm.serviceId}
+                  value={transferForm.destinationUserId}
+                  onChange={(destinationUserId) => setTransferForm((prev) => ({ ...prev, destinationUserId }))}
+                  t={t}
+                  required
+                />
                 <div className="form-field">
                   <label>{t('date')} *</label>
                   <input
@@ -394,7 +416,7 @@ function DossiersTable({ dossiers, savingId, t, onOpenNumberModal, onOpenTransfe
             dossiers.map((dossier) => {
               const isComplete = hasCompleteNumeroDossier(dossier.numeroDossier);
               return (
-                <tr key={dossier.id}>
+                <tr key={dossier.id} className={!isComplete ? 'row-requires-dossier-number' : undefined}>
                   <td>{formatDate(dossier.date)}</td>
                   <td>{dossier.idBureauOrdre || '-'}</td>
                   <td>{dossier.tribunalSource || '-'}</td>
@@ -419,7 +441,6 @@ function DossiersTable({ dossiers, savingId, t, onOpenNumberModal, onOpenTransfe
                       type="button"
                       className="action-icon action-transfer"
                       onClick={() => onOpenTransferModal(dossier)}
-                      disabled={!isComplete}
                       title={t('transferer')}
                       aria-label={t('transferer')}
                     >
@@ -439,6 +460,7 @@ function DossiersTable({ dossiers, savingId, t, onOpenNumberModal, onOpenTransfe
 function getInitialTransferForm() {
   return {
     serviceId: '',
+    destinationUserId: '',
     dateEnvoi: new Date().toISOString().slice(0, 10),
     doitRevenir: false,
     message: ''
@@ -480,6 +502,11 @@ function getErrorMessage(error, fallback) {
   if (data?.message) return data.message;
   if (error.message) return error.message;
   return fallback;
+}
+
+function translate(t, key, fallback) {
+  const value = t(key);
+  return value === key ? fallback : value;
 }
 
 export default DossiersOuverture;

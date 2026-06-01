@@ -29,11 +29,14 @@ function MainLayout({ children }) {
   const getMenuItems = () => {
     const serviceName = user?.nomService?.toLowerCase() || '';
     const serviceId = user?.idService;
-    const isServiceChief = user?.readOnly || serviceId === 5 || serviceName.includes('chef de service');
+    const isConseillerRapporteur = serviceId === 15 || serviceName.includes('conseiller') || serviceName.includes('المستشار');
+    const isServiceChief = serviceId === 5 || serviceName.includes('chef de service');
     const isNotificationCopies = serviceId === 7 || serviceName.includes('notification') || serviceName.includes('copies');
+    const searchLink = { labelKey: 'menu_recherche', icon: 'search', path: '/recherche' };
 
     const commonLinks = [
       { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+      searchLink,
       { labelKey: 'menu_courriers', icon: 'mail', path: '/courriers' },
       { labelKey: 'menu_dossiers_juridiques', icon: 'folder', path: '/courriers-juridiques' },
       { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
@@ -52,13 +55,21 @@ function MainLayout({ children }) {
       { labelKey: 'gestion_listes', icon: 'settings', path: '/gestion-listes' }
     ];
 
-    if (isServiceChief || serviceId === 1 || serviceName.includes('informatique')) {
+    if (isConseillerRapporteur) {
+      return [
+        { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        searchLink
+      ];
+    }
+
+    if (isServiceChief || user?.readOnly || serviceId === 1 || serviceName.includes('informatique')) {
       return adminLinks;
     }
 
     if (isNotificationCopies) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        searchLink,
         { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
         { labelKey: 'circulations', icon: 'send', path: '/circulations' },
         { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' },
@@ -70,6 +81,7 @@ function MainLayout({ children }) {
     if (serviceId === 13 || serviceName.includes('archivage') || serviceName.includes('archive')) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        searchLink,
         { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
         { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
@@ -80,6 +92,7 @@ function MainLayout({ children }) {
     if (serviceId === 3 || serviceName.includes('ouverture')) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
+        searchLink,
         { labelKey: 'menu_dossiers_juridiques', icon: 'folder', path: '/courriers-juridiques' },
         { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
@@ -109,7 +122,7 @@ function MainLayout({ children }) {
         key: 'documents',
         labelKey: 'menu_group_documents',
         icon: 'folder',
-        paths: ['/courriers', '/courriers-juridiques', '/mes-entites']
+        paths: ['/recherche', '/courriers', '/courriers-juridiques', '/mes-entites']
       },
       {
         key: 'transactions',
@@ -150,7 +163,8 @@ function MainLayout({ children }) {
   const topMenuItems = menuItems.filter((item) => item.path === '/dashboard');
   const menuGroups = buildMenuGroups(menuItems);
   const displayName = user?.nomComplet || user?.login || t('administrateur');
-  const serviceLabel = user?.nomService || t('service_informatique');
+  const rawServiceLabel = user?.nomService || t('service_informatique');
+  const serviceLabel = String(rawServiceLabel).trim().toLowerCase() === 'abp' ? '' : rawServiceLabel;
   const menuPositionClass = currentLanguage === 'ar' ? 'menu-right' : 'menu-left';
   const layoutClassName = `app-layout ${menuPositionClass}${user?.readOnly ? ' read-only-mode' : ''}`;
 
@@ -158,14 +172,26 @@ function MainLayout({ children }) {
     <div className={layoutClassName}>
       <aside className="sidebar">
         <div className="sidebar-brand" aria-label="Justice">
-          <div className="brand-mark">⚖</div>
+          <div className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 3v18" />
+              <path d="M5 21h14" />
+              <path d="M3 7h2c2.2 0 4.8-.9 7-2 2.2 1.1 4.8 2 7 2h2" />
+              <path d="M6 7 3 15" />
+              <path d="M6 7l3 8" />
+              <path d="M3 15h6" />
+              <path d="M18 7l-3 8" />
+              <path d="M18 7l3 8" />
+              <path d="M15 15h6" />
+            </svg>
+          </div>
         </div>
 
         <div className="user-info">
           <div className="user-avatar" aria-hidden="true"></div>
           <div>
             <strong>{displayName}</strong>
-            <span>{serviceLabel}</span>
+            {serviceLabel && <span>{serviceLabel}</span>}
             <small>{t('connecte')}</small>
           </div>
         </div>

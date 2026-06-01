@@ -51,6 +51,14 @@ axios.interceptors.response.use(
       }
     }
 
+    const apiError = error.response?.data?.error || error.response?.data;
+    if (apiError && typeof apiError === 'object') {
+      const details = apiError.details || apiError.code;
+      error.message = [apiError.message, details].filter(Boolean).join(' - ') || error.message;
+    } else if (typeof error.response?.data === 'string') {
+      error.message = error.response.data;
+    }
+
     return Promise.reject(error);
   }
 );

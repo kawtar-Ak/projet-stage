@@ -6,7 +6,23 @@ function DocumentModal({ document, onClose }) {
     const { t } = useTranslation();
 
     if (!document) return null;
+
     const importedDetails = parseImportedDetails(document.description);
+    const bureauOrdreNumber = firstValue(
+        document.numeroBureauOrdre,
+        document.NumeroBureauOrdre,
+        document.idBureauOrdre,
+        document.IdBureauOrdre,
+        document.numeroCourrier,
+        document.NumeroCourrier
+    );
+    const dossierNumber = firstValue(
+        document.numeroDossierJudiciaire,
+        document.NumeroDossierJudiciaire,
+        document.numeroDossier,
+        document.NumeroDossier
+    );
+    const createdAt = firstValue(document.dateCreation, document.date);
 
     const handleOverlayClick = (e) => {
         if (e.target === e.currentTarget) {
@@ -21,31 +37,85 @@ function DocumentModal({ document, onClose }) {
 
     return (
         <div className="modal-overlay" onClick={handleOverlayClick}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
-                <h2>{t('details_document')}</h2>
-                <div className="form-grid">
-                    <div className="form-field"><label>{t('identifiant')}</label><span>{document.idEntite}</span></div>
-                    <div className="form-field"><label>{t('titre')}</label><span>{document.sujet || emptyValue}</span></div>
-                    <div className="form-field"><label>{t('type')}</label><span>{document.type || emptyValue}</span></div>
+            <div className="modal document-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="document-modal-header">
+                    <div>
+                        <p className="modal-subtitle">
+                            {bureauOrdreNumber ? `${t('numero_bureau_ordre')} ${bureauOrdreNumber}` : t('details_document')}
+                        </p>
+                        <h2>{document.sujet || t('details_document')}</h2>
+                    </div>
+                    <button type="button" className="modal-close-button" onClick={onClose} aria-label={t('fermer')}>x</button>
+                </div>
+
+                <div className="document-details-grid">
+                    {bureauOrdreNumber && (
+                        <div className="document-detail-item important">
+                            <label>{t('numero_bureau_ordre')}</label>
+                            <span>{bureauOrdreNumber}</span>
+                        </div>
+                    )}
+                    <div className="document-detail-item">
+                        <label>{t('identifiant')}</label>
+                        <span>{firstValue(document.idEntite, document.id) || emptyValue}</span>
+                    </div>
+                    {dossierNumber && (
+                        <div className="document-detail-item important">
+                            <label>{t('numero_dossier_judiciaire')}</label>
+                            <span>{dossierNumber}</span>
+                        </div>
+                    )}
+                    <div className="document-detail-item">
+                        <label>{t('type')}</label>
+                        <span>{document.type || emptyValue}</span>
+                    </div>
                     {document.typeEnregistrementJudiciaire && (
-                        <div className="form-field"><label>{t('type_enregistrement')}</label><span>{document.typeEnregistrementJudiciaire === 'DocumentLie' ? t('document_lie_dossier_judiciaire') : t('dossier_judiciaire')}</span></div>
+                        <div className="document-detail-item">
+                            <label>{t('type_enregistrement')}</label>
+                            <span>{document.typeEnregistrementJudiciaire === 'DocumentLie' ? t('document_lie_dossier_judiciaire') : t('dossier_judiciaire')}</span>
+                        </div>
                     )}
                     {document.typeDocumentJudiciaire && (
-                        <div className="form-field"><label>{t('type_document_judiciaire')}</label><span>{document.typeDocumentJudiciaire}</span></div>
+                        <div className="document-detail-item">
+                            <label>{t('type_document_judiciaire')}</label>
+                            <span>{document.typeDocumentJudiciaire}</span>
+                        </div>
                     )}
-                    <div className="form-field"><label>{t('date')}</label><span>{document.dateCreation ? new Date(document.dateCreation).toLocaleString('ar-MA') : emptyValue}</span></div>
-                    {document.idBureauOrdre && (
-                        <div className="form-field"><label>{t('numero_bureau_ordre')}</label><span>{document.idBureauOrdre}</span></div>
+                    <div className="document-detail-item">
+                        <label>{t('date')}</label>
+                        <span>{createdAt ? new Date(createdAt).toLocaleString('ar-MA') : emptyValue}</span>
+                    </div>
+                    <div className="document-detail-item">
+                        <label>{t('source')}</label>
+                        <span>{document.source || document.tribunalSource || emptyValue}</span>
+                    </div>
+                    <div className="document-detail-item">
+                        <label>{t('destinataire')}</label>
+                        <span>{document.destinataire || emptyValue}</span>
+                    </div>
+                    <div className="document-detail-item">
+                        <label>{t('etat')}</label>
+                        <span>{document.etat || document.etatArchive || emptyValue}</span>
+                    </div>
+                    {document.serviceNom && (
+                        <div className="document-detail-item">
+                            <label>{t('service')}</label>
+                            <span>{document.serviceNom}</span>
+                        </div>
                     )}
-                    <div className="form-field"><label>{t('source')}</label><span>{document.source || emptyValue}</span></div>
-                    <div className="form-field"><label>{t('destinataire')}</label><span>{document.destinataire || emptyValue}</span></div>
-                    <div className="form-field full-width">
+                    {document.dossierParentNumero && (
+                        <div className="document-detail-item">
+                            <label>{t('dossier_judiciaire_lie')}</label>
+                            <span>{document.dossierParentNumero}</span>
+                        </div>
+                    )}
+                    <div className="document-detail-item document-detail-wide">
                         <label>{t('description')}</label>
-                        <span style={{ whiteSpace: 'pre-wrap' }}>{document.description || emptyValue}</span>
+                        <span className="document-long-text">{document.description || emptyValue}</span>
                     </div>
                     {importedDetails.length > 0 && (
-                        <div className="form-field full-width">
-                            <label>بيانات Excel الأصلية</label>
+                        <div className="document-detail-item document-detail-wide">
+                            <label>{t('donnees_excel_originales')}</label>
                             <div className="imported-details-list">
                                 {importedDetails.map((detail, index) => (
                                     <div key={`${detail.label}-${index}`} className="imported-detail-row">
@@ -56,36 +126,27 @@ function DocumentModal({ document, onClose }) {
                             </div>
                         </div>
                     )}
-                    {document.numeroCourrier && (
-                        <div className="form-field"><label>{t('numero_courrier')}</label><span>{document.numeroCourrier}</span></div>
-                    )}
-                    {document.numeroDossierJudiciaire && (
-                        <div className="form-field"><label>{t('numero_dossier_judiciaire')}</label><span>{document.numeroDossierJudiciaire}</span></div>
-                    )}
-                    {document.dossierParentNumero && (
-                        <div className="form-field"><label>{t('dossier_judiciaire_lie')}</label><span>{document.dossierParentNumero}</span></div>
-                    )}
-                    <div className="form-field"><label>{t('etat')}</label><span>{document.etat || document.etatArchive || emptyValue}</span></div>
                     {documentLink && (
-                        <div className="form-field full-width">
+                        <div className="document-detail-item document-detail-wide document-file-preview">
                             <label>{t('document_pdf_word')}</label>
                             <a href={documentLink} target="_blank" rel="noreferrer">{documentName || t('ouvrir')}</a>
                             {isPdf && (
-                                <iframe
-                                    title={documentName || t('document')}
-                                    src={documentLink}
-                                    style={{ width: '100%', minHeight: '520px', border: '1px solid #d7e3f3', borderRadius: '8px', marginTop: '0.75rem' }}
-                                />
+                                <iframe title={documentName || t('document')} src={documentLink} />
                             )}
                         </div>
                     )}
                 </div>
+
                 <div className="form-actions">
                     <button className="btn-primary" onClick={onClose}>{t('fermer')}</button>
                 </div>
             </div>
         </div>
     );
+}
+
+function firstValue(...values) {
+    return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
 }
 
 function getDocumentHref(value) {

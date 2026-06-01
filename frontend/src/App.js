@@ -21,6 +21,7 @@ import GererArchivesJuridiques from './pages/GererArchivesJuridiques';
 import Circulations from './pages/Circulations';
 import GestionCopies from './pages/GestionCopies';
 import GestionListes from './pages/GestionListes';
+import Recherche from './pages/Recherche';
 // ... puis dans les routes
 
 // ... importez toutes vos pages (equipements, transactions, etc.)
@@ -43,6 +44,7 @@ function AppRoutes() {
       <Route path="/circulations" element={<PrivateRoute><MainLayout><Circulations /></MainLayout></PrivateRoute>} />
       <Route path="/transactions-outgoing" element={<PrivateRoute><MainLayout><TransactionsOutgoing /></MainLayout></PrivateRoute>} />
       <Route path="/notifications" element={<PrivateRoute><MainLayout><Notifications /></MainLayout></PrivateRoute>} />
+      <Route path="/recherche" element={<PrivateRoute><MainLayout><Recherche /></MainLayout></PrivateRoute>} />
       <Route path="/gestion-copies" element={<PrivateRoute><MainLayout><GestionCopies /></MainLayout></PrivateRoute>} />
       <Route path="/courriers" element={<PrivateRoute><MainLayout><GererCourriers /></MainLayout></PrivateRoute>} />
       <Route path="/messages-administratifs" element={<PrivateRoute><MainLayout><MessagesAdministratifs /></MainLayout></PrivateRoute>} />

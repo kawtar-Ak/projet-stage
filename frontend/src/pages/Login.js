@@ -15,6 +15,7 @@ function Login() {
   const { t, i18n } = useTranslation();
   const currentLanguage = (i18n.resolvedLanguage || i18n.language || 'fr').split('-')[0];
   const isArabic = currentLanguage === 'ar';
+  const ministryLogoUrl = 'https://upload.wikimedia.org/wikipedia/commons/d/d3/MJ-Maroc.png';
 
   const changeLanguage = (lng) => {
     i18n.changeLanguage(lng);
@@ -101,16 +102,12 @@ function Login() {
       </section>
 
       <div className="login-card">
-        <div className="login-card-scale" aria-hidden="true">
-          <span className="card-scale-beam" />
-          <span className="card-scale-post" />
-          <span className="card-scale-pan card-scale-pan-left" />
-          <span className="card-scale-pan card-scale-pan-right" />
-          <span className="card-scale-base" />
-        </div>
-        <div className="login-brand">
-          <span>{t('ministere_justice')}</span>
-        </div>
+        <img
+          className="login-ministry-logo"
+          src={ministryLogoUrl}
+          alt={t('ministere_justice')}
+          loading="eager"
+        />
         <form onSubmit={handleSubmit}>
           <label className="login-field">
             <span>{t('nom_utilisateur')}</span>

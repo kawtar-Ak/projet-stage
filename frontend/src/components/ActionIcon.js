@@ -86,6 +86,28 @@ const ICON_PATHS = {
       <path d="M9.9 4.3A10.8 10.8 0 0 1 12 4c6 0 9.5 8 9.5 8a16.5 16.5 0 0 1-2.1 3.1" />
       <path d="M6.6 6.6C3.9 8.4 2.5 12 2.5 12s3.5 8 9.5 8a10.8 10.8 0 0 0 4-.8" />
     </>
+  ),
+  download: (
+    <>
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 21V9" />
+      <path d="m7 14 5-5 5 5" />
+      <path d="M5 3h14" />
+    </>
+  ),
+  fileText: (
+    <>
+      <path d="M6 3h8l4 4v14H6V3Z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
+    </>
   )
 };
 

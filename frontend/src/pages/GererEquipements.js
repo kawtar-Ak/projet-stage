@@ -209,9 +209,11 @@ function GererEquipements() {
                 <button className="btn-secondary" onClick={() => { setSearch(''); setFilterType(''); setFilterEtat(''); setOnlyDecharge(false); }}>
                     {t('reinitialiser')}
                 </button>
-                <button className="btn-primary" onClick={exportToExcel}>{t('exporter_excel')}</button>
-                <label className="btn-secondary" style={{ cursor: 'pointer' }}>
-                    📂 {t('importer_excel')}
+                <button className="btn-primary icon-only-button" data-tooltip={t('exporter_excel')} aria-label={t('exporter_excel')} onClick={exportToExcel}>
+                    <ActionIcon name="download" />
+                </button>
+                <label className="btn-secondary icon-only-button" data-tooltip={t('importer_excel')} aria-label={t('importer_excel')} style={{ cursor: 'pointer' }}>
+                    <ActionIcon name="upload" />
                     <input type="file" accept=".xlsx" onChange={handleFileSelect} style={{ display: 'none' }} />
                 </label>
             </div>

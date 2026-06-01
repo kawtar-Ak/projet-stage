@@ -4,10 +4,9 @@ function ConseillerRapporteurDashboard() {
   return (
     <RoleDashboard
       titleKey="dashboard_conseiller_rapporteur"
+      showHeader={false}
       actions={[
-        { to: '/notifications', labelKey: 'documents_retourner', icon: 'RT', tone: 'red' },
-        { to: '/transactions-outgoing', labelKey: 'registre_transactions', icon: 'RG', tone: 'blue' },
-        { to: '/circulations', labelKey: 'circulations', icon: 'C', tone: 'gold' },
+        { to: '/recherche', labelKey: 'menu_recherche', icon: 'R', tone: 'red' },
       ]}
     />
   );

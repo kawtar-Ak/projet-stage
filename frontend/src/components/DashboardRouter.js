@@ -12,7 +12,9 @@ function DashboardRouter() {
 
   const serviceName = user.nomService.toLowerCase();
 
-  // Adapter ces conditions aux noms réels de vos services
+  if (user.idService === 15 || serviceName.includes('conseiller') || serviceName.includes('المستشار')) {
+    return <ConseillerRapporteurDashboard />;
+  }
   if (user.readOnly || user.idService === 5 || serviceName.includes('admin') || serviceName.includes('informatique') || serviceName.includes('chef de service')) {
     return <AdminDashboard />;
   }
@@ -24,9 +26,6 @@ function DashboardRouter() {
   }
   if (user.idService === 3 || serviceName.includes('ouverture') || serviceName.includes('فتح الملفات')) {
     return <CaisseDashboard />;
-  }
-  if (user.idService === 15 || serviceName.includes('conseiller') || serviceName.includes('المستشار')) {
-    return <ConseillerRapporteurDashboard />;
   }
   return <EmployeDashboard />;
 }

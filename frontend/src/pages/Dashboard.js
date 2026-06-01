@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import ActionIcon from '../components/ActionIcon';
@@ -15,7 +14,6 @@ import {
 } from '../utils/localization';
 
 function Dashboard() {
-    const navigate = useNavigate();
     const { user } = useAuth();
     const { t, i18n } = useTranslation();
     const [pending, setPending] = useState([]);
@@ -23,15 +21,15 @@ function Dashboard() {
     const [pendingReturns, setPendingReturns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const [hiddenIds, setHiddenIds] = useState([]);
     const [showDocModal, setShowDocModal] = useState(false);
     const [currentDocument, setCurrentDocument] = useState(null);
     const serviceId = Number(user?.idService || localStorage.getItem('idService') || 0);
     const isArchiveService = serviceId === 13;
     const isGreffeService = serviceId === 2;
-    const isOpeningFilesService = serviceId === 3;
-    const isAdminService = serviceId === 1 || serviceId === 5 || user?.readOnly;
-    const isNotificationCopiesService = serviceId === 7;
+    const isConseillerRapporteur = serviceId === 15 || String(user?.nomService || '').toLowerCase().includes('conseiller');
+    const isAdminService = !isConseillerRapporteur && (serviceId === 1 || serviceId === 5 || user?.readOnly);
     const handlesIncomingRequests = true;
 
     useEffect(() => {
@@ -100,9 +98,11 @@ function Dashboard() {
         if (window.confirm(t('confirmation_annuler'))) {
             try {
                 await axios.post(`/api/transactions/${id}/cancel`);
-                fetchData();
+                await fetchData();
+                setSuccess(translate(t, 'transaction_annulee_message', 'Transaction annulee avec succes.'));
+                setError('');
             } catch (err) {
-                alert(getErrorMessage(err, t('erreur')));
+                setError(getErrorMessage(err, t('erreur')));
             }
         }
     };
@@ -119,9 +119,11 @@ function Dashboard() {
         if (window.confirm(t('confirmation_retour'))) {
             try {
                 await axios.post(`/api/transactions/${id}/mark-returned`);
-                fetchData();
+                await fetchData();
+                setSuccess(translate(t, 'transaction_retournee_message', 'Retour du document enregistre avec succes.'));
+                setError('');
             } catch (err) {
-                alert(getErrorMessage(err, t('erreur')));
+                setError(getErrorMessage(err, t('erreur')));
             }
         }
     };
@@ -133,7 +135,12 @@ function Dashboard() {
                 return;
             }
             const res = await axios.get(`/api/documents/${tx.documentId}?type=${encodeURIComponent(tx.documentType)}`);
-            setCurrentDocument(res.data);
+            setCurrentDocument({
+                ...res.data,
+                numeroBureauOrdre: res.data.numeroBureauOrdre || tx.numeroBureauOrdre || tx.numeroCourrier,
+                numeroCourrier: res.data.numeroCourrier || tx.numeroCourrier || tx.numeroBureauOrdre,
+                numeroDossierJudiciaire: res.data.numeroDossierJudiciaire || tx.numeroDossierJudiciaire
+            });
             setShowDocModal(true);
         } catch (err) {
             alert(t('impossible_charger'));
@@ -149,9 +156,13 @@ function Dashboard() {
                 responderServiceId: Number(localStorage.getItem('idService') || 0) || null,
                 responderServiceName: localStorage.getItem('nomService') || ''
             });
-            fetchData();
+            await fetchData();
+            setSuccess(accepte
+                ? translate(t, 'transaction_acceptee_message', 'Transaction acceptee avec succes.')
+                : translate(t, 'transaction_refusee_message', 'Transaction refusee avec succes.'));
+            setError('');
         } catch (err) {
-            alert(getErrorMessage(err, t('erreur')));
+            setError(getErrorMessage(err, t('erreur')));
         }
     };
 
@@ -164,121 +175,20 @@ function Dashboard() {
 
     if (isAdminService) return <AdminDashboard />;
     if (loading) return <div className="loading">{t('chargement')}</div>;
-    if (error) return <div className="error-message">{error}</div>;
+
+    if (isConseillerRapporteur) {
+        return (
+            <div className="dashboard-container">
+                {error && <div className="error-message">{error}</div>}
+                <JudicialSearch />
+            </div>
+        );
+    }
 
     return (
-        <div className="dashboard-container">
-            <div className="dashboard-header">
-                <h1>
-                    {isArchiveService
-                        ? translate(t, 'dashboard_archive_service', 'Interface du service Archive')
-                        : isGreffeService
-                        ? t('dashboard_greffier')
-                        : t('dashboard')}
-                </h1>
-                <p>
-                    {isArchiveService
-                        ? translate(t, 'dashboard_archive_subtitle', "Acceptation des dossiers envoyes a l'archive, archivage et registre des retraits")
-                        : isGreffeService
-                        ? translate(t, 'dashboard_greffier_subtitle', "Enregistrement, suivi et transmission des dossiers du bureau d'ordre")
-                        : t('dashboard_subtitle')}
-                </p>
-            </div>
-
-            {isNotificationCopiesService ? (
-                <div className="quick-links-grid">
-                    <QuickLink
-                        icon="F"
-                        label={t('menu_dossiers_juridiques')}
-                        description={t('quick_link_desc')}
-                        onClick={() => navigate('/courriers-juridiques')}
-                    />
-                    <QuickLink
-                        icon="D"
-                        label={t('mes_entites')}
-                        description={t('quick_link_desc')}
-                        onClick={() => navigate('/mes-entites')}
-                    />
-                    <QuickLink
-                        icon="CR"
-                        label={translate(t, 'gestion_copies', 'Gestion des copies')}
-                        description={translate(t, 'gestion_copies_desc', 'Rechercher, consulter et imprimer les copies')}
-                        onClick={() => navigate('/gestion-copies')}
-                    />
-                    <QuickLink
-                        icon="NT"
-                        label={t('notifications')}
-                        description={t('notification_transaction')}
-                        onClick={() => navigate('/notifications')}
-                    />
-                </div>
-            ) : isOpeningFilesService ? (
-                <div className="quick-links-grid">
-                    <QuickLink
-                        icon="D"
-                        label={t('mes_entites')}
-                        description={t('quick_link_desc')}
-                        onClick={() => navigate('/mes-entites')}
-                    />
-                    <QuickLink
-                        icon="OD"
-                        label={t('dossiers_acceptes_ouverture')}
-                        description={t('dossiers_acceptes_ouverture_desc')}
-                        onClick={() => navigate('/dossiers-ouverture')}
-                    />
-                    <QuickLink
-                        icon="NT"
-                        label={t('notifications')}
-                        description={t('notification_transaction')}
-                        onClick={() => navigate('/notifications')}
-                    />
-                </div>
-            ) : isArchiveService ? (
-                <div className="quick-links-grid">
-                    <QuickLink
-                        icon="D"
-                        label={t('mes_entites')}
-                        description={t('quick_link_desc')}
-                        onClick={() => navigate('/mes-entites')}
-                    />
-                    <QuickLink
-                        icon="AR"
-                        label={t('menu_archives_juridiques')}
-                        description={t('quick_link_desc')}
-                        onClick={() => navigate('/archives-juridiques')}
-                    />
-                    <QuickLink
-                        icon="NT"
-                        label={t('notifications')}
-                        description={t('notification_transaction')}
-                        onClick={() => navigate('/notifications')}
-                    />
-                </div>
-            ) : !isAdminService && !isGreffeService && !isArchiveService && (
-                <div className="quick-links-grid">
-                    <>
-                        <QuickLink
-                            icon="D"
-                            label={t('mes_entites')}
-                            description={t('quick_link_desc')}
-                            onClick={() => navigate('/mes-entites')}
-                        />
-                        <QuickLink
-                            icon="C"
-                            label={t('consulter')}
-                            description={t('consulter_messages_admin')}
-                            onClick={() => navigate('/messages-administratifs')}
-                        />
-                        <QuickLink
-                            icon="AJ"
-                            label={t('menu_acteurs_judiciaires')}
-                            description={t('consulter_acteurs_judiciaires')}
-                            onClick={() => navigate('/acteurs-judiciaires')}
-                        />
-                    </>
-                </div>
-            )}
-
+        <div className="dashboard-container service-dashboard">
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
             <div className="stats-grid">
                 <div className="stat-card pending">
                     <div className="stat-label">{t('en_attente')}</div>
@@ -380,18 +290,6 @@ function Dashboard() {
     );
 }
 
-function QuickLink({ icon, label, description, onClick }) {
-    return (
-        <button type="button" className="quick-link-card" onClick={onClick}>
-            <span className="quick-link-icon">{icon}</span>
-            <span className="quick-link-info">
-                <span className="quick-link-label">{label}</span>
-                <span className="quick-link-description">{description}</span>
-            </span>
-        </button>
-    );
-}
-
 function Section({ title, children }) {
     return (
         <>
@@ -404,6 +302,8 @@ function Section({ title, children }) {
 }
 
 function TransactionItem({ tx, badge, i18n, t, actions, note, date, dateLabel }) {
+    const documentReferences = getDocumentReferenceDetails(tx, t);
+
     return (
         <div className="transaction-item">
             <div className="transaction-header">
@@ -411,14 +311,44 @@ function TransactionItem({ tx, badge, i18n, t, actions, note, date, dateLabel })
                 <span className="transaction-badge badge-pending">{badge}</span>
             </div>
             <div className="transaction-details">
-                <span>{t('service_destinataire')} : {getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</span>
-                <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {getLocalizedServiceName({ idService: tx.currentServiceId, nomService: tx.currentServiceNom || tx.currentLocation }, i18n)}</span>
+                <span>{t('service_destinataire')} : {tx.destinationUserName || getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</span>
+                {documentReferences.length > 0 ? (
+                    documentReferences.map(reference => (
+                        <span key={reference.key}>{reference.label} : {reference.value}</span>
+                    ))
+                ) : (
+                    <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {getLocalizedServiceName({ idService: tx.currentServiceId, nomService: tx.currentServiceNom || tx.currentLocation }, i18n)}</span>
+                )}
                 <span>{note ? `${t('note')} : ${note}` : `${t('message')} : ${tx.message || t('non_renseigne')}`}</span>
                 <span>{dateLabel || t('envoye_le')} : {formatLocalizedDateTime(date || tx.dateEnvoi, i18n)}</span>
             </div>
             <div className="transaction-actions">{actions}</div>
         </div>
     );
+}
+
+function getDocumentReferenceDetails(tx, t) {
+    const references = [];
+    const bureauOrdre = tx.numeroBureauOrdre || tx.numeroCourrier;
+    const dossierJudiciaire = tx.numeroDossierJudiciaire;
+
+    if (bureauOrdre) {
+        references.push({
+            key: 'bureau-ordre',
+            label: t('numero_bureau_ordre'),
+            value: bureauOrdre
+        });
+    }
+
+    if (dossierJudiciaire) {
+        references.push({
+            key: 'dossier-judiciaire',
+            label: t('numero_dossier_judiciaire'),
+            value: dossierJudiciaire
+        });
+    }
+
+    return references;
 }
 
 function normalizeStatus(value) {
