@@ -289,6 +289,7 @@
   "supprimer": "Supprimer",
   "etat_nouveau": "Nouveau",
   "etat_en_cours": "En cours",
+  "etat_juge": "Jugé",
   "etat_traite": "Traité",
   "etat_archive": "Archivé",
   "erreur_date_requise": "La date est obligatoire.",

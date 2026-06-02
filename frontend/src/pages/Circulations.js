@@ -1,7 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import axios from 'axios';
+import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ActionIcon from '../components/ActionIcon';
+import { useAuth } from '../context/AuthContext';
 
 const emptyForm = {
   documentId: '',
@@ -17,7 +19,17 @@ const emptyForm = {
 };
 
 function Circulations() {
+  const { user } = useAuth();
   const { t, i18n } = useTranslation();
+  const serviceId = Number(user?.idService || localStorage.getItem('idService') || 0);
+  const serviceName = String(user?.nomService || localStorage.getItem('nomService') || '').toLowerCase();
+  const canUseCirculations =
+    [1, 2, 3, 6].includes(serviceId) ||
+    serviceName.includes('admin') ||
+    serviceName.includes('informatique') ||
+    serviceName.includes('bureau') ||
+    serviceName.includes('greffe') ||
+    serviceName.includes('ouverture');
   const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
   const locale = isArabic ? 'ar-MA' : 'fr-FR';
   const [circulations, setCirculations] = useState([]);
@@ -33,8 +45,14 @@ function Circulations() {
   const filteredCirculations = circulations.filter(item => matchesSearch(item, searchTerm, locale));
 
   useEffect(() => {
-    fetchCirculations();
-  }, []);
+    if (canUseCirculations) {
+      fetchCirculations();
+    }
+  }, [canUseCirculations]);
+
+  if (!canUseCirculations) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const fetchCirculations = async () => {
     setLoading(true);

@@ -43,11 +43,27 @@ namespace GestionCourrier.Services
                 else
                 {
                     var doc = await db.EntitesDJs.FindAsync(transaction.DocumentId);
-                    if (doc != null) doc.IdService = transaction.DestinationServiceId;
+                    if (doc != null)
+                    {
+                        doc.IdService = transaction.DestinationServiceId;
+                        doc.EtatArchive = GetJudicialStateForService(transaction.DestinationServiceId);
+                        doc.EstArchive = transaction.DestinationServiceId == 13;
+                    }
                 }
                 await db.SaveChangesAsync();
             }
             await db.SaveChangesAsync();
+        }
+
+        private static string GetJudicialStateForService(int serviceId)
+        {
+            return serviceId switch
+            {
+                2 or 3 => "Nouveau",
+                7 or 10 => "Jugé",
+                13 => "Archive",
+                _ => "En cours"
+            };
         }
     }
 }

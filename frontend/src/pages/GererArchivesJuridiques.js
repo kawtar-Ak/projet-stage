@@ -745,6 +745,7 @@ function downloadBlob(data, fileName) {
 function formatEtat(value, t) {
   if (value === "Archive") return t("etat_archive");
   if (value === "EnCours" || value === "En cours") return t("etat_en_cours");
+  if (value === "Jugé" || value === "Juge") return t("etat_juge");
   if (value === "Traite" || value === "Traité") return t("etat_traite");
   if (value === "Nouveau") return t("etat_nouveau");
   return value || "-";

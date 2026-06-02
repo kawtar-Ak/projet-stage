@@ -10,16 +10,15 @@ export const SERVICE_LABELS_BY_ID = {
   9: { fr: 'Cassation', ar: 'النقض' },
   10: { fr: 'Remise des copies', ar: 'تسليم النسخ' },
   11: { fr: 'Secretariat particulier', ar: 'الكتابة الخاصة' },
-  12: { fr: 'Audiences', ar: 'الجلسات' },
   13: { fr: 'Archivage', ar: 'الحفظ' },
-  14: { fr: 'Procedures', ar: 'الإجراءات' },
   15: { fr: 'Conseiller rapporteur', ar: 'المستشار المقرر' },
   16: { fr: 'Refere', ar: 'الاستعجالي' },
   17: { fr: 'Jugement au fond', ar: 'قضاء الموضوع' },
   18: { fr: 'Commissaire royal', ar: 'المفوض الملكي' },
   19: { fr: 'Premier president', ar: 'الرئيس الأول' },
   20: { fr: 'Gestion de retrait', ar: 'تدبير السحب' },
-  21: { fr: 'Archive', ar: 'الأرشيف' }
+  21: { fr: 'Procedures et audiences mardi', ar: 'إجراءات و جلسات الثلاثاء' },
+  22: { fr: 'Procedures et audiences Jeudi', ar: 'إجراءات و جلسات الخميس' }
 };
 
 export function getCurrentLanguage(i18nOrLanguage) {

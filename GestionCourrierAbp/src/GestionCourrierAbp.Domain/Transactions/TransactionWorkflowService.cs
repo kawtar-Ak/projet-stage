@@ -11,6 +11,12 @@ namespace GestionCourrierAbp.Transactions;
 
 public class TransactionWorkflowService : DomainService
 {
+    private const int BureauOrdreServiceId = 2;
+    private const int OpeningFilesServiceId = 3;
+    private const int NotificationServiceId = 7;
+    private const int CopyDeliveryServiceId = 10;
+    private const int ArchiveServiceId = 13;
+
     private readonly IRepository<Transaction, int> _transactionRepository;
     private readonly IRepository<CourrierAdministratif, int> _courrierAdministratifRepository;
     private readonly IRepository<CourrierJudiciaire, int> _courrierJudiciaireRepository;
@@ -94,11 +100,7 @@ public class TransactionWorkflowService : DomainService
             if (document != null)
             {
                 document.ServiceId = transaction.SourceServiceId;
-                if (!await IsArchiveServiceAsync(transaction.SourceServiceId))
-                {
-                    document.EstArchive = false;
-                    document.EtatArchive = WorkflowStatus.Nouveau.ToStorageValue();
-                }
+                ApplyJudicialServiceState(document, transaction.SourceServiceId);
 
                 await _courrierJudiciaireRepository.UpdateAsync(document, autoSave: true);
             }
@@ -131,11 +133,7 @@ public class TransactionWorkflowService : DomainService
             if (document != null)
             {
                 document.ServiceId = transaction.DestinationServiceId;
-                if (finalizeArchive && await IsArchiveServiceAsync(transaction.DestinationServiceId))
-                {
-                    document.EstArchive = true;
-                    document.EtatArchive = WorkflowStatus.Archive.ToStorageValue();
-                }
+                ApplyJudicialServiceState(document, transaction.DestinationServiceId);
 
                 await _courrierJudiciaireRepository.UpdateAsync(document, autoSave: true);
             }
@@ -144,7 +142,7 @@ public class TransactionWorkflowService : DomainService
 
     private async Task<bool> IsArchiveServiceAsync(int serviceId)
     {
-        if (serviceId == 13)
+        if (serviceId == ArchiveServiceId)
         {
             return true;
         }
@@ -153,5 +151,31 @@ public class TransactionWorkflowService : DomainService
         return service != null &&
             (service.Description.Contains("Archivage", StringComparison.OrdinalIgnoreCase) ||
                 service.Description.Contains("Archive", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void ApplyJudicialServiceState(CourrierJudiciaire document, int serviceId)
+    {
+        document.EstArchive = serviceId == ArchiveServiceId;
+        document.EtatArchive = GetJudicialStateForService(serviceId);
+    }
+
+    private static string GetJudicialStateForService(int serviceId)
+    {
+        if (serviceId is BureauOrdreServiceId or OpeningFilesServiceId)
+        {
+            return WorkflowStatus.Nouveau.ToStorageValue();
+        }
+
+        if (serviceId is NotificationServiceId or CopyDeliveryServiceId)
+        {
+            return "Jugé";
+        }
+
+        if (serviceId == ArchiveServiceId)
+        {
+            return WorkflowStatus.Archive.ToStorageValue();
+        }
+
+        return WorkflowStatus.EnCours.ToStorageValue();
     }
 }

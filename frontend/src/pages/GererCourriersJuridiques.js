@@ -7,6 +7,7 @@ import ActionIcon from "../components/ActionIcon";
 import ConseillerRapporteurSelect, { isConseillerRapporteurService } from "../components/ConseillerRapporteurSelect";
 import { ABP_API_URL } from "../api/axiosConfig";
 import { getLookupItems, itemsToOptions } from "../api/lookups";
+import { getLocalizedServiceName } from "../utils/localization";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 const BUREAU_ORDRE_SERVICE_ID = 2;
@@ -23,8 +24,14 @@ const JUDICIAL_DOCUMENT_TYPES = [
 ];
 
 function GererCourriersJuridiques({ embedded = false }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const currentServiceId = Number(localStorage.getItem("idService") || 0);
+  const currentServiceName = String(localStorage.getItem("nomService") || "").toLowerCase();
+  const isAdminAccount =
+    [1, 6].includes(currentServiceId) ||
+    currentServiceName.includes("admin") ||
+    currentServiceName.includes("informatique");
+  const canCreateBusinessRecords = !isAdminAccount;
   const isBureauOrdreService = currentServiceId === BUREAU_ORDRE_SERVICE_ID;
   const isOuvertureDossiersService = currentServiceId === OUVERTURE_DOSSIERS_SERVICE_ID;
   const [courriers, setCourriers] = useState([]);
@@ -143,7 +150,7 @@ function GererCourriersJuridiques({ embedded = false }) {
             .filter((transaction) =>
               String(transaction.documentType || "").toLowerCase() === "judiciaire" &&
               Number(transaction.sourceServiceId) === currentServiceId &&
-              isPendingTransactionStatus(transaction.statut)
+              isActiveOutgoingTransferStatus(transaction.statut)
             )
             .map((transaction) => String(transaction.documentId))
         )
@@ -241,6 +248,11 @@ function GererCourriersJuridiques({ embedded = false }) {
     event.preventDefault();
     setError("");
     setSuccess("");
+
+    if (!canCreateBusinessRecords && !editingId) {
+      setError("L'administration peut modifier ou supprimer les dossiers existants, mais ne peut pas en ajouter.");
+      return;
+    }
 
     const validationError = validateForm(form, t, isOuvertureDossiersService, isLinkedJudicialDocument);
     if (validationError) {
@@ -359,6 +371,11 @@ function GererCourriersJuridiques({ embedded = false }) {
   };
 
   const openTransferModal = (courrier) => {
+    if (sentJudicialDocumentIds.has(String(courrier?.id))) {
+      setError(translate(t, "document_deja_transmis", "Ce dossier a deja ete transmis par ce service."));
+      return;
+    }
+
     setSelectedTransferItem(courrier);
     setTransferForm(getInitialTransferForm(getDefaultTransferServiceId(courrier)));
     setError("");
@@ -371,6 +388,11 @@ function GererCourriersJuridiques({ embedded = false }) {
   };
 
   const openCreateModal = () => {
+    if (!canCreateBusinessRecords) {
+      setError("L'administration ne peut pas ajouter de nouveaux dossiers ou fichiers.");
+      return;
+    }
+
     setEditingId(null);
     setJudicialFormMode(JUDICIAL_RECORD_DOSSIER);
     setLinkedDossierSearch("");
@@ -384,6 +406,11 @@ function GererCourriersJuridiques({ embedded = false }) {
     event.preventDefault();
     if (!selectedTransferItem || !transferForm.serviceId) {
       setError(t("service_destinataire_requis"));
+      return;
+    }
+
+    if (sentJudicialDocumentIds.has(String(selectedTransferItem?.id))) {
+      setError(translate(t, "document_deja_transmis", "Ce dossier a deja ete transmis par ce service."));
       return;
     }
 
@@ -506,6 +533,12 @@ function GererCourriersJuridiques({ embedded = false }) {
   };
 
   const handleImportExcel = async (event) => {
+    if (!canCreateBusinessRecords) {
+      setError("L'administration ne peut pas importer de nouveaux dossiers ou fichiers.");
+      event.target.value = "";
+      return;
+    }
+
     const file = event.target.files[0];
     if (!file) return;
 
@@ -530,7 +563,7 @@ function GererCourriersJuridiques({ embedded = false }) {
     }
   };
 
-  const isFormVisible = embedded || isCreateModalOpen || Boolean(editingId);
+  const isFormVisible = (embedded && canCreateBusinessRecords) || isCreateModalOpen || Boolean(editingId);
   const isFormModal = isCreateModalOpen || (editingId && isEditModalOpen);
 
   return (
@@ -662,7 +695,7 @@ function GererCourriersJuridiques({ embedded = false }) {
                 <option value="">-- {t("selectionner_service")} --</option>
                 {services.map((service) => (
                   <option key={service.idService} value={service.idService}>
-                    {service.nomService}
+                    {getLocalizedServiceName(service, i18n)}
                   </option>
                 ))}
               </select>
@@ -864,7 +897,7 @@ function GererCourriersJuridiques({ embedded = false }) {
                       : Number(service.idService) !== Number(selectedTransferItem.idService))
                     .map((service) => (
                       <option key={service.idService} value={service.idService}>
-                        {service.nomService}
+                        {getLocalizedServiceName(service, i18n)}
                       </option>
                     ))}
                 </select>
@@ -916,12 +949,16 @@ function GererCourriersJuridiques({ embedded = false }) {
         </>
       )}
 
-      {!embedded && (
+      {!embedded && canCreateBusinessRecords && (
         <div className="registry-choice">
           <button type="button" className="choice-pill" onClick={openCreateModal}>
             {t("ajouter")} {t("courrier_judiciaire")}
           </button>
           <button type="button" className="choice-pill" onClick={() => {
+            if (!canCreateBusinessRecords) {
+              setError("L'administration ne peut pas ajouter de nouveaux dossiers ou fichiers.");
+              return;
+            }
             setEditingId(null);
             setJudicialFormMode(JUDICIAL_RECORD_DOCUMENT_LIE);
             setLinkedDossierSearch("");
@@ -939,18 +976,22 @@ function GererCourriersJuridiques({ embedded = false }) {
     <ActionIcon name="download" />
   </button>
 
-  <button
-    type="button"
-    className="btn-secondary"
-    onClick={exportRegistreModele}
-  >
-    <ActionIcon name="fileText" />
-    {t("telecharger_modele")}
-  </button>
-  <label className="btn-secondary import-label icon-only-button" data-tooltip={importing ? t("import_en_cours") : t("importer_excel")} aria-label={importing ? t("import_en_cours") : t("importer_excel")}>
-    <ActionIcon name="upload" />
-    <input type="file" accept=".xlsx" onChange={handleImportExcel} />
-  </label>
+  {canCreateBusinessRecords && (
+    <>
+      <button
+        type="button"
+        className="btn-secondary"
+        onClick={exportRegistreModele}
+      >
+        <ActionIcon name="fileText" />
+        {t("telecharger_modele")}
+      </button>
+      <label className="btn-secondary import-label icon-only-button" data-tooltip={importing ? t("import_en_cours") : t("importer_excel")} aria-label={importing ? t("import_en_cours") : t("importer_excel")}>
+        <ActionIcon name="upload" />
+        <input type="file" accept=".xlsx" onChange={handleImportExcel} />
+      </label>
+    </>
+  )}
 </div>
 <div>
         <div className="filters">
@@ -1148,9 +1189,14 @@ function canTransferCourrier(courrier) {
   return Number(courrier?.idService) === BUREAU_ORDRE_SERVICE_ID && isIncompleteJudicialFile(courrier);
 }
 
-function isPendingTransactionStatus(statut) {
+function isActiveOutgoingTransferStatus(statut) {
   const value = String(statut || "").toLowerCase();
-  return value === "enattente" || value === "en attente" || value === "pending";
+  return (
+    value === "enattente" ||
+    value === "en attente" ||
+    value === "pending" ||
+    value.includes("accept")
+  );
 }
 
 function getDefaultTransferServiceId(courrier) {
@@ -1351,6 +1397,7 @@ function getDocumentName(value) {
 
 function formatEtat(value, t) {
   if (value === "En cours") return t("etat_en_cours");
+  if (value === "Jugé" || value === "Juge") return t("etat_juge");
   if (value === "Traite") return t("etat_traite");
   if (value === "Archive") return t("etat_archive");
   return t("etat_nouveau");
@@ -1360,6 +1407,7 @@ function getDefaultCourrierEtatOptions(t) {
   return [
     { value: "Nouveau", label: t("etat_nouveau") },
     { value: "En cours", label: t("etat_en_cours") },
+    { value: "Jugé", label: t("etat_juge") },
     { value: "Traite", label: t("etat_traite") },
     { value: "Archive", label: t("etat_archive") },
   ];

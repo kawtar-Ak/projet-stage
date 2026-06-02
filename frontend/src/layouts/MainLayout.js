@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { getLocalizedServiceName } from '../utils/localization';
 
 function MainLayout({ children }) {
   const { user, logout } = useAuth();
@@ -31,8 +32,16 @@ function MainLayout({ children }) {
     const serviceId = user?.idService;
     const isConseillerRapporteur = serviceId === 15 || serviceName.includes('conseiller') || serviceName.includes('المستشار');
     const isServiceChief = serviceId === 5 || serviceName.includes('chef de service');
-    const isNotificationCopies = serviceId === 7 || serviceName.includes('notification') || serviceName.includes('copies');
+    const isAdminService = [1, 6].includes(serviceId) || serviceName.includes('admin') || serviceName.includes('informatique');
+    const isBureauOrdre = serviceId === 2 || serviceName.includes('bureau') || serviceName.includes('greffe');
+    const isOpeningFilesService = serviceId === 3 || serviceName.includes('ouverture');
+    const isAudienceOrProcedure = [21, 22].includes(serviceId) || serviceName.includes('audience') || serviceName.includes('procedure') || serviceName.includes('procédure') || serviceName.includes('جلسات') || serviceName.includes('إجراءات') || serviceName.includes('اجراءات');
+    const isCopyDelivery = [7, 10].includes(serviceId) || serviceName.includes('remise des copies') || serviceName.includes('تسليم النسخ') || (serviceName.includes('notification') && serviceName.includes('copies'));
+    const canManageCopies = isAdminService || isServiceChief || isAudienceOrProcedure || isCopyDelivery;
+    const canUseCirculations = isAdminService || isBureauOrdre || isOpeningFilesService;
     const searchLink = { labelKey: 'menu_recherche', icon: 'search', path: '/recherche' };
+    const gestionCopiesLink = { labelKey: 'gestion_copies', icon: 'folder', path: '/gestion-copies' };
+    const circulationsLink = { labelKey: 'circulations', icon: 'send', path: '/circulations' };
 
     const commonLinks = [
       { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
@@ -40,15 +49,15 @@ function MainLayout({ children }) {
       { labelKey: 'menu_courriers', icon: 'mail', path: '/courriers' },
       { labelKey: 'menu_dossiers_juridiques', icon: 'folder', path: '/courriers-juridiques' },
       { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
-      { labelKey: 'circulations', icon: 'send', path: '/circulations' },
       { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' },
       { labelKey: 'notifications', icon: 'bell', path: '/notifications' }
     ];
 
     const adminLinks = [
       ...commonLinks,
+      ...(canUseCirculations ? [circulationsLink] : []),
       { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
-      { labelKey: 'gestion_copies', icon: 'folder', path: '/gestion-copies' },
+      ...(canManageCopies ? [gestionCopiesLink] : []),
       { labelKey: 'equipements', icon: 'settings', path: '/equipements' },
       { labelKey: 'services', icon: 'service', path: '/services' },
       { labelKey: 'utilisateurs', icon: 'users', path: '/utilisateurs' },
@@ -62,19 +71,18 @@ function MainLayout({ children }) {
       ];
     }
 
-    if (isServiceChief || user?.readOnly || serviceId === 1 || serviceName.includes('informatique')) {
+    if (isServiceChief || user?.readOnly || isAdminService) {
       return adminLinks;
     }
 
-    if (isNotificationCopies) {
+    if (canManageCopies) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
         searchLink,
         { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
-        { labelKey: 'circulations', icon: 'send', path: '/circulations' },
         { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' },
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
-        { labelKey: 'gestion_copies', icon: 'folder', path: '/gestion-copies' }
+        gestionCopiesLink
       ];
     }
 
@@ -89,12 +97,13 @@ function MainLayout({ children }) {
       ];
     }
 
-    if (serviceId === 3 || serviceName.includes('ouverture')) {
+    if (isOpeningFilesService) {
       return [
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
         searchLink,
         { labelKey: 'menu_dossiers_juridiques', icon: 'folder', path: '/courriers-juridiques' },
         { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
+        circulationsLink,
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
         { labelKey: 'dossiers_acceptes_ouverture', icon: 'folder', path: '/dossiers-ouverture' },
         { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' }
@@ -102,9 +111,10 @@ function MainLayout({ children }) {
     }
 
     if ([2, 3, 13].includes(serviceId) || serviceName.includes('bureau') || serviceName.includes('greffe')) {
-      if (serviceId === 2 || serviceName.includes('bureau') || serviceName.includes('greffe')) {
+      if (isBureauOrdre) {
         return [
           ...commonLinks,
+          circulationsLink,
           { labelKey: 'gerer_equipements', icon: 'settings', path: '/equipements' }
         ];
       }
@@ -164,7 +174,12 @@ function MainLayout({ children }) {
   const menuGroups = buildMenuGroups(menuItems);
   const displayName = user?.nomComplet || user?.login || t('administrateur');
   const rawServiceLabel = user?.nomService || t('service_informatique');
-  const serviceLabel = String(rawServiceLabel).trim().toLowerCase() === 'abp' ? '' : rawServiceLabel;
+  const localizedServiceLabel = getLocalizedServiceName(
+    { idService: user?.idService, nomService: rawServiceLabel },
+    i18n,
+    rawServiceLabel
+  );
+  const serviceLabel = String(rawServiceLabel).trim().toLowerCase() === 'abp' ? '' : localizedServiceLabel;
   const menuPositionClass = currentLanguage === 'ar' ? 'menu-right' : 'menu-left';
   const layoutClassName = `app-layout ${menuPositionClass}${user?.readOnly ? ' read-only-mode' : ''}`;
 

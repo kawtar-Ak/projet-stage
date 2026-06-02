@@ -84,12 +84,12 @@ namespace GestionCourrier.Controllers
                 Direction = NormalizeDirection(request.Direction),
                 Destinataire = request.Destinataire?.Trim() ?? string.Empty,
                 Description = request.Description?.Trim() ?? string.Empty,
-                EtatArchive = NormalizeEtat(request.EtatArchive),
+                EtatArchive = GetJudicialStateForService(request.IdService),
                 Emplacement = request.Emplacement?.Trim() ?? string.Empty,
                 LienPdf = request.LienPdf?.Trim() ?? string.Empty,
                 IdBureauOrdre = request.IdBureauOrdre,
                 IdService = request.IdService,
-                EstArchive = false,
+                EstArchive = request.IdService == 13,
                 EstTransmissible = true
             };
 
@@ -120,11 +120,12 @@ namespace GestionCourrier.Controllers
             item.Direction = NormalizeDirection(request.Direction);
             item.Destinataire = request.Destinataire?.Trim() ?? string.Empty;
             item.Description = request.Description?.Trim() ?? string.Empty;
-            item.EtatArchive = NormalizeEtat(request.EtatArchive);
             item.Emplacement = request.Emplacement?.Trim() ?? string.Empty;
             item.LienPdf = request.LienPdf?.Trim() ?? string.Empty;
             item.IdBureauOrdre = request.IdBureauOrdre;
             item.IdService = request.IdService;
+            item.EtatArchive = GetJudicialStateForService(request.IdService);
+            item.EstArchive = request.IdService == 13;
             item.EstTransmissible = true;
 
             ApplyNumeroDossier(item, request);
@@ -510,6 +511,10 @@ namespace GestionCourrier.Controllers
 
         private static string NormalizeEtat(string? etat)
         {
+            if (etat?.Equals("Jugé", StringComparison.OrdinalIgnoreCase) == true ||
+                etat?.Equals("Juge", StringComparison.OrdinalIgnoreCase) == true)
+                return "Jugé";
+
             if (etat?.Equals("En cours", StringComparison.OrdinalIgnoreCase) == true)
                 return "En cours";
 
@@ -522,6 +527,17 @@ namespace GestionCourrier.Controllers
                 return "Archive";
 
             return "Nouveau";
+        }
+
+        private static string GetJudicialStateForService(int serviceId)
+        {
+            return serviceId switch
+            {
+                2 or 3 => "Nouveau",
+                7 or 10 => "Jugé",
+                13 => "Archive",
+                _ => "En cours"
+            };
         }
 
         private async Task<Service?> ResolveService(string value)

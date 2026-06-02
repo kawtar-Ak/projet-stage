@@ -13,7 +13,11 @@ namespace GestionCourrierAbp.Courriers;
 
 public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourrierJudiciaireAppService
 {
+    private const int BureauOrdreServiceId = 2;
     private const int OpeningFilesServiceId = 3;
+    private const int NotificationServiceId = 7;
+    private const int CopyDeliveryServiceId = 10;
+    private const int ArchiveServiceId = 13;
     private const string JudicialRecordDossier = "Dossier";
     private const string JudicialRecordDocumentLie = "DocumentLie";
 
@@ -254,11 +258,12 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
         entity.Direction = input.Direction?.Trim() ?? "Entrant";
         entity.Destinataire = input.Destinataire?.Trim() ?? string.Empty;
         entity.Description = input.Description?.Trim() ?? string.Empty;
-        entity.EtatArchive = input.EtatArchive?.Trim() ?? WorkflowStatus.Nouveau.ToStorageValue();
         entity.Emplacement = input.Emplacement?.Trim() ?? string.Empty;
         entity.Cabinet = input.Cabinet?.Trim() ?? string.Empty;
         entity.LienPdf = input.LienPdf?.Trim() ?? string.Empty;
         entity.ServiceId = input.IdService;
+        entity.EstArchive = input.IdService == ArchiveServiceId;
+        entity.EtatArchive = GetJudicialStateForService(input.IdService);
         entity.CourrierJudiciaireParentId = IsLinkedJudicialDocument(input)
             ? input.CourrierJudiciaireParentId
             : null;
@@ -348,6 +353,26 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
     {
         return input.CourrierJudiciaireParentId.HasValue ||
             NormalizeRecordType(input.TypeEnregistrementJudiciaire) == JudicialRecordDocumentLie;
+    }
+
+    private static string GetJudicialStateForService(int serviceId)
+    {
+        if (serviceId is BureauOrdreServiceId or OpeningFilesServiceId)
+        {
+            return WorkflowStatus.Nouveau.ToStorageValue();
+        }
+
+        if (serviceId is NotificationServiceId or CopyDeliveryServiceId)
+        {
+            return "Jugé";
+        }
+
+        if (serviceId == ArchiveServiceId)
+        {
+            return WorkflowStatus.Archive.ToStorageValue();
+        }
+
+        return WorkflowStatus.EnCours.ToStorageValue();
     }
 
     private static string NormalizeRecordType(string? value)

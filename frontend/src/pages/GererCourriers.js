@@ -17,6 +17,7 @@ import DocumentModal from "../components/DocumentModal";
 import ConseillerRapporteurSelect, { isConseillerRapporteurService } from "../components/ConseillerRapporteurSelect";
 import { ABP_API_URL } from "../api/axiosConfig";
 import { getLookupItems, itemsToOptions } from "../api/lookups";
+import { getLocalizedServiceName } from "../utils/localization";
 
 const LEGACY_API_URL = process.env.REACT_APP_LEGACY_API_URL || "http://localhost:5127";
 
@@ -53,8 +54,14 @@ const WARIDAT_SOURCES = [
 // - le passage entre administratif et juridique.
 
 function GererCourriers() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const currentServiceId = Number(localStorage.getItem("idService") || 0);
+  const currentServiceName = String(localStorage.getItem("nomService") || "").toLowerCase();
+  const isAdminAccount =
+    [1, 6].includes(currentServiceId) ||
+    currentServiceName.includes("admin") ||
+    currentServiceName.includes("informatique");
+  const canCreateBusinessRecords = !isAdminAccount;
 
   // ==========================================================
   // BLOC 3.1 : STATES PRINCIPAUX
@@ -302,7 +309,7 @@ function GererCourriers() {
             .filter((transaction) =>
               String(transaction.documentType || "").toLowerCase() === "administratif" &&
               Number(transaction.sourceServiceId) === currentServiceId &&
-              isPendingTransactionStatus(transaction.statut)
+              isActiveOutgoingTransferStatus(transaction.statut)
             )
             .map((transaction) => String(transaction.documentId))
         )
@@ -465,6 +472,11 @@ function GererCourriers() {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    if (!canCreateBusinessRecords && !editingId) {
+      setError("L'administration peut modifier ou supprimer les dossiers existants, mais ne peut pas en ajouter.");
+      return;
+    }
 
     try {
       await saveCurrentCourrier();
@@ -757,6 +769,11 @@ function GererCourriers() {
   };
 
   const openTransferModal = (courrier) => {
+    if (sentAdministrativeDocumentIds.has(String(courrier?.id))) {
+      setError(translate(t, "document_deja_transmis", "Ce dossier a deja ete transmis par ce service."));
+      return;
+    }
+
     setSelectedTransferItem(courrier);
     setTransferForm(getInitialTransferForm());
     setTransferServiceSearch("");
@@ -822,6 +839,11 @@ function GererCourriers() {
     event.preventDefault();
 
     if (!selectedTransferItem) return;
+
+    if (sentAdministrativeDocumentIds.has(String(selectedTransferItem?.id))) {
+      setError(translate(t, "document_deja_transmis", "Ce dossier a deja ete transmis par ce service."));
+      return;
+    }
 
     const destinationServiceIds = transferForm.mode === "multiple"
       ? transferForm.serviceIds
@@ -978,6 +1000,12 @@ function GererCourriers() {
   // depuis un fichier Excel .xlsx.
 
   const handleFileSelect = async (e) => {
+    if (!canCreateBusinessRecords) {
+      setError("L'administration ne peut pas importer de nouveaux dossiers ou fichiers.");
+      e.target.value = "";
+      return;
+    }
+
     const file = e.target.files[0];
 
     if (!file) return;
@@ -1099,26 +1127,30 @@ function GererCourriers() {
             <ActionIcon name="download" />
           </button>
 
-          <select
-            className="export-scope-select"
-            value={administrativeImportType}
-            onChange={(event) => setAdministrativeImportType(event.target.value)}
-            disabled={importing}
-          >
-            <option value={TYPE_WARIDAT}>{translate(t, "import_entrees", "Entrées")}</option>
-            <option value="MorasalatEntrante">{translate(t, "import_correspondances_entrantes", "Correspondances entrantes")}</option>
-            <option value="MorasalatSortante">{translate(t, "import_correspondances_sortantes", "Correspondances sortantes")}</option>
-          </select>
+          {canCreateBusinessRecords && (
+            <>
+              <select
+                className="export-scope-select"
+                value={administrativeImportType}
+                onChange={(event) => setAdministrativeImportType(event.target.value)}
+                disabled={importing}
+              >
+                <option value={TYPE_WARIDAT}>{translate(t, "import_entrees", "Entrées")}</option>
+                <option value="MorasalatEntrante">{translate(t, "import_correspondances_entrantes", "Correspondances entrantes")}</option>
+                <option value="MorasalatSortante">{translate(t, "import_correspondances_sortantes", "Correspondances sortantes")}</option>
+              </select>
 
-          <label className="btn-secondary import-label icon-only-button" data-tooltip={importing ? t("import_en_cours") : t("importer_excel")} aria-label={importing ? t("import_en_cours") : t("importer_excel")}>
-            <ActionIcon name="upload" />
+              <label className="btn-secondary import-label icon-only-button" data-tooltip={importing ? t("import_en_cours") : t("importer_excel")} aria-label={importing ? t("import_en_cours") : t("importer_excel")}>
+                <ActionIcon name="upload" />
 
-            <input
-              type="file"
-              accept=".xlsx"
-              onChange={handleFileSelect}
-            />
-          </label>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  onChange={handleFileSelect}
+                />
+              </label>
+            </>
+          )}
         </div>
       </div>
 
@@ -1412,6 +1444,7 @@ function GererCourriers() {
           FORMULAIRE D'AJOUT / MODIFICATION
       ====================================================== */}
       {isEditModalOpen && <div className="modal-overlay" onClick={resetForm} />}
+      {(canCreateBusinessRecords || editingId || isEditModalOpen) && (
       <div
         className={isEditModalOpen ? "modal form-card edit-modal" : "form-card"}
         onClick={isEditModalOpen ? (event) => event.stopPropagation() : undefined}
@@ -1630,7 +1663,7 @@ function GererCourriers() {
 
                 {services.map((service) => (
                   <option key={service.idService} value={service.idService}>
-                    {service.nomService}
+                    {getLocalizedServiceName(service, i18n)}
                   </option>
                 ))}
               </select>
@@ -1741,7 +1774,7 @@ function GererCourriers() {
               {editingId ? t("modifier") : t("ajouter")}
             </button>
 
-            {form.typeRegistre === TYPE_WARIDAT && (
+            {canCreateBusinessRecords && form.typeRegistre === TYPE_WARIDAT && (
               <button
                 type="button"
                 className="btn-secondary"
@@ -1752,7 +1785,7 @@ function GererCourriers() {
               </button>
             )}
 
-            {isMorasalat && !isMorasalatResponseMode && (
+            {canCreateBusinessRecords && isMorasalat && !isMorasalatResponseMode && (
               <button
                 type="button"
                 className="btn-secondary"
@@ -1774,6 +1807,7 @@ function GererCourriers() {
           </div>
         </form>
       </div>
+      )}
 
       {/* ======================================================
           RECHERCHE + IMPORT/EXPORT + TABLEAU
@@ -1941,7 +1975,7 @@ function GererCourriers() {
                         )
                         .map((service) => (
                           <option key={service.idService} value={service.idService}>
-                            {service.nomService}
+                            {getLocalizedServiceName(service, i18n)}
                           </option>
                         ))}
                     </select>
@@ -1954,7 +1988,7 @@ function GererCourriers() {
                             {services.filter((service) =>
                               Number(service.idService) !== Number(selectedTransferItem.idService) &&
                               !transferForm.serviceIds.includes(String(service.idService)) &&
-                              service.nomService?.toLowerCase().includes(transferServiceSearch.trim().toLowerCase())
+                              getLocalizedServiceName(service, i18n, service.nomService || '').toLowerCase().includes(transferServiceSearch.trim().toLowerCase())
                             ).length}
                           </span>
                         </div>
@@ -1970,7 +2004,7 @@ function GererCourriers() {
                               (service) =>
                                 Number(service.idService) !== Number(selectedTransferItem.idService) &&
                                 !transferForm.serviceIds.includes(String(service.idService)) &&
-                                service.nomService?.toLowerCase().includes(transferServiceSearch.trim().toLowerCase())
+                                getLocalizedServiceName(service, i18n, service.nomService || '').toLowerCase().includes(transferServiceSearch.trim().toLowerCase())
                             )
                             .map((service) => (
                               <button
@@ -1979,7 +2013,7 @@ function GererCourriers() {
                               className="available-service-option"
                               onClick={() => handleTransferServiceToggle(service.idService)}
                             >
-                              <span>{service.nomService}</span>
+                              <span>{getLocalizedServiceName(service, i18n)}</span>
                             </button>
                             ))}
                         </div>
@@ -2006,7 +2040,7 @@ function GererCourriers() {
                                   onClick={() => handleTransferServiceToggle(serviceId)}
                                   title={t("supprimer")}
                                 >
-                                  <span>{service?.nomService || serviceId}</span>
+                                  <span>{service ? getLocalizedServiceName(service, i18n) : serviceId}</span>
                                   <span className="remove-service-mark" aria-hidden="true">×</span>
                                 </button>
                               );
@@ -2603,9 +2637,14 @@ function canTransferAdministrative(courrier) {
   return Boolean(courrier?.id);
 }
 
-function isPendingTransactionStatus(statut) {
+function isActiveOutgoingTransferStatus(statut) {
   const value = String(statut || "").toLowerCase();
-  return value === "enattente" || value === "en attente" || value === "pending";
+  return (
+    value === "enattente" ||
+    value === "en attente" ||
+    value === "pending" ||
+    value.includes("accept")
+  );
 }
 
 function getDisplayIdBureauOrdre(courrier, courriers = []) {

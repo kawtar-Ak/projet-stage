@@ -24,7 +24,7 @@ public class ServiceAppService : GestionCourrierAbpAppService, IServiceAppServic
     {
         await EnsureDefaultServicesAsync();
 
-        var query = await _repository.GetQueryableAsync();
+        var query = (await _repository.GetQueryableAsync()).Where(x => x.Id != 12 && x.Id != 14);
         var totalCount = await AsyncExecuter.CountAsync(query);
         var items = await AsyncExecuter.ToListAsync(
             query.OrderBy(x => x.Id).Skip(input.SkipCount).Take(input.MaxResultCount));
@@ -119,15 +119,15 @@ public class ServiceAppService : GestionCourrierAbpAppService, IServiceAppServic
             new(9, "النقض", "Cassation", "2ème"),
             new(10, "تسليم النسخ", "Remise des copies", "RDC"),
             new(11, "الكتابة الخاصة", "Secrétariat particulier", "2ème"),
-            new(12, "الجلسات", "Audiences", "1er"),
             new(13, "الحفظ", "Archivage", "Sous-sol"),
-            new(14, "الإجراءات", "Procédures", "1er"),
             new(15, "المستشار المقرر", "Conseiller rapporteur", "2ème"),
             new(16, "الاستعجالي", "Référé", "1er"),
             new(17, "قضاء الموضوع", "Jugement au fond", "2ème"),
             new(18, "المفوض الملكي", "Commissaire royal", "2ème"),
             new(19, "الرئيس الأول", "Premier président", "3ème"),
-            new(20, "تدبير السحب", "Gestion de retrait", "1er")
+            new(20, "تدبير السحب", "Gestion de retrait", "1er"),
+            new(21, "إجراءات و جلسات الثلاثاء", "Procedures et audiences mardi", "1er"),
+            new(22, "إجراءات و جلسات الخميس", "Procedures et audiences Jeudi", "1er")
         };
     }
 

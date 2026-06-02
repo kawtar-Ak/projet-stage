@@ -317,6 +317,7 @@
   "supprimer": "حذف",
   "etat_nouveau": "جديد",
   "etat_en_cours": "قيد المعالجة",
+  "etat_juge": "محكوم",
   "etat_traite": "تمت المعالجة",
   "etat_archive": "مؤرشف",
   "erreur_date_requise": "التاريخ إجباري.",

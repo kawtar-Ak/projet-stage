@@ -87,14 +87,14 @@ using (var scope = app.Services.CreateScope())
         new Service { IdService = 9, NomService = "النقض",              Description = "Cassation", Etage = "2ème" },
         new Service { IdService = 10, NomService = "تسليم النسخ",       Description = "Remise des copies", Etage = "RDC" },
         new Service { IdService = 11, NomService = "الكتابة الخاصة",    Description = "Secrétariat particulier", Etage = "2ème" },
-        new Service { IdService = 12, NomService = "الجلسات",           Description = "Audiences", Etage = "1er" },
         new Service { IdService = 13, NomService = "الحفظ",             Description = "Archivage", Etage = "Sous-sol" },
-        new Service { IdService = 14, NomService = "الإجراءات",         Description = "Procédures", Etage = "1er" },
         new Service { IdService = 15, NomService = "المستشار المقرر",   Description = "Conseiller rapporteur", Etage = "2ème" },
         new Service { IdService = 16, NomService = "الاستعجالي",        Description = "Référé", Etage = "1er" },
         new Service { IdService = 17, NomService = "قضاء الموضوع",      Description = "Jugement au fond", Etage = "2ème" },
         new Service { IdService = 18, NomService = "المفوض الملكي",     Description = "Commissaire royal", Etage = "2ème" },
-        new Service { IdService = 19, NomService = "الرئيس الأول",      Description = "Premier président", Etage = "3ème" }
+        new Service { IdService = 19, NomService = "الرئيس الأول",      Description = "Premier président", Etage = "3ème" },
+        new Service { IdService = 21, NomService = "إجراءات و جلسات الثلاثاء", Description = "Procedures et audiences mardi", Etage = "1er" },
+        new Service { IdService = 22, NomService = "إجراءات و جلسات الخميس", Description = "Procedures et audiences Jeudi", Etage = "1er" }
     };
     db.Services.AddRange(servicesList);
     await db.SaveChangesAsync();

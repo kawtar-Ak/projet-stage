@@ -282,7 +282,7 @@ function mapAbpResponseToLegacy(url = '', data) {
   const items = Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : null);
 
   if (url?.startsWith('/api/app/service')) {
-    return items ? items.map(mapService) : mapService(data);
+    return items ? items.map(mapService).filter(isActiveService) : mapService(data);
   }
 
   if (url?.startsWith('/api/app/equipement')) {
@@ -341,6 +341,10 @@ function mapUtilisateur(item) {
 
 function mapTransaction(item) {
   return item;
+}
+
+function isActiveService(item) {
+  return ![12, 14].includes(Number(item?.idService ?? item?.id));
 }
 
 function mapCirculation(item) {

@@ -42,7 +42,11 @@ namespace GestionCourrierAbp.Transactions;
 /// </summary>
 public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITransactionWorkflowAppService
 {
+    private const int BureauOrdreServiceId = 2;
     private const int OpeningFilesServiceId = 3;
+    private const int NotificationServiceId = 7;
+    private const int CopyDeliveryServiceId = 10;
+    private const int ArchiveServiceId = 13;
     private const int ConseillerRapporteurServiceId = 15;
     private static readonly HashSet<int> ReturnManagerServiceIds = new() { 1, 3, 5, 6, 12, 14, 15 };
     private const string JudicialRecordDocumentLie = "DocumentLie";
@@ -945,9 +949,36 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             if (document != null && document.ServiceId == ConseillerRapporteurServiceId)
             {
                 document.ServiceId = sourceServiceId;
+                ApplyJudicialServiceState(document, sourceServiceId);
                 await _courrierJudiciaireRepository.UpdateAsync(document, autoSave: true);
             }
         }
+    }
+
+    private static void ApplyJudicialServiceState(CourrierJudiciaire document, int serviceId)
+    {
+        document.EstArchive = serviceId == ArchiveServiceId;
+        document.EtatArchive = GetJudicialStateForService(serviceId);
+    }
+
+    private static string GetJudicialStateForService(int serviceId)
+    {
+        if (serviceId is BureauOrdreServiceId or OpeningFilesServiceId)
+        {
+            return WorkflowStatus.Nouveau.ToStorageValue();
+        }
+
+        if (serviceId is NotificationServiceId or CopyDeliveryServiceId)
+        {
+            return "Jugé";
+        }
+
+        if (serviceId == ArchiveServiceId)
+        {
+            return WorkflowStatus.Archive.ToStorageValue();
+        }
+
+        return WorkflowStatus.EnCours.ToStorageValue();
     }
 
     private static string? BuildNumeroDossierJudiciaire(CourrierJudiciaire document)

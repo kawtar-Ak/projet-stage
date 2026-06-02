@@ -67,15 +67,15 @@ SET IDENTITY_INSERT [AppServices] OFF;");
             new(9, "Cassation", "Cassation", "2eme"),
             new(10, "Remise des copies (fusionne)", "Service fusionne avec Notification", "RDC"),
             new(11, "Secretariat particulier", "Secretariat particulier", "2eme"),
-            new(12, "Audiences", "Audiences", "1er"),
             new(13, "Archivage", "Archivage", "Sous-sol"),
-            new(14, "Procedures", "Procedures", "1er"),
             new(15, "Conseiller rapporteur", "Conseiller rapporteur", "2eme"),
             new(16, "Refere", "Refere", "1er"),
             new(17, "Jugement au fond", "Jugement au fond", "2eme"),
             new(18, "Commissaire royal", "Commissaire royal", "2eme"),
             new(19, "Premier president", "Premier president", "3eme"),
-            new(20, "Gestion de retrait", "Gestion de retrait", "1er")
+            new(20, "Gestion de retrait", "Gestion de retrait", "1er"),
+            new(21, "إجراءات و جلسات الثلاثاء", "Procedures et audiences mardi", "1er"),
+            new(22, "إجراءات و جلسات الخميس", "Procedures et audiences Jeudi", "1er")
         };
     }
 

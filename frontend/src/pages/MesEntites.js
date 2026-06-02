@@ -6,9 +6,10 @@ import ActionIcon from '../components/ActionIcon';
 import ConseillerRapporteurSelect, { isConseillerRapporteurService } from '../components/ConseillerRapporteurSelect';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
 import { useAuth } from '../context/AuthContext';
+import { getLocalizedServiceName } from '../utils/localization';
 
 function MesEntites() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { user } = useAuth();
     const [documents, setDocuments] = useState([]);
     const [services, setServices] = useState([]);
@@ -77,7 +78,7 @@ function MesEntites() {
                 new Set(toArray(res.data)
                     .filter((transaction) =>
                         Number(transaction.sourceServiceId) === currentServiceId &&
-                        isPendingTransactionStatus(transaction.statut)
+                        isActiveOutgoingTransferStatus(transaction.statut)
                     )
                     .map((transaction) => getDocumentKey({
                         idEntite: transaction.documentId,
@@ -92,6 +93,11 @@ function MesEntites() {
 
     const openTransferModal = (doc) => {
         if (!canShowTransferButton(doc, sentDocumentKeys)) return;
+        if (isAlreadySentFromService(doc, sentDocumentKeys)) {
+            setError(translate(t, 'document_deja_transmis', 'Ce dossier a deja ete transmis par ce service.'));
+            return;
+        }
+
         setSelectedDoc(doc);
         setTransferForm(getInitialTransferForm());
         setShowModal(true);
@@ -117,6 +123,11 @@ function MesEntites() {
         try {
             if (!selectedDoc.estTransmissible) {
                 setError(translate(t, 'document_non_transmissible', 'Ce dossier n est pas transmissible.'));
+                return;
+            }
+
+            if (isAlreadySentFromService(selectedDoc, sentDocumentKeys)) {
+                setError(translate(t, 'document_deja_transmis', 'Ce dossier a deja ete transmis par ce service.'));
                 return;
             }
 
@@ -344,7 +355,7 @@ function MesEntites() {
                                 <select value={transferForm.serviceId} onChange={e => handleServiceChange(Number(e.target.value))}>
                                     <option value="">--</option>
                                     {services.filter(s => s.idService !== selectedDoc.idService).map(s => (
-                                        <option key={s.idService} value={s.idService}>{s.nomService}</option>
+                                        <option key={s.idService} value={s.idService}>{getLocalizedServiceName(s, i18n)}</option>
                                     ))}
                                 </select>
                             </div>
@@ -517,9 +528,14 @@ function isAlreadySentFromService(doc, sentDocumentKeys) {
     return sentDocumentKeys.has(getDocumentKey(doc));
 }
 
-function isPendingTransactionStatus(statut) {
+function isActiveOutgoingTransferStatus(statut) {
     const value = String(statut || '').toLowerCase();
-    return value === 'enattente' || value === 'en attente' || value === 'pending';
+    return (
+        value === 'enattente' ||
+        value === 'en attente' ||
+        value === 'pending' ||
+        value.includes('accept')
+    );
 }
 
 function getDocumentKey(doc) {

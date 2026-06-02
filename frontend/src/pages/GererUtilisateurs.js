@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import ActionIcon from '../components/ActionIcon';
+import { getLocalizedServiceName } from '../utils/localization';
 
 function GererUtilisateurs() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [users, setUsers] = useState([]);
     const [services, setServices] = useState([]);
     const [form, setForm] = useState({ nomComplet: '', login: '', password: '', idService: '' });
@@ -230,7 +231,7 @@ function GererUtilisateurs() {
                     <option value="">{t('tous_services')}</option>
                     {services.map(s => (
                         <option key={s.idService} value={s.idService}>
-                            {s.nomService}
+                            {getLocalizedServiceName(s, i18n)}
                         </option>
                     ))}
                 </select>
@@ -325,7 +326,7 @@ function GererUtilisateurs() {
                                 <option value="">{t('selectionner_service')}</option>
                                 {services.map(s => (
                                     <option key={s.idService} value={s.idService}>
-                                        {s.nomService}
+                                        {getLocalizedServiceName(s, i18n)}
                                     </option>
                                 ))}
                             </select>
@@ -363,7 +364,7 @@ function GererUtilisateurs() {
                                 <td>{u.id}</td>
                                 <td>{u.nomComplet}</td>
                                 <td>{u.login}</td>
-                                <td>{u.nomService || `${t('service')} #${u.idService}`}</td>
+                                <td>{getLocalizedServiceName({ idService: u.idService, nomService: u.nomService }, i18n, `${t('service')} #${u.idService}`)}</td>
                                 <td className="action-icons">
                                     <button type="button" onClick={() => handleEdit(u)} title={t('modifier')} aria-label={t('modifier')} className="action-icon action-edit">
                                         <ActionIcon name="edit" />
