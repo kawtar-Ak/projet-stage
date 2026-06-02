@@ -20,6 +20,8 @@ function TransactionsOutgoing() {
     const [selectedIds, setSelectedIds] = useState([]);
     const [selectedTransaction, setSelectedTransaction] = useState(null);
     const importInputRef = useRef(null);
+    const visibleIds = filtered.map(tx => tx.id).filter(id => id !== undefined && id !== null);
+    const selectAll = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
 
     const fetchTransactions = useCallback(() => {
         Promise.all([
@@ -92,24 +94,29 @@ function TransactionsOutgoing() {
         setSelectedIds([]);
     };
 
-    const handleSelectOne = (id) => {
+    const handleSelectAll = (event) => {
+        event.stopPropagation();
+        setSelectedIds(selectAll ? [] : visibleIds);
+    };
+
+    const handleSelectOne = (event, id) => {
+        event.stopPropagation();
         setSelectedIds(selectedIds.includes(id) ? selectedIds.filter(i => i !== id) : [...selectedIds, id]);
     };
 
-    const exportSelected = async () => {
+    const exportSelected = () => {
         if (selectedIds.length === 0) {
             alert(t('selection_requise'));
             return;
         }
-        try {
-            const response = await axios.post('/api/transactions/export-selected', selectedIds, {
-                responseType: 'blob',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            downloadBlob(response.data, 'transactions_en_attente_et_acceptees.xlsx');
-        } catch (err) {
-            alert(t('erreur_export'));
+
+        const selectedTransactions = filtered.filter(tx => selectedIds.includes(tx.id));
+        if (selectedTransactions.length === 0) {
+            alert(t('selection_requise'));
+            return;
         }
+
+        exportTransactionsToExcel(selectedTransactions, filtered, locale, t);
     };
 
     const downloadExcel = async (url, fileName) => {
@@ -159,7 +166,7 @@ function TransactionsOutgoing() {
                 <button type="button" className="btn-secondary icon-only-button" data-tooltip={t('importer_excel')} aria-label={t('importer_excel')} onClick={() => importInputRef.current?.click()}>
                     <ActionIcon name="upload" />
                 </button>
-                <button type="button" className="btn-secondary icon-only-button" data-tooltip={t('exporter_excel')} aria-label={t('exporter_excel')} onClick={() => downloadExcel('/api/transactions/export/excel', 'transactions.xlsx')}>
+                <button type="button" className="btn-secondary icon-only-button" data-tooltip={t('exporter_selection')} aria-label={t('exporter_selection')} onClick={exportSelected}>
                     <ActionIcon name="download" />
                 </button>
                 <input
@@ -191,10 +198,6 @@ function TransactionsOutgoing() {
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                 />
-                <button className="btn-primary" onClick={exportSelected}>
-                    <ActionIcon name="download" />
-                    {t('exporter_selection')}
-                </button>
                 <button type="button" className="btn-secondary" onClick={fetchTransactions}>
                     {translate(t, 'actualiser', 'Actualiser')}
                 </button>
@@ -203,6 +206,14 @@ function TransactionsOutgoing() {
                 <table className="modern-table">
                     <thead>
                         <tr>
+                            <th>
+                                <input
+                                    type="checkbox"
+                                    checked={selectAll}
+                                    onChange={handleSelectAll}
+                                    aria-label={translate(t, 'selectionner_tout', 'Selectionner tout')}
+                                />
+                            </th>
                             <th>{t('id')}</th>
                             <th>{t('document_id')}</th>
                             <th>{t('type_document')}</th>
@@ -216,12 +227,19 @@ function TransactionsOutgoing() {
                             <th>{translate(t, 'traite_par', 'Traité par')}</th>
                             <th>{t('etat')}</th>
                             <th>{translate(t, 'derniere_transaction', 'Derniere transaction')}</th>
-                            <th>{t('actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filtered.map(tx => (
                             <tr key={tx.id} onClick={() => setSelectedTransaction(tx)} style={{ cursor: 'pointer' }}>
+                                <td onClick={(event) => event.stopPropagation()}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds.includes(tx.id)}
+                                        onChange={(event) => handleSelectOne(event, tx.id)}
+                                        aria-label={translate(t, 'selectionner', 'Selectionner')}
+                                    />
+                                </td>
                                 <td>{tx.id}</td>
                                 <td>{tx.documentId || '-'}</td>
                                 <td>{tx.documentType || '-'}</td>
@@ -235,16 +253,6 @@ function TransactionsOutgoing() {
                                 <td>{formatActor(tx.responderUserName, tx.responderServiceName || tx.destinationServiceNom)}</td>
                                 <td>{formatStatus(tx.statut, t)}</td>
                                 <td>{isLatestTransaction(tx, filtered) ? translate(t, 'oui', 'Oui') : '-'}</td>
-                                <td className="action-icons" onClick={(event) => event.stopPropagation()}>
-                                    <label className="checkbox-field">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedIds.includes(tx.id)}
-                                            onChange={() => handleSelectOne(tx.id)}
-                                        />
-                                        {translate(t, 'selectionner', 'Sélectionner')}
-                                    </label>
-                                </td>
                             </tr>
                         ))}
                         {filtered.length === 0 && (
@@ -427,8 +435,101 @@ function toArray(data) {
     return [];
 }
 
+function exportTransactionsToExcel(transactions, allTransactions, locale, t) {
+    const headers = [
+        'ID',
+        translate(t, 'document_id', 'Document ID'),
+        translate(t, 'type_document', 'Type document'),
+        translate(t, 'numero_bureau_ordre', 'Numero BO'),
+        translate(t, 'numero_dossier_appel', 'Numero dossier judiciaire'),
+        translate(t, 'recepteur', 'Recepteur'),
+        translate(t, 'emetteur_service', 'Service source'),
+        translate(t, 'envoye_par', 'Envoye par'),
+        translate(t, 'traite_par', 'Traite par'),
+        translate(t, 'etat', 'Etat'),
+        translate(t, 'date_reception', 'Date reception'),
+        translate(t, 'date_envoi', 'Date envoi'),
+        translate(t, 'derniere_transaction', 'Derniere transaction'),
+        translate(t, 'message', 'Message'),
+        translate(t, 'reponse_note', 'Reponse'),
+        translate(t, 'service', 'Service courant'),
+        translate(t, 'emplacement', 'Emplacement')
+    ];
+
+    const rows = transactions.map(tx => [
+        tx.id,
+        tx.documentId || '',
+        tx.documentType || '',
+        tx.numeroBureauOrdre || tx.numeroCourrier || '',
+        tx.numeroDossierJudiciaire || '',
+        formatDestination(tx),
+        tx.sourceServiceNom || '',
+        formatActor(tx.senderUserName, tx.sourceServiceNom),
+        formatActor(tx.responderUserName, tx.responderServiceName || tx.destinationServiceNom),
+        formatStatus(tx.statut, t),
+        formatDateTime(tx.dateReponse, locale),
+        formatDateTime(tx.dateEnvoi, locale),
+        isLatestTransaction(tx, allTransactions) ? translate(t, 'oui', 'Oui') : '',
+        tx.message || '',
+        tx.messageReponse || formatResponseNote(tx.messageReponse, tx.statut, t),
+        tx.currentServiceNom || '',
+        tx.currentLocation || ''
+    ]);
+
+    const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
+th, td { border: 1px solid #333; padding: 6px 8px; text-align: center; vertical-align: middle; mso-number-format:"\\@"; }
+th { background: #0f6d7d; color: #fff; font-weight: 700; }
+td { background: #f2f2f2; }
+</style>
+</head>
+<body>
+<table>
+<thead><tr>${headers.map(header => `<th>${escapeExcelHtml(header)}</th>`).join('')}</tr></thead>
+<tbody>
+${rows.map(row => `<tr>${row.map(value => `<td>${escapeExcelHtml(value)}</td>`).join('')}</tr>`).join('\n')}
+</tbody>
+</table>
+</body>
+</html>`;
+
+    downloadExcelHtml(html, `transactions-selectionnees-${formatFileDate(new Date())}.xls`);
+}
+
+function downloadExcelHtml(html, fileName) {
+    const blob = new Blob(['\ufeff', html], {
+        type: 'application/vnd.ms-excel;charset=utf-8'
+    });
+    downloadBlob(blob, fileName);
+}
+
+function escapeExcelHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatFileDate(date) {
+    const pad = (value) => String(value).padStart(2, '0');
+    return [
+        date.getFullYear(),
+        pad(date.getMonth() + 1),
+        pad(date.getDate()),
+        pad(date.getHours()),
+        pad(date.getMinutes())
+    ].join('');
+}
+
 function downloadBlob(blob, fileName) {
-    const url = window.URL.createObjectURL(new Blob([blob]));
+    const fileBlob = blob instanceof Blob ? blob : new Blob([blob]);
+    const url = window.URL.createObjectURL(fileBlob);
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', fileName);

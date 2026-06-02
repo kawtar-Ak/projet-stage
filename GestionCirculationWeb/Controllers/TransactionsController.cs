@@ -315,45 +315,111 @@ namespace GestionCourrier.Controllers
                 if (user == null) return Unauthorized();
 
                 var transactions = await _context.Transactions
-                    .Where(t => ids.Contains(t.Id) && t.SourceServiceId == user.IdService && t.Statut == "Accepté")
+                    .Where(t => ids.Contains(t.Id) && t.SourceServiceId == user.IdService)
+                    .OrderByDescending(t => t.DateReponse ?? t.DateEnvoi)
                     .ToListAsync();
 
                 using var workbook = new XLWorkbook();
-                var ws = workbook.Worksheets.Add("Transactions_acceptees");
+                var ws = workbook.Worksheets.Add("Transactions_selectionnees");
                 ws.Cell(1, 1).Value = "ID";
-                ws.Cell(1, 2).Value = "Document";
-                ws.Cell(1, 3).Value = "Service destinataire";
-                ws.Cell(1, 4).Value = "Date d'envoi";
-                ws.Cell(1, 5).Value = "Note / Réponse";
+                ws.Cell(1, 2).Value = "Document ID";
+                ws.Cell(1, 3).Value = "Type document";
+                ws.Cell(1, 4).Value = "Numero BO";
+                ws.Cell(1, 5).Value = "Numero dossier judiciaire";
+                ws.Cell(1, 6).Value = "Service source ID";
+                ws.Cell(1, 7).Value = "Service source";
+                ws.Cell(1, 8).Value = "Service destinataire ID";
+                ws.Cell(1, 9).Value = "Service destinataire";
+                ws.Cell(1, 10).Value = "Etat";
+                ws.Cell(1, 11).Value = "Date envoi";
+                ws.Cell(1, 12).Value = "Date reponse";
+                ws.Cell(1, 13).Value = "Message";
+                ws.Cell(1, 14).Value = "Reponse";
 
                 int row = 2;
                 foreach (var t in transactions)
                 {
-                    string sujet = "";
+                    string numeroBureauOrdre = "";
+                    string numeroDossierJudiciaire = "";
                     if (t.DocumentType == "Administratif")
                     {
-                        sujet = await _context.Entites.Where(e => e.IdEntite == t.DocumentId).Select(e => e.Sujet).FirstOrDefaultAsync() ?? "";
+                        numeroBureauOrdre = await _context.Entites
+                            .Where(e => e.IdEntite == t.DocumentId)
+                            .Select(e => e.IdBureauOrdre ?? e.NumeroDeCourrier)
+                            .FirstOrDefaultAsync() ?? "";
                     }
                     else
                     {
-                        sujet = await _context.EntitesDJs.Where(e => e.Id == t.DocumentId).Select(e => e.Sujet).FirstOrDefaultAsync() ?? "";
+                        var judiciaire = await _context.EntitesDJs
+                            .Include(e => e.NumeroDossier)
+                            .FirstOrDefaultAsync(e => e.Id == t.DocumentId);
+                        numeroBureauOrdre = judiciaire?.IdBureauOrdre ?? "";
+                        numeroDossierJudiciaire = judiciaire?.NumeroDossier == null
+                            ? ""
+                            : $"{judiciaire.NumeroDossier.Nombre}/{judiciaire.NumeroDossier.NumeroSujet}/{judiciaire.NumeroDossier.Annee}";
                     }
+                    var sourceServiceNom = await _context.Services.Where(s => s.IdService == t.SourceServiceId).Select(s => s.NomService).FirstOrDefaultAsync() ?? "";
                     var destServiceNom = await _context.Services.Where(s => s.IdService == t.DestinationServiceId).Select(s => s.NomService).FirstOrDefaultAsync() ?? "";
                     ws.Cell(row, 1).Value = t.Id;
-                    ws.Cell(row, 2).Value = sujet;
-                    ws.Cell(row, 3).Value = destServiceNom;
-                    ws.Cell(row, 4).Value = t.DateEnvoi.ToString("yyyy-MM-dd HH:mm");
-                    ws.Cell(row, 5).Value = t.MessageReponse ?? "";
+                    ws.Cell(row, 2).Value = t.DocumentId;
+                    ws.Cell(row, 3).Value = t.DocumentType;
+                    ws.Cell(row, 4).Value = numeroBureauOrdre;
+                    ws.Cell(row, 5).Value = numeroDossierJudiciaire;
+                    ws.Cell(row, 6).Value = t.SourceServiceId;
+                    ws.Cell(row, 7).Value = sourceServiceNom;
+                    ws.Cell(row, 8).Value = t.DestinationServiceId;
+                    ws.Cell(row, 9).Value = destServiceNom;
+                    ws.Cell(row, 10).Value = t.Statut;
+                    ws.Cell(row, 11).Value = t.DateEnvoi;
+                    ws.Cell(row, 11).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+                    ws.Cell(row, 12).Value = t.DateReponse;
+                    ws.Cell(row, 12).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+                    ws.Cell(row, 13).Value = t.Message;
+                    ws.Cell(row, 14).Value = t.MessageReponse ?? "";
                     row++;
                 }
                 ws.Columns().AdjustToContents();
+                ApplyStandardExcelStyle(ws);
                 using var stream = new MemoryStream();
                 workbook.SaveAs(stream);
-                return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "transactions_acceptees.xlsx");
+                return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "transactions_selectionnees.xlsx");
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        private static void ApplyStandardExcelStyle(IXLWorksheet ws)
+        {
+            var usedRange = ws.RangeUsed();
+            if (usedRange == null) return;
+
+            var firstRow = usedRange.FirstRow().RowNumber();
+            var lastRow = usedRange.LastRow().RowNumber();
+            var firstColumn = usedRange.FirstColumn().ColumnNumber();
+            var lastColumn = usedRange.LastColumn().ColumnNumber();
+
+            var fullRange = ws.Range(firstRow, firstColumn, lastRow, lastColumn);
+            fullRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            fullRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            fullRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            fullRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            fullRange.Style.Alignment.WrapText = true;
+
+            var headerRange = ws.Range(firstRow, firstColumn, firstRow, lastColumn);
+            headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#0F6D7D");
+            headerRange.Style.Font.FontColor = XLColor.White;
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            if (lastRow > firstRow)
+            {
+                ws.Range(firstRow + 1, firstColumn, lastRow, lastColumn)
+                    .Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
             }
         }
     }

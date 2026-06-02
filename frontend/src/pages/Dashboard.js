@@ -311,7 +311,7 @@ function TransactionItem({ tx, badge, i18n, t, actions, note, date, dateLabel })
                 <span className="transaction-badge badge-pending">{badge}</span>
             </div>
             <div className="transaction-details">
-                <span>{t('service_destinataire')} : {tx.destinationUserName || getLocalizedServiceName({ idService: tx.destinationServiceId, nomService: tx.destinationServiceNom }, i18n)}</span>
+                <span>{translate(t, 'emetteur_service', 'المصلحة المرسلة')} : {formatSourceName(tx, i18n)}</span>
                 {documentReferences.length > 0 ? (
                     documentReferences.map(reference => (
                         <span key={reference.key}>{reference.label} : {reference.value}</span>
@@ -325,6 +325,12 @@ function TransactionItem({ tx, badge, i18n, t, actions, note, date, dateLabel })
             <div className="transaction-actions">{actions}</div>
         </div>
     );
+}
+
+function formatSourceName(transaction, i18n) {
+    return transaction.senderUserName ||
+        getLocalizedServiceName({ idService: transaction.sourceServiceId, nomService: transaction.sourceServiceNom }, i18n) ||
+        '-';
 }
 
 function getDocumentReferenceDetails(tx, t) {

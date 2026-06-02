@@ -452,6 +452,7 @@ namespace GestionCourrier.Controllers
             ws.Column(6).Width = 45;
             ws.Column(7).Width = 45;
             ws.Column(12).Width = 40;
+            ApplyStandardExcelStyle(ws);
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
@@ -902,6 +903,39 @@ namespace GestionCourrier.Controllers
                 idService = e.IdService,
                 serviceNom = e.Service != null ? e.Service.NomService : null
             };
+        }
+
+        private static void ApplyStandardExcelStyle(IXLWorksheet ws)
+        {
+            var usedRange = ws.RangeUsed();
+            if (usedRange == null) return;
+
+            var firstRow = usedRange.FirstRow().RowNumber();
+            var lastRow = usedRange.LastRow().RowNumber();
+            var firstColumn = usedRange.FirstColumn().ColumnNumber();
+            var lastColumn = usedRange.LastColumn().ColumnNumber();
+
+            var fullRange = ws.Range(firstRow, firstColumn, lastRow, lastColumn);
+            fullRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            fullRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            fullRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            fullRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            fullRange.Style.Alignment.WrapText = true;
+
+            var headerRange = ws.Range(firstRow, firstColumn, firstRow, lastColumn);
+            headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#0F6D7D");
+            headerRange.Style.Font.FontColor = XLColor.White;
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            if (lastRow > firstRow)
+            {
+                ws.Range(firstRow + 1, firstColumn, lastRow, lastColumn)
+                    .Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
+            }
         }
     }
 

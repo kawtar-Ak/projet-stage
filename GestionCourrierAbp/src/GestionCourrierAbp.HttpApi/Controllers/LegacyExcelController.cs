@@ -391,10 +391,13 @@ public class LegacyExcelController : ControllerBase
 
         if (row > 2)
         {
-            ws.Range(2, 1, row - 1, headers.Length).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            ws.Range(2, 1, row - 1, headers.Length).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-            ws.Range(2, 1, row - 1, headers.Length).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-            ws.Range(2, 1, row - 1, headers.Length).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            var dataRange = ws.Range(2, 1, row - 1, headers.Length);
+            dataRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
+            dataRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            dataRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            dataRange.Style.Alignment.WrapText = true;
+            dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
         }
 
         return ExcelFile(workbook, $"courriers-juridiques-{DateTime.Now:yyyyMMddHHmm}.xlsx");
@@ -700,27 +703,14 @@ public class LegacyExcelController : ControllerBase
         });
 
         var transactions = result.Items
-            .Where(x => ids.Contains(x.Id) && x.Statut.Contains("Accept", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(x => x.DateEnvoi)
+            .Where(x => ids.Contains(x.Id))
+            .OrderByDescending(x => x.DateReponse ?? x.DateEnvoi)
             .ToList();
 
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("Transactions acceptees");
 
-        WriteHeaders(ws, new[]
-        {
-            "ID",
-            "Document ID",
-            "Type document",
-            "Service source",
-            "Service destinataire",
-            "Date envoi",
-            "Date reponse",
-            "Traite par",
-            "Service traitant",
-            "Message",
-            "Reponse"
-        });
+        WriteHeaders(ws, TransactionExportHeaders);
 
         var row = 2;
         foreach (var transaction in transactions)
@@ -728,20 +718,25 @@ public class LegacyExcelController : ControllerBase
             ws.Cell(row, 1).Value = transaction.Id;
             ws.Cell(row, 2).Value = transaction.DocumentId;
             ws.Cell(row, 3).Value = transaction.DocumentType;
-            ws.Cell(row, 4).Value = transaction.SourceServiceId;
-            ws.Cell(row, 5).Value = transaction.DestinationServiceId;
-            ws.Cell(row, 6).Value = transaction.DateEnvoi;
-            ws.Cell(row, 6).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
-            ws.Cell(row, 7).Value = transaction.DateReponse;
-            ws.Cell(row, 7).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
-            ws.Cell(row, 8).Value = transaction.ResponderUserName;
-            ws.Cell(row, 9).Value = transaction.ResponderServiceName;
-            ws.Cell(row, 10).Value = transaction.Message;
-            ws.Cell(row, 11).Value = transaction.MessageReponse;
+            ws.Cell(row, 4).Value = transaction.NumeroBureauOrdre ?? string.Empty;
+            ws.Cell(row, 5).Value = transaction.NumeroDossierJudiciaire ?? string.Empty;
+            ws.Cell(row, 6).Value = transaction.SourceServiceId;
+            ws.Cell(row, 7).Value = transaction.SourceServiceNom;
+            ws.Cell(row, 8).Value = transaction.DestinationServiceId;
+            ws.Cell(row, 9).Value = transaction.DestinationServiceNom;
+            ws.Cell(row, 10).Value = transaction.SenderUserName ?? string.Empty;
+            ws.Cell(row, 11).Value = transaction.ResponderUserName ?? string.Empty;
+            ws.Cell(row, 12).Value = transaction.Statut;
+            ws.Cell(row, 13).Value = transaction.DateEnvoi;
+            ws.Cell(row, 13).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+            ws.Cell(row, 14).Value = transaction.DateReponse;
+            ws.Cell(row, 14).Style.DateFormat.Format = "dd/MM/yyyy HH:mm";
+            ws.Cell(row, 15).Value = transaction.Message;
+            ws.Cell(row, 16).Value = transaction.MessageReponse ?? string.Empty;
             row++;
         }
 
-        return ExcelFile(workbook, $"transactions-acceptees-{DateTime.Now:yyyyMMddHHmm}.xlsx");
+        return ExcelFile(workbook, $"transactions-selectionnees-{DateTime.Now:yyyyMMddHHmm}.xlsx");
     }
 
     [HttpGet("api/transactions/template")]
@@ -1484,7 +1479,49 @@ public class LegacyExcelController : ControllerBase
         for (var i = 0; i < headers.Count; i++)
         {
             ws.Cell(rowNumber, i + 1).Value = headers[i];
-            ws.Cell(rowNumber, i + 1).Style.Font.Bold = true;
+        }
+
+        StyleHeaderRange(ws.Range(rowNumber, 1, rowNumber, headers.Count), false);
+    }
+
+    private static void StyleHeaderRange(IXLRange range, bool isMainHeader)
+    {
+        range.Style.Fill.BackgroundColor = XLColor.FromHtml(isMainHeader ? "#0F6D7D" : "#CFEEF7");
+        range.Style.Font.FontColor = isMainHeader ? XLColor.White : XLColor.Black;
+        range.Style.Font.Bold = true;
+        range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        range.Style.Alignment.WrapText = true;
+        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+    }
+
+    private static void ApplyStandardExcelStyle(IXLWorksheet ws)
+    {
+        var usedRange = ws.RangeUsed();
+        if (usedRange == null)
+        {
+            return;
+        }
+
+        var firstRow = usedRange.FirstRow().RowNumber();
+        var lastRow = usedRange.LastRow().RowNumber();
+        var firstColumn = usedRange.FirstColumn().ColumnNumber();
+        var lastColumn = usedRange.LastColumn().ColumnNumber();
+
+        var tableRange = ws.Range(firstRow, firstColumn, lastRow, lastColumn);
+        tableRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        tableRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+        tableRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+        tableRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        tableRange.Style.Alignment.WrapText = true;
+
+        StyleHeaderRange(ws.Range(firstRow, firstColumn, firstRow, lastColumn), true);
+
+        if (lastRow > firstRow)
+        {
+            var dataRange = ws.Range(firstRow + 1, firstColumn, lastRow, lastColumn);
+            dataRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
         }
     }
 
@@ -1814,6 +1851,7 @@ public class LegacyExcelController : ControllerBase
             if (!string.Equals(ws.Name, "\u0627\u0644\u0633\u062C\u0644 \u0627\u0644\u0642\u0636\u0627\u0626\u064A", StringComparison.Ordinal) &&
                 !string.Equals(ws.Name, "\u0627\u0644\u0633\u062C\u0644 \u0627\u0644\u0625\u062F\u0627\u0631\u064A", StringComparison.Ordinal))
             {
+                ApplyStandardExcelStyle(ws);
                 ws.Columns().AdjustToContents();
             }
         }

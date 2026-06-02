@@ -203,7 +203,7 @@ function MesEntites() {
             return;
         }
 
-        exportDocumentsCsv(rows, t);
+        exportDocumentsExcel(rows, t);
         setSuccess(translate(t, 'export_effectue', 'Export effectue.'));
         setError('');
     };
@@ -454,7 +454,7 @@ function filterDocuments(documents, searchTerm) {
     ].join(' ')).includes(keyword));
 }
 
-function exportDocumentsCsv(documents, t) {
+function exportDocumentsExcel(documents, t) {
     const headers = [
         translate(t, 'ordre', 'Ordre'),
         t('id'),
@@ -487,23 +487,45 @@ function exportDocumentsCsv(documents, t) {
         doc.description
     ]);
 
-    const csv = [headers, ...rows]
-        .map((row) => row.map(escapeCsvValue).join(';'))
-        .join('\r\n');
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
+th, td { border: 1px solid #333; padding: 6px 8px; text-align: center; vertical-align: middle; mso-number-format:"\\@"; }
+th { background: #0f6d7d; color: #fff; font-weight: 700; }
+td { background: #f2f2f2; }
+</style>
+</head>
+<body>
+<table>
+<thead><tr>${headers.map((header) => `<th bgcolor="#0f6d7d" style="background-color:#0f6d7d;color:#ffffff;font-weight:700;border:1px solid #333;padding:6px 8px;text-align:center;vertical-align:middle;">${escapeExcelHtml(header)}</th>`).join('')}</tr></thead>
+<tbody>
+${rows.map((row) => `<tr>${row.map((value) => `<td bgcolor="#f2f2f2" style="background-color:#f2f2f2;border:1px solid #333;padding:6px 8px;text-align:center;vertical-align:middle;mso-number-format:'\\@';">${escapeExcelHtml(value)}</td>`).join('')}</tr>`).join('\n')}
+</tbody>
+</table>
+</body>
+</html>`;
+    const blob = new Blob(['\uFEFF', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `mes-entites-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `mes-entites-${new Date().toISOString().slice(0, 10)}.xls`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
 }
 
-function escapeCsvValue(value) {
+function escapeExcelHtml(value) {
     const text = String(value ?? '').replace(/\r?\n/g, ' ').trim();
-    return `"${text.replace(/"/g, '""')}"`;
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function formatExportDate(value) {

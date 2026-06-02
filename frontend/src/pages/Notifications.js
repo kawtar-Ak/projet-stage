@@ -241,18 +241,32 @@ function Notifications() {
                                     <span className="notification-badge">{t('en_attente')}</span>
                                 </div>
                                 <div className="notification-details">
+                                    {n.numeroBureauOrdre || n.numeroCourrier ? (
+                                        <div className="detail-row">
+                                            <span className="detail-label">{translate(t, 'numero_bureau_ordre', 'رقم مكتب الضبط')} :</span>
+                                            <span className="detail-value">{n.numeroBureauOrdre || n.numeroCourrier}</span>
+                                        </div>
+                                    ) : null}
+                                    {n.numeroDossierJudiciaire ? (
+                                        <div className="detail-row">
+                                            <span className="detail-label">{translate(t, 'numero_dossier_appel', 'رقم الملف القضائي')} :</span>
+                                            <span className="detail-value">{n.numeroDossierJudiciaire}</span>
+                                        </div>
+                                    ) : null}
                                     <div className="detail-row">
-                                        <span className="detail-label">{t('de')} :</span>
+                                        <span className="detail-label">{translate(t, 'emetteur_service', 'المصلحة المرسلة')} :</span>
                                         <span className="detail-value">{getLocalizedServiceName({ idService: n.sourceServiceId, nomService: n.sourceServiceNom }, i18n)}</span>
                                     </div>
                                     <div className="detail-row">
-                                        <span className="detail-label">{t('message')} :</span>
-                                        <span className="detail-value">{n.message || t('non_renseigne')}</span>
-                                    </div>
-                                    <div className="detail-row">
-                                        <span className="detail-label">{t('recu_le')} :</span>
+                                        <span className="detail-label">{translate(t, 'envoye_le', 'تم الإرسال في')} :</span>
                                         <span className="detail-value">{formatLocalizedDateTime(n.dateEnvoi, i18n)}</span>
                                     </div>
+                                    {n.message ? (
+                                        <div className="detail-row">
+                                            <span className="detail-label">{t('message')} :</span>
+                                            <span className="detail-value">{n.message}</span>
+                                        </div>
+                                    ) : null}
                                 </div>
                                 <div className="notification-response">
                                     <textarea
@@ -299,7 +313,7 @@ function Notifications() {
                         <thead>
                             <tr>
                                 <th className="notification-document-col">{t('document')}</th>
-                                <th>{t('service_destinataire')}</th>
+                                <th>{translate(t, 'emetteur_service', 'المصلحة المرسلة')}</th>
                                 <th>{t('etat')}</th>
                                 <th>{translate(t, 'traite_par', 'Traité par')}</th>
                                 <th>{t('traite_le')}</th>
@@ -315,7 +329,7 @@ function Notifications() {
                                         <td className="notification-document-cell">
                                             <DocumentCell transaction={tx} />
                                         </td>
-                                        <td>{formatDestinationName(tx, i18n)}</td>
+                                        <td>{formatSourceName(tx, i18n)}</td>
                                         <td>{formatStatus(tx.statut, t)}</td>
                                         <td>{tx.responderUserName || getLocalizedServiceName({ idService: tx.responderServiceId || tx.destinationServiceId, nomService: tx.responderServiceName || tx.destinationServiceNom }, i18n) || '-'}</td>
                                         <td>{formatLocalizedDateTime(tx.dateReponse || tx.dateEnvoi, i18n)}</td>
@@ -346,7 +360,7 @@ function Notifications() {
                         <thead>
                             <tr>
                                 <th className="notification-document-col">{t('document')}</th>
-                                <th>{t('service_destinataire')}</th>
+                                <th>{translate(t, 'emetteur_service', 'المصلحة المرسلة')}</th>
                                 <th>{t('envoye_le')}</th>
                                 <th>{t('actions')}</th>
                             </tr>
@@ -360,7 +374,7 @@ function Notifications() {
                                         <td className="notification-document-cell">
                                             <DocumentCell transaction={tx} />
                                         </td>
-                                        <td>{formatDestinationName(tx, i18n)}</td>
+                                        <td>{formatSourceName(tx, i18n)}</td>
                                         <td>{formatLocalizedDateTime(tx.dateEnvoi, i18n)}</td>
                                         <td className="action-icons">
                                             <button type="button" onClick={() => handleConsult(tx)} title={t('consulter')} aria-label={t('consulter')} className="action-icon action-view">
@@ -534,12 +548,12 @@ function DocumentCell({ transaction }) {
     );
 }
 
-function formatDestinationName(transaction, i18n) {
+function formatSourceName(transaction, i18n) {
     const service = getLocalizedServiceName(
-        { idService: transaction.destinationServiceId, nomService: transaction.destinationServiceNom },
+        { idService: transaction.sourceServiceId, nomService: transaction.sourceServiceNom },
         i18n
     );
-    return transaction.destinationUserName || service || '-';
+    return transaction.senderUserName || service || '-';
 }
 
 function translate(t, key, fallback) {
