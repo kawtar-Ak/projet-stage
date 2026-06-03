@@ -15,6 +15,7 @@ import GererCourriersJuridiques from "./GererCourriersJuridiques";
 import ActionIcon from "../components/ActionIcon";
 import DocumentModal from "../components/DocumentModal";
 import ConseillerRapporteurSelect, { isConseillerRapporteurService } from "../components/ConseillerRapporteurSelect";
+import SyncedHorizontalScroll from "../components/SyncedHorizontalScroll";
 import { ABP_API_URL } from "../api/axiosConfig";
 import { getLookupItems, itemsToOptions } from "../api/lookups";
 import { getLocalizedServiceName } from "../utils/localization";
@@ -1155,73 +1156,74 @@ function GererCourriers() {
         </div>
       </div>
 
-      <table className="modern-table registry-table">
-        <thead>
-          <tr>
-            <th className="selection-column">
-              <input
-                type="checkbox"
-                checked={allVisibleSelected}
-                onChange={toggleVisibleSelection}
-                aria-label={t("selectionner")}
-              />
-            </th>
-            <th>{t("numero_bureau_ordre")}</th>
-            <th>{t("type_document")}</th>
-            <th>{t("liaison")}</th>
-            <th>{t("date")}</th>
-            <th>{t("source")}</th>
-            <th>{t("objet")}</th>
-            <th>{t("destinataire")}</th>
-            <th>{t("service")}</th>
-            <th>{t("etat")}</th>
-            <th>{t("transmissible")}</th>
-            <th>{t("pdf")}</th>
-            <th>{t("morasalat_entrantes")}</th>
-            <th>{t("actions")}</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {visibleCourriers.length === 0 ? (
+      <SyncedHorizontalScroll className="registry-scroll-region">
+        <table className="modern-table registry-table">
+          <thead>
             <tr>
-              <td colSpan="14" style={{ textAlign: "center" }}>
-                {t("aucun_registre")}
-              </td>
+              <th className="selection-column">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleVisibleSelection}
+                  aria-label={t("selectionner")}
+                />
+              </th>
+              <th>{t("numero_bureau_ordre")}</th>
+              <th>{t("type_document")}</th>
+              <th>{t("liaison")}</th>
+              <th>{t("date")}</th>
+              <th>{t("source")}</th>
+              <th>{t("objet")}</th>
+              <th>{t("destinataire")}</th>
+              <th>{t("service")}</th>
+              <th>{t("etat")}</th>
+              <th>{t("transmissible")}</th>
+              <th>{t("pdf")}</th>
+              <th>{t("morasalat_entrantes")}</th>
+              <th>{t("actions")}</th>
             </tr>
-          ) : (
-            visibleCourriers.map((courrier) => {
-              const actionState = getAdministrativeActionState(courrier, allCourriers, sentAdministrativeDocumentIds);
-              const morasalatResponse = findMorasalatResponse(courrier, allCourriers);
+          </thead>
 
-              return (
-              <tr key={courrier.id}>
-                <td className="selection-column">
-                  <input
-                    type="checkbox"
-                    className="row-select-checkbox"
-                    checked={selectedExportIdSet.has(String(courrier.id))}
-                    onChange={() => toggleCourrierSelection(courrier.id)}
-                    aria-label={t("selectionner")}
-                  />
+          <tbody>
+            {visibleCourriers.length === 0 ? (
+              <tr>
+                <td colSpan="14" style={{ textAlign: "center" }}>
+                  {t("aucun_registre")}
                 </td>
-                <td>{getDisplayIdBureauOrdre(courrier, allCourriers)}</td>
-                <td>
-                  <span className={getRegistreBadgeClass(courrier)}>
-                    {formatRegistre(courrier, t)}
-                  </span>
-                </td>
-                <td>{courrier.parentId ? t("detail_lie") : t("ligne_principale")}</td>
-                <td>
-                  {courrier.date
-                    ? new Date(courrier.date).toLocaleDateString()
-                    : "-"}
-                </td>
-                <td>{courrier.source || "-"}</td>
-                <td>{courrier.sujet || "-"}</td>
-                <td>{courrier.destinataire || "-"}</td>
-                <td>{courrier.serviceNom || courrier.idService}</td>
-                <td>{formatEtat(courrier.etat, t)}</td>
+              </tr>
+            ) : (
+              visibleCourriers.map((courrier) => {
+                const actionState = getAdministrativeActionState(courrier, allCourriers, sentAdministrativeDocumentIds);
+                const morasalatResponse = findMorasalatResponse(courrier, allCourriers);
+
+                return (
+                <tr key={courrier.id}>
+                  <td className="selection-column">
+                    <input
+                      type="checkbox"
+                      className="row-select-checkbox"
+                      checked={selectedExportIdSet.has(String(courrier.id))}
+                      onChange={() => toggleCourrierSelection(courrier.id)}
+                      aria-label={t("selectionner")}
+                    />
+                  </td>
+                  <td>{getDisplayIdBureauOrdre(courrier, allCourriers)}</td>
+                  <td>
+                    <span className={getRegistreBadgeClass(courrier)}>
+                      {formatRegistre(courrier, t)}
+                    </span>
+                  </td>
+                  <td>{courrier.parentId ? t("detail_lie") : t("ligne_principale")}</td>
+                  <td>
+                    {courrier.date
+                      ? new Date(courrier.date).toLocaleDateString()
+                      : "-"}
+                  </td>
+                  <td>{courrier.source || "-"}</td>
+                  <td>{courrier.sujet || "-"}</td>
+                  <td>{courrier.destinataire || "-"}</td>
+                  <td>{courrier.serviceNom || courrier.idService}</td>
+                  <td>{formatEtat(courrier.etat, t)}</td>
 
                 {/* Affiche Oui si le courrier est transmissible, sinon Non. */}
                 <td>{courrier.estTransmissible ? t("oui") : t("non")}</td>
@@ -1268,6 +1270,9 @@ function GererCourriers() {
                       <ActionIcon name="link" />
                     </button>
                   )}
+                  {!actionState.canAddLinkedMorasalat && (
+                    <span className="action-icon action-placeholder" aria-hidden="true" />
+                  )}
 
                   {actionState.canAddResponse && (
                     <button
@@ -1279,6 +1284,9 @@ function GererCourriers() {
                     >
                       <ActionIcon name="reply" />
                     </button>
+                  )}
+                  {!actionState.canAddResponse && (
+                    <span className="action-icon action-placeholder" aria-hidden="true" />
                   )}
 
                   <button
@@ -1313,6 +1321,9 @@ function GererCourriers() {
                       <ActionIcon name="transfer" />
                     </button>
                   )}
+                  {!actionState.canTransfer && (
+                    <span className="action-icon action-placeholder" aria-hidden="true" />
+                  )}
 
                   <button
                     type="button"
@@ -1338,8 +1349,9 @@ function GererCourriers() {
               );
             })
           )}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </SyncedHorizontalScroll>
     </div>
   );
 

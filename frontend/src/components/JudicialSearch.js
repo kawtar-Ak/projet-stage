@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import DocumentModal from './DocumentModal';
@@ -188,9 +188,11 @@ function JudicialSearch() {
                       <td>BO {dossier.idBureauOrdre || '-'}</td>
                       <td>{dossier.sujet || dossier.tribunalSource || '-'}</td>
                       <td>{formatStatus(trackingStatus, t)}</td>
-                      <td>{transaction?.currentServiceNom || transaction?.destinationServiceNom || currentService}</td>
+                      <td dir="auto">{currentService}</td>
                       <td>{location}</td>
-                      <td title={formatMovement(transaction, t)}>{formatMovement(transaction, t)}</td>
+                      <td title={formatMovement(transaction, t, i18n)}>
+                        {transaction ? <MovementFlow movement={transaction} i18n={i18n} /> : t('aucun_mouvement')}
+                      </td>
                       <td title={formatResponder(transaction, i18n, t)}>{formatResponder(transaction, i18n, t)}</td>
                       <td>
                         <button
@@ -412,11 +414,40 @@ function getCurrentServiceLabel(dossier, services, i18n) {
   return service ? getLocalizedServiceName(service, i18n) : (dossier.idService ? `Service #${dossier.idService}` : '-');
 }
 
-function formatMovement(transaction, t) {
+function formatMovement(transaction, t, i18n) {
   if (!transaction) return t('aucun_mouvement');
-  const from = transaction.sourceServiceNom || '-';
-  const to = transaction.destinationServiceNom || transaction.currentServiceNom || '-';
-  return `${from} -> ${to}`;
+  const from = formatTransactionService(transaction.sourceServiceNom, transaction.sourceServiceId, i18n);
+  const to = formatTransactionService(
+    transaction.destinationServiceNom || transaction.currentServiceNom,
+    transaction.destinationServiceId || transaction.currentServiceId,
+    i18n
+  );
+  return `${from} → ${to}`;
+}
+
+function MovementFlow({ movement, i18n }) {
+  const from = formatTransactionService(movement.sourceServiceNom, movement.sourceServiceId, i18n);
+  const to = formatTransactionService(
+    movement.destinationServiceNom || movement.currentServiceNom,
+    movement.destinationServiceId || movement.currentServiceId,
+    i18n
+  );
+
+  return (
+    <div className="movement-flow" dir="ltr">
+      <span className="movement-flow-node" dir="auto">{from}</span>
+      <span className="movement-flow-arrow" aria-hidden="true">→</span>
+      <span className="movement-flow-node" dir="auto">{to}</span>
+    </div>
+  );
+}
+
+function formatTransactionService(serviceName, serviceId, i18n) {
+  return getLocalizedServiceName({ idService: serviceId, nomService: serviceName }, i18n);
+}
+
+function formatSender(movement, i18n) {
+  return movement.senderUserName || formatTransactionService(movement.sourceServiceNom, movement.sourceServiceId, i18n);
 }
 
 function formatResponder(transaction, i18n, t) {
@@ -426,7 +457,7 @@ function formatResponder(transaction, i18n, t) {
   const responder = [
     transaction.responderUserName,
     getLocalizedServiceName({ idService: responderServiceId, nomService: responderServiceName }, i18n, '')
-  ].filter(Boolean).join(' | ');
+  ].filter(Boolean).join(' - ');
 
   if (responder) return responder;
 
@@ -451,42 +482,92 @@ function formatDateTime(value, i18n) {
 }
 
 function MovementHistoryModal({ dossier, i18n, t, onClose }) {
+  const topScrollRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const syncingScrollRef = useRef(false);
+  const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
+  const direction = isArabic ? 'rtl' : 'ltr';
   const movements = [...(dossier.movements || [])]
     .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
+  const title = translate(t, 'toutes_transactions', 'Toutes les transactions');
+  const dossierNumber = dossier.numeroDossier || dossier.idBureauOrdre || '-';
+
+  const syncTopScroll = () => {
+    if (syncingScrollRef.current) return;
+    if (topScrollRef.current && tableScrollRef.current) {
+      syncingScrollRef.current = true;
+      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+      requestAnimationFrame(() => {
+        syncingScrollRef.current = false;
+      });
+    }
+  };
+
+  const syncTableScroll = () => {
+    if (syncingScrollRef.current) return;
+    if (topScrollRef.current && tableScrollRef.current) {
+      syncingScrollRef.current = true;
+      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+      requestAnimationFrame(() => {
+        syncingScrollRef.current = false;
+      });
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="modal" onClick={(event) => event.stopPropagation()}>
-        <h2>{translate(t, 'toutes_transactions', 'Toutes les transactions')}</h2>
-        <p className="modal-subtitle">{dossier.numeroDossier || dossier.idBureauOrdre || '-'}</p>
+      <div className="modal movement-history-modal" dir={direction} onClick={(event) => event.stopPropagation()}>
+        <div className="movement-history-header">
+          <div>
+            <h2>{title}</h2>
+            <p className="modal-subtitle">{dossierNumber}</p>
+          </div>
+          <button type="button" className="modal-close-button" onClick={onClose} aria-label={t('fermer')}>
+            &times;
+          </button>
+        </div>
         {movements.length === 0 ? (
           <div className="admin-search-empty">{t('aucun_mouvement')}</div>
         ) : (
-          <div className="data-table-wrapper">
-            <table className="modern-table">
-              <thead>
-                <tr>
-                  <th>{t('date')}</th>
-                  <th>{translate(t, 'mouvement', 'Mouvement')}</th>
-                  <th>{t('etat')}</th>
-                  <th>{translate(t, 'envoye_par', 'Envoye par')}</th>
-                  <th>{t('traite_par')}</th>
-                  <th>{t('message')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movements.map((movement) => (
-                  <tr key={movement.id}>
-                    <td>{formatDateTime(movement.dateReponse || movement.dateEnvoi, i18n)}</td>
-                    <td>{formatMovement(movement, t)}</td>
-                    <td>{formatStatus(movement.statut, t)}</td>
-                    <td>{movement.senderUserName || movement.sourceServiceNom || '-'}</td>
-                    <td>{formatResponder(movement, i18n, t)}</td>
-                    <td>{movement.messageReponse || movement.message || '-'}</td>
+          <div className="movement-history-table-shell">
+            <div
+              className="movement-scrollbar movement-scrollbar-top"
+              ref={topScrollRef}
+              onScroll={syncTopScroll}
+              aria-hidden="true"
+            >
+              <div className="movement-scrollbar-spacer" />
+            </div>
+            <div
+              className="data-table-wrapper movement-history-table-wrapper"
+              ref={tableScrollRef}
+              onScroll={syncTableScroll}
+            >
+              <table className="modern-table movement-history-table">
+                <thead>
+                  <tr>
+                    <th>{t('date')}</th>
+                    <th>{translate(t, 'mouvement', 'Mouvement')}</th>
+                    <th>{t('etat')}</th>
+                    <th>{translate(t, 'envoye_par', 'Envoye par')}</th>
+                    <th>{t('traite_par')}</th>
+                    <th>{t('message')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {movements.map((movement) => (
+                    <tr key={movement.id}>
+                      <td>{formatDateTime(movement.dateReponse || movement.dateEnvoi, i18n)}</td>
+                      <td title={formatMovement(movement, t, i18n)}><MovementFlow movement={movement} i18n={i18n} /></td>
+                      <td>{formatStatus(movement.statut, t)}</td>
+                      <td dir="auto">{formatSender(movement, i18n)}</td>
+                      <td>{formatResponder(movement, i18n, t)}</td>
+                      <td>{movement.messageReponse || movement.message || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
         <div className="form-actions">

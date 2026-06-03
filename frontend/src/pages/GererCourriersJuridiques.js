@@ -5,6 +5,7 @@ import { DEFAULT_SERVICES } from "../constants/defaultServices";
 import DocumentModal from "../components/DocumentModal";
 import ActionIcon from "../components/ActionIcon";
 import ConseillerRapporteurSelect, { isConseillerRapporteurService } from "../components/ConseillerRapporteurSelect";
+import SyncedHorizontalScroll from "../components/SyncedHorizontalScroll";
 import { ABP_API_URL } from "../api/axiosConfig";
 import { getLookupItems, itemsToOptions } from "../api/lookups";
 import { getLocalizedServiceName } from "../utils/localization";
@@ -1004,7 +1005,7 @@ function GererCourriersJuridiques({ embedded = false }) {
           }}>{t("reinitialiser")}</button>
         </div>
 
-        <div className="data-table-wrapper">
+        <SyncedHorizontalScroll className="data-table-wrapper">
           <table className="modern-table">
             <thead>
               <tr>
@@ -1082,6 +1083,9 @@ function GererCourriersJuridiques({ embedded = false }) {
                           <ActionIcon name="transfer" />
                         </button>
                       )}
+                      {!canTransferCourrier(courrier, sentJudicialDocumentIds) && (
+                        <span className="action-icon action-placeholder" aria-hidden="true" />
+                      )}
                       <button
                         type="button"
                         onClick={() => handleDelete(courrier.id)}
@@ -1098,7 +1102,7 @@ function GererCourriersJuridiques({ embedded = false }) {
               )}
             </tbody>
           </table>
-        </div>
+        </SyncedHorizontalScroll>
       </div>
       {consultedDocument && (
         <DocumentModal

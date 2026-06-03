@@ -88,10 +88,12 @@ function findKnownService(service) {
     service.name
   ].map(normalizeText).filter(Boolean);
 
-  return Object.values(SERVICE_LABELS_BY_ID).find((item) =>
-    candidates.includes(normalizeText(item.fr)) ||
-    candidates.includes(normalizeText(item.ar))
-  );
+  return Object.values(SERVICE_LABELS_BY_ID).find((item) => {
+    const knownNames = [normalizeText(item.fr), normalizeText(item.ar)].filter(Boolean);
+    return candidates.some((candidate) =>
+      knownNames.some((known) => candidate === known || candidate.includes(known) || known.includes(candidate))
+    );
+  });
 }
 
 function firstText(...values) {

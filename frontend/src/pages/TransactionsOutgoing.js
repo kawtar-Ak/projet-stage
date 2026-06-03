@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import ActionIcon from '../components/ActionIcon';
+import { formatLocalizedDateTime, getLocalizedServiceName, getLocalizedStatus } from '../utils/localization';
 
 function TransactionsOutgoing() {
     const { t, i18n } = useTranslation();
     const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
-    const locale = isArabic ? 'ar-MA' : 'fr-FR';
+    const direction = isArabic ? 'rtl' : 'ltr';
     const currentServiceId = Number(localStorage.getItem('idService') || 0);
     const [transactionsByScope, setTransactionsByScope] = useState({
         service: [],
@@ -116,7 +117,7 @@ function TransactionsOutgoing() {
             return;
         }
 
-        exportTransactionsToExcel(selectedTransactions, filtered, locale, t);
+        exportTransactionsToExcel(selectedTransactions, filtered, i18n, t);
     };
 
     const downloadExcel = async (url, fileName) => {
@@ -154,7 +155,7 @@ function TransactionsOutgoing() {
     };
 
     return (
-        <div className="page-container">
+        <div className="page-container" dir={direction}>
             <h1 className="page-title">{translate(t, 'historique_transactions', 'Historique des transactions')}</h1>
             {error && <div className="error-message">{error}</div>}
             {success && <div className="success-message">{success}</div>}
@@ -202,7 +203,7 @@ function TransactionsOutgoing() {
                     {translate(t, 'actualiser', 'Actualiser')}
                 </button>
             </div>
-            <div className="data-table-wrapper" dir={isArabic ? 'rtl' : 'ltr'}>
+            <div className="data-table-wrapper" dir={direction}>
                 <table className="modern-table">
                     <thead>
                         <tr>
@@ -242,15 +243,15 @@ function TransactionsOutgoing() {
                                 </td>
                                 <td>{tx.id}</td>
                                 <td>{tx.documentId || '-'}</td>
-                                <td>{tx.documentType || '-'}</td>
+                                <td><AutoText>{formatDocumentType(tx.documentType, t)}</AutoText></td>
                                 <td>{tx.numeroBureauOrdre || '-'}</td>
                                 <td>{tx.numeroDossierJudiciaire || '-'}</td>
-                                <td>{formatDateTime(tx.dateReponse, locale)}</td>
-                                <td>{formatDateTime(tx.dateEnvoi, locale)}</td>
-                                <td>{formatDestination(tx)}</td>
-                                <td>{tx.sourceServiceNom || '-'}</td>
-                                <td>{formatActor(tx.senderUserName, tx.sourceServiceNom)}</td>
-                                <td>{formatActor(tx.responderUserName, tx.responderServiceName || tx.destinationServiceNom)}</td>
+                                <td>{formatDateTime(tx.dateReponse, i18n)}</td>
+                                <td>{formatDateTime(tx.dateEnvoi, i18n)}</td>
+                                <td><AutoText>{formatDestination(tx, i18n)}</AutoText></td>
+                                <td><AutoText>{formatServiceName(tx.sourceServiceNom, tx.sourceServiceId, i18n)}</AutoText></td>
+                                <td><AutoText>{formatActor(tx.senderUserName, tx.sourceServiceNom, tx.sourceServiceId, i18n)}</AutoText></td>
+                                <td><AutoText>{formatActor(tx.responderUserName, tx.responderServiceName || tx.destinationServiceNom, tx.responderServiceId || tx.destinationServiceId, i18n)}</AutoText></td>
                                 <td>{formatStatus(tx.statut, t)}</td>
                                 <td>{isLatestTransaction(tx, filtered) ? translate(t, 'oui', 'Oui') : '-'}</td>
                             </tr>
@@ -264,7 +265,8 @@ function TransactionsOutgoing() {
             {selectedTransaction && (
                 <TransactionDetailsModal
                     transaction={selectedTransaction}
-                    locale={locale}
+                    i18n={i18n}
+                    direction={direction}
                     t={t}
                     onClose={() => setSelectedTransaction(null)}
                 />
@@ -273,26 +275,26 @@ function TransactionsOutgoing() {
     );
 }
 
-function TransactionDetailsModal({ transaction, locale, t, onClose }) {
+function TransactionDetailsModal({ transaction, i18n, direction, t, onClose }) {
     return (
         <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
-            <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal" dir={direction} onClick={(event) => event.stopPropagation()}>
                 <h2>{translate(t, 'details_mouvement', 'Details du mouvement')}</h2>
                 <div className="form-grid">
-                    <div className="form-field"><label>ID</label><span>{transaction.id}</span></div>
-                    <div className="form-field"><label>{t('document_id')}</label><span>{transaction.documentId || '-'}</span></div>
-                    <div className="form-field"><label>{t('type_document')}</label><span>{transaction.documentType || '-'}</span></div>
-                    <div className="form-field"><label>{t('numero_bureau_ordre')}</label><span>{transaction.numeroBureauOrdre || transaction.numeroCourrier || '-'}</span></div>
-                    <div className="form-field"><label>{t('numero_dossier_appel')}</label><span>{transaction.numeroDossierJudiciaire || '-'}</span></div>
-                    <div className="form-field"><label>{t('emetteur_service')}</label><span>{transaction.sourceServiceNom || '-'}</span></div>
-                    <div className="form-field"><label>{t('recepteur')}</label><span>{formatDestination(transaction)}</span></div>
-                    <div className="form-field"><label>{translate(t, 'envoye_par', 'Envoye par')}</label><span>{formatActor(transaction.senderUserName, transaction.sourceServiceNom)}</span></div>
-                    <div className="form-field"><label>{translate(t, 'traite_par', 'Traite par')}</label><span>{formatActor(transaction.responderUserName, transaction.responderServiceName || transaction.destinationServiceNom)}</span></div>
-                    <div className="form-field"><label>{t('date_envoi')}</label><span>{formatDateTime(transaction.dateEnvoi, locale)}</span></div>
-                    <div className="form-field"><label>{t('traite_le')}</label><span>{formatDateTime(transaction.dateReponse, locale)}</span></div>
+                    <DetailField label="ID" value={transaction.id} />
+                    <DetailField label={t('document_id')} value={transaction.documentId || '-'} />
+                    <DetailField label={t('type_document')} value={formatDocumentType(transaction.documentType, t)} />
+                    <DetailField label={t('numero_bureau_ordre')} value={transaction.numeroBureauOrdre || transaction.numeroCourrier || '-'} />
+                    <DetailField label={t('numero_dossier_appel')} value={transaction.numeroDossierJudiciaire || '-'} />
+                    <DetailField label={t('emetteur_service')} value={formatServiceName(transaction.sourceServiceNom, transaction.sourceServiceId, i18n)} />
+                    <DetailField label={t('recepteur')} value={formatDestination(transaction, i18n)} />
+                    <DetailField label={translate(t, 'envoye_par', 'Envoye par')} value={formatActor(transaction.senderUserName, transaction.sourceServiceNom, transaction.sourceServiceId, i18n)} />
+                    <DetailField label={translate(t, 'traite_par', 'Traite par')} value={formatActor(transaction.responderUserName, transaction.responderServiceName || transaction.destinationServiceNom, transaction.responderServiceId || transaction.destinationServiceId, i18n)} />
+                    <DetailField label={t('date_envoi')} value={formatDateTime(transaction.dateEnvoi, i18n)} />
+                    <DetailField label={t('traite_le')} value={formatDateTime(transaction.dateReponse, i18n)} />
                     <div className="form-field"><label>{t('etat')}</label><span>{formatStatus(transaction.statut, t)}</span></div>
-                    <div className="form-field full-width"><label>{t('message')}</label><span>{transaction.message || '-'}</span></div>
-                    <div className="form-field full-width"><label>{t('reponse_note')}</label><span>{transaction.messageReponse || formatResponseNote(transaction.messageReponse, transaction.statut, t)}</span></div>
+                    <DetailField label={t('message')} value={transaction.message || '-'} wide />
+                    <DetailField label={t('reponse_note')} value={transaction.messageReponse || formatResponseNote(transaction.messageReponse, transaction.statut, t)} wide />
                 </div>
                 <div className="form-actions">
                     <button type="button" className="btn-primary" onClick={onClose}>{t('fermer')}</button>
@@ -300,6 +302,19 @@ function TransactionDetailsModal({ transaction, locale, t, onClose }) {
             </div>
         </div>
     );
+}
+
+function DetailField({ label, value, wide = false }) {
+    return (
+        <div className={`form-field${wide ? ' full-width' : ''}`}>
+            <label>{label}</label>
+            <AutoText>{value}</AutoText>
+        </div>
+    );
+}
+
+function AutoText({ children }) {
+    return <span dir="auto">{children || '-'}</span>;
 }
 
 function formatResponseNote(value, status, t) {
@@ -347,22 +362,23 @@ function getTransactionDocumentKey(transaction) {
     ].filter(Boolean).join(':');
 }
 
-function formatActor(userName, serviceName) {
+function formatActor(userName, serviceName, serviceId, i18n) {
     const user = String(userName || '').trim();
-    const service = String(serviceName || '').trim();
+    const service = formatServiceName(serviceName, serviceId, i18n);
     if (user && user !== service) return user;
     return service || '-';
 }
 
-function formatDestination(transaction) {
-    return formatActor(transaction.destinationUserName, transaction.destinationServiceNom);
+function formatDestination(transaction, i18n) {
+    return formatActor(transaction.destinationUserName, transaction.destinationServiceNom, transaction.destinationServiceId, i18n);
 }
 
-function formatDateTime(value, locale) {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString(locale);
+function formatServiceName(serviceName, serviceId, i18n) {
+    return getLocalizedServiceName({ idService: serviceId, nomService: serviceName }, i18n);
+}
+
+function formatDateTime(value, i18n) {
+    return formatLocalizedDateTime(value, i18n);
 }
 
 function normalizeText(value) {
@@ -376,6 +392,18 @@ function normalizeText(value) {
 }
 
 function formatStatus(value, t) {
+    return getLocalizedStatus(value, t);
+}
+
+function formatDocumentType(value, t) {
+    const normalized = normalizeText(value);
+    if (!normalized) return '-';
+    if (normalized.includes('administratif')) return translate(t, 'document_administratif', 'Administratif');
+    if (normalized.includes('judiciaire')) return translate(t, 'document_judiciaire', 'Judiciaire');
+    return value || '-';
+}
+
+function formatStatusLegacy(value, t) {
     const status = String(value || '').toLowerCase();
     if (status.includes('attente')) return t('en_attente');
     if (status.includes('accept')) return t('acceptees');
@@ -435,7 +463,7 @@ function toArray(data) {
     return [];
 }
 
-function exportTransactionsToExcel(transactions, allTransactions, locale, t) {
+function exportTransactionsToExcel(transactions, allTransactions, i18n, t) {
     const headers = [
         'ID',
         translate(t, 'document_id', 'Document ID'),
@@ -459,16 +487,16 @@ function exportTransactionsToExcel(transactions, allTransactions, locale, t) {
     const rows = transactions.map(tx => [
         tx.id,
         tx.documentId || '',
-        tx.documentType || '',
+        formatDocumentType(tx.documentType, t),
         tx.numeroBureauOrdre || tx.numeroCourrier || '',
         tx.numeroDossierJudiciaire || '',
-        formatDestination(tx),
-        tx.sourceServiceNom || '',
-        formatActor(tx.senderUserName, tx.sourceServiceNom),
-        formatActor(tx.responderUserName, tx.responderServiceName || tx.destinationServiceNom),
+        formatDestination(tx, i18n),
+        formatServiceName(tx.sourceServiceNom, tx.sourceServiceId, i18n),
+        formatActor(tx.senderUserName, tx.sourceServiceNom, tx.sourceServiceId, i18n),
+        formatActor(tx.responderUserName, tx.responderServiceName || tx.destinationServiceNom, tx.responderServiceId || tx.destinationServiceId, i18n),
         formatStatus(tx.statut, t),
-        formatDateTime(tx.dateReponse, locale),
-        formatDateTime(tx.dateEnvoi, locale),
+        formatDateTime(tx.dateReponse, i18n),
+        formatDateTime(tx.dateEnvoi, i18n),
         isLatestTransaction(tx, allTransactions) ? translate(t, 'oui', 'Oui') : '',
         tx.message || '',
         tx.messageReponse || formatResponseNote(tx.messageReponse, tx.statut, t),
