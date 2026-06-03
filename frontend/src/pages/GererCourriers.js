@@ -55,6 +55,7 @@ const WARIDAT_SOURCES = [
 
 function GererCourriers() {
   const { t, i18n } = useTranslation();
+  const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
   const currentServiceId = Number(localStorage.getItem("idService") || 0);
   const currentServiceName = String(localStorage.getItem("nomService") || "").toLowerCase();
   const isAdminAccount =
@@ -1351,7 +1352,7 @@ function GererCourriers() {
 
   if (activeRegistre === "juridique") {
     return (
-      <div className="page-container" dir="rtl">
+      <div className="page-container" dir={isArabic ? 'rtl' : 'ltr'}>
         <h1 className="page-title">{t("gestion_courriers")}</h1>
 
         <div className="registry-choice">
@@ -1397,7 +1398,7 @@ function GererCourriers() {
   // - le tableau des courriers.
 
   return (
-    <div className="page-container" dir="rtl">
+    <div className="page-container" dir={isArabic ? 'rtl' : 'ltr'}>
       <h1 className="page-title">{t("gestion_courriers")}</h1>
 
       <div className="registry-choice">

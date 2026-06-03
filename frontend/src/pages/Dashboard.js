@@ -311,15 +311,20 @@ function TransactionItem({ tx, badge, i18n, t, actions, note, date, dateLabel })
                 <span className="transaction-badge badge-pending">{badge}</span>
             </div>
             <div className="transaction-details">
-                <span>{translate(t, 'emetteur_service', 'المصلحة المرسلة')} : {formatSourceName(tx, i18n)}</span>
                 {documentReferences.length > 0 ? (
                     documentReferences.map(reference => (
-                        <span key={reference.key}>{reference.label} : {reference.value}</span>
+                        <span
+                            key={reference.key}
+                            className={reference.key === 'dossier-judiciaire' ? 'dossier-number-detail' : undefined}
+                        >
+                            {reference.label} : {reference.value}
+                        </span>
                     ))
                 ) : (
                     <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {getLocalizedServiceName({ idService: tx.currentServiceId, nomService: tx.currentServiceNom || tx.currentLocation }, i18n)}</span>
                 )}
-                <span>{note ? `${t('note')} : ${note}` : `${t('message')} : ${tx.message || t('non_renseigne')}`}</span>
+                <span>{t('etat')} : {formatDocumentState(tx, t)}</span>
+                <span>{note ? `${t('note')} : ${note}` : `${translate(t, 'emetteur_service', 'المصلحة المرسلة')} : ${tx.message || formatSourceName(tx, i18n)}`}</span>
                 <span>{dateLabel || t('envoye_le')} : {formatLocalizedDateTime(date || tx.dateEnvoi, i18n)}</span>
             </div>
             <div className="transaction-actions">{actions}</div>
@@ -387,6 +392,38 @@ function isCancelled(value) {
 
 function translateStatus(value, t) {
     return getLocalizedStatus(value, t);
+}
+
+function formatDocumentState(transaction, t) {
+    const rawState = transaction?.documentEtat || transaction?.etatArchive || transaction?.etat || '';
+    const state = String(rawState || '').trim().toLowerCase();
+
+    if (state.includes('nouveau') || state.includes('new')) return t('etat_nouveau');
+    if (state.includes('cours') || state.includes('progress')) return t('etat_en_cours');
+    if (state.includes('jug') || state.includes('juge')) return t('etat_juge');
+    if (state.includes('archive') || state.includes('archiv')) return t('etat_archive');
+    if (state.includes('trait')) return t('etat_traite');
+
+    if (!state) {
+        return inferDocumentStateFromService(transaction, t);
+    }
+
+    return rawState;
+}
+
+function inferDocumentStateFromService(transaction, t) {
+    if (!String(transaction?.documentType || '').toLowerCase().includes('judiciaire')) {
+        return '-';
+    }
+
+    const serviceId = Number(transaction.currentServiceId || transaction.destinationServiceId || transaction.sourceServiceId);
+
+    if ([2, 3].includes(serviceId)) return t('etat_nouveau');
+    if ([7, 10].includes(serviceId)) return t('etat_juge');
+    if (serviceId === 13) return t('etat_archive');
+    if (serviceId) return t('etat_en_cours');
+
+    return '-';
 }
 
 function translate(t, key, fallback) {

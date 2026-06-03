@@ -25,6 +25,7 @@ const JUDICIAL_DOCUMENT_TYPES = [
 
 function GererCourriersJuridiques({ embedded = false }) {
   const { t, i18n } = useTranslation();
+  const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
   const currentServiceId = Number(localStorage.getItem("idService") || 0);
   const currentServiceName = String(localStorage.getItem("nomService") || "").toLowerCase();
   const isAdminAccount =
@@ -567,7 +568,7 @@ function GererCourriersJuridiques({ embedded = false }) {
   const isFormModal = isCreateModalOpen || (editingId && isEditModalOpen);
 
   return (
-    <div className={embedded ? "courriers-juridiques-content" : "page-container"} dir="rtl">
+    <div className={embedded ? "courriers-juridiques-content" : "page-container"} dir={isArabic ? 'rtl' : 'ltr'}>
       {!embedded && <h1 className="page-title">{t("gestion_courriers_judiciaires")}</h1>}
 
       {error && <div className="error-message">{error}</div>}

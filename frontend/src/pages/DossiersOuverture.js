@@ -9,7 +9,8 @@ import { DEFAULT_SERVICES } from '../constants/defaultServices';
 const OUVERTURE_DOSSIERS_SERVICE_ID = 3;
 
 function DossiersOuverture() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
   const currentServiceId = Number(localStorage.getItem('idService') || 0);
   const [dossiers, setDossiers] = useState([]);
   const [pendingIds, setPendingIds] = useState([]);
@@ -199,7 +200,7 @@ function DossiersOuverture() {
       await axios.post('/api/transactions', {
         documentId: transferTarget.id,
         documentType: 'Judiciaire',
-        sourceServiceId: OUVERTURE_DOSSIERS_SERVICE_ID,
+        sourceServiceId: currentServiceId || OUVERTURE_DOSSIERS_SERVICE_ID,
         destinationServiceId: Number(transferForm.serviceId),
         destinationUserId: isConseillerRapporteurService(transferForm.serviceId)
           ? Number(transferForm.destinationUserId)
@@ -230,7 +231,7 @@ function DossiersOuverture() {
   if (loading) return <div className="loading">{t('chargement')}</div>;
 
   return (
-    <div className="page-container" dir="rtl">
+    <div className="page-container" dir={isArabic ? 'rtl' : 'ltr'}>
       <h1 className="page-title">{t('dossiers_acceptes_ouverture')}</h1>
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">{success}</div>}

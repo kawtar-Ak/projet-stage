@@ -5,7 +5,8 @@ import { DEFAULT_SERVICES } from "../constants/defaultServices";
 import ActionIcon from "../components/ActionIcon";
 
 function GererArchivesJuridiques() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedRetrait, setSelectedRetrait] = useState(null);
@@ -271,7 +272,7 @@ function GererArchivesJuridiques() {
   };
 
   return (
-    <div className="page-container" dir="rtl">
+    <div className="page-container" dir={isArabic ? 'rtl' : 'ltr'}>
       <h1 className="page-title">{t("gestion_archives_judiciaires")}</h1>
 
       {error && <div className="error-message">{error}</div>}

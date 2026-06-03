@@ -222,7 +222,6 @@ function Notifications() {
                 <div className="registry-panel-header">
                     <div>
                         <h3>{t('demandes_attente')}</h3>
-                        <p>{translate(t, 'notifications_attente_desc', 'Documents recus qui attendent une decision.')}</p>
                     </div>
                 </div>
                 {notifications.length === 0 ? (
@@ -247,9 +246,13 @@ function Notifications() {
                                             <span className="detail-value">{n.numeroBureauOrdre || n.numeroCourrier}</span>
                                         </div>
                                     ) : null}
+                                    <div className="detail-row">
+                                        <span className="detail-label">{t('etat')} :</span>
+                                        <span className="detail-value">{formatDocumentState(n, t)}</span>
+                                    </div>
                                     {n.numeroDossierJudiciaire ? (
-                                        <div className="detail-row">
-                                            <span className="detail-label">{translate(t, 'numero_dossier_appel', 'رقم الملف القضائي')} :</span>
+                                        <div className="detail-row dossier-number-row">
+                                            <span className="detail-label">{t('numero_dossier_judiciaire')} :</span>
                                             <span className="detail-value">{n.numeroDossierJudiciaire}</span>
                                         </div>
                                     ) : null}
@@ -529,6 +532,38 @@ function getTime(value) {
 
 function formatStatus(value, t) {
     return getLocalizedStatus(value, t);
+}
+
+function formatDocumentState(transaction, t) {
+    const rawState = transaction?.documentEtat || transaction?.etatArchive || transaction?.etat || '';
+    const state = String(rawState || '').trim().toLowerCase();
+
+    if (state.includes('nouveau') || state.includes('new')) return t('etat_nouveau');
+    if (state.includes('cours') || state.includes('progress')) return t('etat_en_cours');
+    if (state.includes('jug') || state.includes('juge')) return t('etat_juge');
+    if (state.includes('archive') || state.includes('archiv')) return t('etat_archive');
+    if (state.includes('trait')) return t('etat_traite');
+
+    if (!state) {
+        return inferDocumentStateFromService(transaction, t);
+    }
+
+    return rawState;
+}
+
+function inferDocumentStateFromService(transaction, t) {
+    if (!String(transaction?.documentType || '').toLowerCase().includes('judiciaire')) {
+        return '-';
+    }
+
+    const serviceId = Number(transaction.currentServiceId || transaction.destinationServiceId || transaction.sourceServiceId);
+
+    if ([2, 3].includes(serviceId)) return t('etat_nouveau');
+    if ([7, 10].includes(serviceId)) return t('etat_juge');
+    if (serviceId === 13) return t('etat_archive');
+    if (serviceId) return t('etat_en_cours');
+
+    return '-';
 }
 
 function getDocumentLabel(transaction) {

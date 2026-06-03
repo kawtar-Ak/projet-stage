@@ -708,11 +708,14 @@ a {
 
 .transaction-list {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.9rem;
 }
 
 .transaction-item {
   padding: 1rem;
+  border: 2px solid #0f6d7d;
+  border-inline-start: 5px solid #07365f;
+  background: #ffffff;
 }
 
 .transaction-header {
@@ -726,13 +729,14 @@ a {
 .transaction-title {
   min-width: 0;
   color: var(--navy-900);
+  font-size: 1.04rem;
   font-weight: 900;
   overflow-wrap: anywhere;
 }
 
 .transaction-badge {
   flex: 0 0 auto;
-  padding: 0.25rem 0.6rem;
+  padding: 0.3rem 0.68rem;
   color: var(--navy-800);
   background: #edf3f9;
   border: 1px solid #cbdcec;
@@ -743,9 +747,29 @@ a {
 
 .transaction-details {
   display: grid;
-  gap: 0.35rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.45rem;
   color: #42617d;
-  font-weight: 750;
+  font-weight: 800;
+}
+
+.transaction-details span {
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  background: #f8fbfe;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.transaction-details .dossier-number-detail {
+  background: #eef9f7;
+  border-color: #76c7bd;
+  color: #0f6d7d;
+}
+
+[dir="rtl"] .transaction-details span {
+  box-shadow: none;
 }
 
 .transaction-actions {
@@ -753,6 +777,8 @@ a {
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid #e2edf6;
 }
 
 .notification-summary {
@@ -1046,7 +1072,8 @@ a {
   gap: 0.85rem 1rem;
   align-items: center;
   padding: 0.95rem;
-  border-color: #d8e4ef;
+  border: 2px solid #07365f;
+  border-inline-start: 5px solid #003459;
 }
 
 .service-dashboard .transaction-header {
@@ -1091,8 +1118,8 @@ a {
   gap: 0.9rem;
   padding: 1rem;
   background: #ffffff;
-  border: 1px solid var(--line);
-  border-inline-start: 5px solid var(--navy-800);
+  border: 2px solid #0f6d7d;
+  border-inline-start: 5px solid #07365f;
   border-radius: 8px;
   box-shadow: 0 10px 22px rgba(8, 42, 74, 0.045);
 }
@@ -1144,6 +1171,20 @@ a {
   background: #f8fbfe;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.dossier-number-row {
+  background: #eef9f7;
+  border-color: #76c7bd;
+}
+
+.dossier-number-row .detail-label,
+.dossier-number-row .detail-value {
+  color: #0f6d7d;
+}
+
+[dir="rtl"] .detail-row {
+  box-shadow: none;
 }
 
 .detail-label {

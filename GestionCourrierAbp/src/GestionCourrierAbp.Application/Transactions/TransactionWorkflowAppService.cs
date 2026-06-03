@@ -232,7 +232,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         await EnsureDocumentIsTransmissibleAsync(input.DocumentId, documentType, input.DestinationServiceId);
 
         // Vérifie qu’il n’existe pas déjà une transaction active pour ce document
-        await EnsureNoActiveTransactionAsync(input.DocumentId, documentType, returningTransactionId);
+        await EnsureNoActiveTransactionAsync(input.DocumentId, documentType, input.SourceServiceId, returningTransactionId);
 
         await EnsureDocumentBelongsToSourceServiceAsync(input.DocumentId, documentType, input.SourceServiceId);
         var isConseillerRapporteurDestination = await IsConseillerRapporteurServiceAsync(input.DestinationServiceId);
@@ -654,19 +654,29 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     /// Vérifie qu’il n’existe pas déjà une transaction active pour le même document.
     /// Une transaction active est une transaction en attente ou acceptée.
     /// </summary>
-    private async Task EnsureNoActiveTransactionAsync(int documentId, string documentType, int? ignoredTransactionId = null)
+    private async Task EnsureNoActiveTransactionAsync(int documentId, string documentType, int sourceServiceId, int? ignoredTransactionId = null)
     {
         var query = await _repository.GetQueryableAsync();
 
         var enAttente = WorkflowStatus.EnAttente.ToStorageValue();
-        var accepte = WorkflowStatus.Accepte.ToStorageValue();
-
-        var exists = await AsyncExecuter.AnyAsync(
+        var activeTransactions = await AsyncExecuter.ToListAsync(
             query.Where(x =>
                 (!ignoredTransactionId.HasValue || x.Id != ignoredTransactionId.Value) &&
                 x.DocumentId == documentId &&
                 x.DocumentType == documentType &&
-                (x.Statut == enAttente || (x.Statut == accepte && x.DoitRevenir))));
+                x.Statut == enAttente));
+
+        foreach (var transaction in activeTransactions.Where(x => x.DestinationServiceId == sourceServiceId && x.SourceServiceId != sourceServiceId))
+        {
+            transaction.Statut = WorkflowStatus.Annule.ToStorageValue();
+            transaction.MessageReponse = "Annulee automatiquement par nouveau transfert depuis le service actuel";
+            transaction.DateReponse = DateTime.Now;
+            transaction.ResponderServiceId = sourceServiceId;
+            transaction.ResponderServiceName = await GetServiceNameAsync(sourceServiceId);
+            await _repository.UpdateAsync(transaction, autoSave: true);
+        }
+
+        var exists = activeTransactions.Any(x => x.SourceServiceId == sourceServiceId || x.DestinationServiceId != sourceServiceId);
 
         // Si elle existe, on bloque la création d’une nouvelle transaction
         if (exists)
@@ -790,6 +800,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
 
                 // Sujet du document concerné
                 DocumentSujet = documentInfo.Sujet,
+                DocumentEtat = documentInfo.Etat,
                 NumeroBureauOrdre = documentInfo.NumeroBureauOrdre,
                 NumeroCourrier = documentInfo.NumeroCourrier,
                 NumeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
@@ -846,6 +857,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
                 document.IdBureauOrdre,
                 document.NumeroDeCourrier,
                 null,
+                document.Etat,
                 document.ServiceId,
                 serviceName,
                 serviceName);
@@ -870,6 +882,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
                 document.IdBureauOrdre,
                 null,
                 BuildNumeroDossierJudiciaire(document),
+                document.EtatArchive,
                 document.ServiceId,
                 serviceName,
                 location);
@@ -882,15 +895,24 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
     {
         var documentInfo = await GetDocumentInfoAsync(transaction.DocumentId, transaction.DocumentType);
         var effectiveServiceId = GetEffectiveCurrentServiceId(transaction, documentInfo.CurrentServiceId);
+        var effectiveEtat = documentInfo.Etat;
+
+        if (transaction.DocumentType.Equals("Judiciaire", StringComparison.OrdinalIgnoreCase) && effectiveServiceId.HasValue)
+        {
+            effectiveEtat = GetJudicialStateForService(effectiveServiceId.Value);
+        }
 
         if (!effectiveServiceId.HasValue || effectiveServiceId == documentInfo.CurrentServiceId)
         {
-            return documentInfo;
+            return string.IsNullOrWhiteSpace(effectiveEtat)
+                ? documentInfo
+                : documentInfo with { Etat = effectiveEtat };
         }
 
         var serviceName = await GetServiceNameAsync(effectiveServiceId.Value);
         return documentInfo with
         {
+            Etat = effectiveEtat,
             CurrentServiceId = effectiveServiceId,
             CurrentServiceNom = serviceName,
             CurrentLocation = serviceName
@@ -1064,6 +1086,7 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
             DocumentId = transaction.DocumentId,
             DocumentType = transaction.DocumentType,
             DocumentSujet = documentInfo.Sujet,
+            DocumentEtat = documentInfo.Etat,
             NumeroBureauOrdre = documentInfo.NumeroBureauOrdre,
             NumeroCourrier = documentInfo.NumeroCourrier,
             NumeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
@@ -1102,10 +1125,11 @@ public class TransactionWorkflowAppService : GestionCourrierAbpAppService, ITran
         string? NumeroBureauOrdre,
         string? NumeroCourrier,
         string? NumeroDossierJudiciaire,
+        string Etat,
         int? CurrentServiceId,
         string CurrentServiceNom,
         string CurrentLocation)
     {
-        public static DocumentInfo Empty { get; } = new(false, string.Empty, null, null, null, null, string.Empty, string.Empty);
+        public static DocumentInfo Empty { get; } = new(false, string.Empty, null, null, null, string.Empty, null, string.Empty, string.Empty);
     }
 }

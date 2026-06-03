@@ -6,6 +6,7 @@ import { getLocalizedServiceName } from '../utils/localization';
 
 function GererUtilisateurs() {
     const { t, i18n } = useTranslation();
+    const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
     const [users, setUsers] = useState([]);
     const [services, setServices] = useState([]);
     const [form, setForm] = useState({ nomComplet: '', login: '', password: '', idService: '' });
@@ -217,7 +218,7 @@ function GererUtilisateurs() {
     };
 
     return (
-        <div className="page-container" dir="rtl">
+        <div className="page-container" dir={isArabic ? 'rtl' : 'ltr'}>
             <h1 className="page-title">{t('gerer_utilisateurs')}</h1>
             {error && <div className="error-message">{error}</div>}
             <div className="filters">

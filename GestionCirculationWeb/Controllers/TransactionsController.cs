@@ -46,24 +46,23 @@ namespace GestionCourrier.Controllers
                 var result = new List<object>();
                 foreach (var t in transactions)
                 {
-                    string sujet = "";
-                    if (t.DocumentType == "Administratif")
-                    {
-                        sujet = await _context.Entites.Where(e => e.IdEntite == t.DocumentId).Select(e => e.Sujet).FirstOrDefaultAsync() ?? "";
-                    }
-                    else
-                    {
-                        sujet = await _context.EntitesDJs.Where(e => e.Id == t.DocumentId).Select(e => e.Sujet).FirstOrDefaultAsync() ?? "";
-                    }
+                    var documentInfo = await GetDocumentTransactionInfoAsync(t.DocumentId, t.DocumentType);
                     var sourceServiceNom = await _context.Services.Where(s => s.IdService == t.SourceServiceId).Select(s => s.NomService).FirstOrDefaultAsync() ?? "";
                     result.Add(new
                     {
                         id = t.Id,
                         documentId = t.DocumentId,
                         documentType = t.DocumentType,
-                        documentSujet = sujet,
+                        documentSujet = documentInfo.Sujet,
+                        documentEtat = documentInfo.Etat,
+                        numeroBureauOrdre = documentInfo.NumeroBureauOrdre,
+                        numeroCourrier = documentInfo.NumeroCourrier,
+                        numeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
+                        sourceServiceId = t.SourceServiceId,
                         sourceServiceNom = sourceServiceNom,
+                        destinationServiceId = t.DestinationServiceId,
                         message = t.Message,
+                        statut = t.Statut,
                         dateEnvoi = t.DateEnvoi
                     });
                 }
@@ -90,22 +89,20 @@ namespace GestionCourrier.Controllers
                 var result = new List<object>();
                 foreach (var t in transactions)
                 {
-                    string sujet = "";
-                    if (t.DocumentType == "Administratif")
-                    {
-                        sujet = await _context.Entites.Where(e => e.IdEntite == t.DocumentId).Select(e => e.Sujet).FirstOrDefaultAsync() ?? "";
-                    }
-                    else
-                    {
-                        sujet = await _context.EntitesDJs.Where(e => e.Id == t.DocumentId).Select(e => e.Sujet).FirstOrDefaultAsync() ?? "";
-                    }
+                    var documentInfo = await GetDocumentTransactionInfoAsync(t.DocumentId, t.DocumentType);
                     var destServiceNom = await _context.Services.Where(s => s.IdService == t.DestinationServiceId).Select(s => s.NomService).FirstOrDefaultAsync() ?? "";
                     result.Add(new
                     {
                         id = t.Id,
                         documentId = t.DocumentId,
                         documentType = t.DocumentType,
-                        documentSujet = sujet,
+                        documentSujet = documentInfo.Sujet,
+                        documentEtat = documentInfo.Etat,
+                        numeroBureauOrdre = documentInfo.NumeroBureauOrdre,
+                        numeroCourrier = documentInfo.NumeroCourrier,
+                        numeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
+                        sourceServiceId = t.SourceServiceId,
+                        destinationServiceId = t.DestinationServiceId,
                         destinationServiceNom = destServiceNom,
                         doitRevenir = t.DoitRevenir,
                         dateEnvoi = t.DateEnvoi,
@@ -131,9 +128,18 @@ namespace GestionCourrier.Controllers
                 var user = await _context.Utilisateurs.FindAsync(GetCurrentUserId());
                 if (user == null) return Unauthorized();
 
-                var existing = await _context.Transactions
-                    .FirstOrDefaultAsync(t => t.DocumentId == dto.DocumentId && t.DocumentType == dto.DocumentType && (t.Statut == "En attente" || t.Statut == "Accepté"));
-                if (existing != null)
+                var activeTransactions = await _context.Transactions
+                    .Where(t => t.DocumentId == dto.DocumentId && t.DocumentType == dto.DocumentType && t.Statut == "En attente")
+                    .ToListAsync();
+
+                foreach (var activeTransaction in activeTransactions.Where(t => t.DestinationServiceId == user.IdService && t.SourceServiceId != user.IdService))
+                {
+                    activeTransaction.Statut = "Annulé";
+                    activeTransaction.MessageReponse = "Annulee automatiquement par nouveau transfert depuis le service actuel";
+                    activeTransaction.DateReponse = DateTime.Now;
+                }
+
+                if (activeTransactions.Any(t => t.SourceServiceId == user.IdService || t.DestinationServiceId != user.IdService))
                     return BadRequest("Ce document est déjà impliqué dans une transaction en cours.");
 
                 bool docExists = dto.DocumentType == "Administratif"
@@ -249,22 +255,23 @@ namespace GestionCourrier.Controllers
                 var result = new List<object>();
                 foreach (var t in transactions)
                 {
-                    string sujet = "";
-                    if (t.DocumentType == "Administratif")
-                    {
-                        sujet = await _context.Entites.Where(e => e.IdEntite == t.DocumentId).Select(e => e.Sujet).FirstOrDefaultAsync() ?? "";
-                    }
-                    else
-                    {
-                        sujet = await _context.EntitesDJs.Where(e => e.Id == t.DocumentId).Select(e => e.Sujet).FirstOrDefaultAsync() ?? "";
-                    }
+                    var documentInfo = await GetDocumentTransactionInfoAsync(t.DocumentId, t.DocumentType);
                     var destServiceNom = await _context.Services.Where(s => s.IdService == t.DestinationServiceId).Select(s => s.NomService).FirstOrDefaultAsync() ?? "";
                     result.Add(new
                     {
                         id = t.Id,
-                        documentSujet = sujet,
+                        documentId = t.DocumentId,
+                        documentType = t.DocumentType,
+                        documentSujet = documentInfo.Sujet,
+                        documentEtat = documentInfo.Etat,
+                        numeroBureauOrdre = documentInfo.NumeroBureauOrdre,
+                        numeroCourrier = documentInfo.NumeroCourrier,
+                        numeroDossierJudiciaire = documentInfo.NumeroDossierJudiciaire,
+                        sourceServiceId = t.SourceServiceId,
+                        destinationServiceId = t.DestinationServiceId,
                         destinationServiceNom = destServiceNom,
                         dateEnvoi = t.DateEnvoi,
+                        statut = t.Statut,
                         message = t.Message
                     });
                 }
@@ -388,6 +395,77 @@ namespace GestionCourrier.Controllers
             {
                 return StatusCode(500, new { error = ex.Message });
             }
+        }
+
+        private async Task<DocumentTransactionInfo> GetDocumentTransactionInfoAsync(int documentId, string documentType)
+        {
+            if (documentType == "Administratif")
+            {
+                var document = await _context.Entites.FirstOrDefaultAsync(e => e.IdEntite == documentId);
+                if (document == null)
+                {
+                    return DocumentTransactionInfo.Empty;
+                }
+
+                return new DocumentTransactionInfo(
+                    document.Sujet,
+                    document.Etat,
+                    document.IdBureauOrdre,
+                    document.NumeroDeCourrier,
+                    null);
+            }
+
+            var judiciaire = await _context.EntitesDJs
+                .Include(e => e.NumeroDossier)
+                .FirstOrDefaultAsync(e => e.Id == documentId);
+
+            if (judiciaire == null)
+            {
+                return DocumentTransactionInfo.Empty;
+            }
+
+            var numeroDossier = judiciaire.NumeroDossier == null
+                ? null
+                : $"{judiciaire.NumeroDossier.Nombre}/{judiciaire.NumeroDossier.NumeroSujet}/{judiciaire.NumeroDossier.Annee}";
+
+            return new DocumentTransactionInfo(
+                judiciaire.Sujet,
+                string.IsNullOrWhiteSpace(judiciaire.EtatArchive)
+                    ? GetJudicialStateForService(judiciaire.IdService)
+                    : judiciaire.EtatArchive,
+                judiciaire.IdBureauOrdre,
+                null,
+                numeroDossier);
+        }
+
+        private static string GetJudicialStateForService(int serviceId)
+        {
+            if (serviceId is 2 or 3)
+            {
+                return "Nouveau";
+            }
+
+            if (serviceId is 7 or 10)
+            {
+                return "Jugé";
+            }
+
+            if (serviceId == 13)
+            {
+                return "Archive";
+            }
+
+            return "En cours";
+        }
+
+        private sealed record DocumentTransactionInfo(
+            string Sujet,
+            string Etat,
+            string? NumeroBureauOrdre,
+            string? NumeroCourrier,
+            string? NumeroDossierJudiciaire)
+        {
+            public static DocumentTransactionInfo Empty { get; } = new(string.Empty, string.Empty, null, null, null);
         }
 
         private static void ApplyStandardExcelStyle(IXLWorksheet ws)
