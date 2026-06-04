@@ -7,7 +7,8 @@ const ROOT_HANDLE_KEY = 'copies-root';
 const SUPPORTED_EXTENSIONS = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'tif', 'tiff'];
 
 function GestionCopies() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
   const [directoryHandle, setDirectoryHandle] = useState(null);
   const [directoryName, setDirectoryName] = useState(localStorage.getItem('copiesDirectoryName') || '');
   const [documents, setDocuments] = useState([]);
@@ -179,7 +180,7 @@ function GestionCopies() {
   };
 
   return (
-    <div className="copies-page">
+    <div className="copies-page copies-management-page" dir={isArabic ? 'rtl' : 'ltr'}>
       <div className="copies-header">
         <div>
           <span className="copies-eyebrow">{t('service_notification_copies')}</span>
@@ -285,7 +286,8 @@ function DocumentPreview({ document, previewUrl, t }) {
   }
 
   if (document.extension === 'pdf') {
-    return <iframe className="copies-pdf-frame" title={document.name} src={previewUrl} />;
+    const pdfUrl = `${previewUrl}#page=1&zoom=page-width&navpanes=0`;
+    return <iframe className="copies-pdf-frame" title={document.name} src={pdfUrl} />;
   }
 
   if (['jpg', 'jpeg', 'png'].includes(document.extension)) {

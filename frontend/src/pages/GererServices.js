@@ -6,6 +6,7 @@ import { getLocalizedServiceName } from '../utils/localization';
 
 function GererServices() {
     const { t, i18n } = useTranslation();
+    const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
     const [services, setServices] = useState([]);
     const [form, setForm] = useState({ idService: '', nomService: '', description: '', etage: '' });
     const [editingId, setEditingId] = useState(null);
@@ -132,7 +133,7 @@ function GererServices() {
     };
 
     return (
-        <div className="page-container">
+        <div className="page-container service-management-page" dir={isArabic ? 'rtl' : 'ltr'}>
             <h1 className="page-title">{t('gerer_services')}</h1>
             {error && <div className="error-message">{error}</div>}
             <div className="filters">
@@ -149,7 +150,7 @@ function GererServices() {
             </div>
 
             {showMapping && (
-                <div className="mapping-panel" style={{ marginTop: '1rem', padding: '1rem', border: '1px solid #ccc', background: '#f9f9f9', borderRadius: '1rem' }}>
+                <div className="mapping-panel service-mapping-panel">
                     <h4>{t('associer_colonnes')}</h4>
                     <div className="form-grid">
                         <div className="form-field"><label>{t('colonne_id')} *</label><select value={mapping.id} onChange={e => setMapping({ ...mapping, id: e.target.value })}><option value="">-- {t('choisir')} --</option>{headers.map(h => <option key={h}>{h}</option>)}</select></div>
@@ -161,7 +162,7 @@ function GererServices() {
                 </div>
             )}
 
-            <div className="form-card">
+            <div className="form-card service-form-card">
                 <h3>{editingId ? t('modifier_service') : t('ajouter_service')}</h3>
                 <form onSubmit={handleSubmit}>
                     <div className="form-grid">
@@ -174,8 +175,8 @@ function GererServices() {
                 </form>
             </div>
 
-            <div className="data-table-wrapper">
-                <table className="modern-table">
+            <div className="data-table-wrapper service-table-wrapper">
+                <table className="modern-table service-table">
                     <thead><tr><th><input type="checkbox" checked={selectAll} onChange={handleSelectAll} /></th><th>{t('id')}</th><th>{t('nom')}</th><th>{t('description')}</th><th>{t('etage')}</th><th>{t('actions')}</th></tr></thead>
                     <tbody>
                         {services.map(s => (

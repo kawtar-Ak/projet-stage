@@ -569,7 +569,10 @@ function GererCourriersJuridiques({ embedded = false }) {
   const isFormModal = isCreateModalOpen || (editingId && isEditModalOpen);
 
   return (
-    <div className={embedded ? "courriers-juridiques-content" : "page-container"} dir={isArabic ? 'rtl' : 'ltr'}>
+    <div
+      className={`${embedded ? "courriers-juridiques-content" : "page-container"} judicial-correspondence-page judicial-management-page`}
+      dir={isArabic ? "rtl" : "ltr"}
+    >
       {!embedded && <h1 className="page-title">{t("gestion_courriers_judiciaires")}</h1>}
 
       {error && <div className="error-message">{error}</div>}

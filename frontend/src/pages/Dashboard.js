@@ -301,8 +301,8 @@ function Section({ title, children }) {
     );
 }
 
-function TransactionItem({ tx, badge, i18n, t, actions, note, date, dateLabel }) {
-    const documentReferences = getDocumentReferenceDetails(tx, t);
+function TransactionItem({ tx, badge, i18n, t, actions, date }) {
+    const detailRows = getTransactionDetailRows(tx, t, i18n, date || tx.dateReponse || tx.dateEnvoi);
 
     return (
         <div className="transaction-item">
@@ -311,21 +311,14 @@ function TransactionItem({ tx, badge, i18n, t, actions, note, date, dateLabel })
                 <span className="transaction-badge badge-pending">{badge}</span>
             </div>
             <div className="transaction-details">
-                {documentReferences.length > 0 ? (
-                    documentReferences.map(reference => (
-                        <span
-                            key={reference.key}
-                            className={reference.key === 'dossier-judiciaire' ? 'dossier-number-detail' : undefined}
-                        >
-                            {reference.label} : {reference.value}
-                        </span>
-                    ))
-                ) : (
-                    <span>{translate(t, 'emplacement_actuel', 'Emplacement actuel')} : {getLocalizedServiceName({ idService: tx.currentServiceId, nomService: tx.currentServiceNom || tx.currentLocation }, i18n)}</span>
-                )}
-                <span>{t('etat')} : {formatDocumentState(tx, t)}</span>
-                <span>{note ? `${t('note')} : ${note}` : `${translate(t, 'emetteur_service', 'المصلحة المرسلة')} : ${tx.message || formatSourceName(tx, i18n)}`}</span>
-                <span>{dateLabel || t('envoye_le')} : {formatLocalizedDateTime(date || tx.dateEnvoi, i18n)}</span>
+                {detailRows.map(row => (
+                    <span
+                        key={row.key}
+                        className={row.key === 'dossier-judiciaire' ? 'dossier-number-detail' : row.key === 'bureau-ordre' ? 'bureau-number-detail' : undefined}
+                    >
+                        {row.label} : {row.value}
+                    </span>
+                ))}
             </div>
             <div className="transaction-actions">{actions}</div>
         </div>
@@ -338,28 +331,59 @@ function formatSourceName(transaction, i18n) {
         '-';
 }
 
-function getDocumentReferenceDetails(tx, t) {
-    const references = [];
+function getTransactionDetailRows(tx, t, i18n, processedAt) {
+    const rows = [];
     const bureauOrdre = tx.numeroBureauOrdre || tx.numeroCourrier;
     const dossierJudiciaire = tx.numeroDossierJudiciaire;
-
-    if (bureauOrdre) {
-        references.push({
-            key: 'bureau-ordre',
-            label: t('numero_bureau_ordre'),
-            value: bureauOrdre
-        });
-    }
+    const sender = formatSourceName(tx, i18n);
 
     if (dossierJudiciaire) {
-        references.push({
+        rows.push({
             key: 'dossier-judiciaire',
             label: t('numero_dossier_judiciaire'),
             value: dossierJudiciaire
         });
     }
 
-    return references;
+    if (bureauOrdre) {
+        rows.push({
+            key: 'bureau-ordre',
+            label: t('numero_bureau_ordre'),
+            value: bureauOrdre
+        });
+    }
+
+    rows.push({
+        key: 'etat',
+        label: t('etat'),
+        value: formatDocumentState(tx, t)
+    });
+
+    if (processedAt) {
+        rows.push({
+            key: 'processed-at',
+            label: t('traite_le'),
+            value: formatLocalizedDateTime(processedAt, i18n)
+        });
+    }
+
+    if (sender && sender !== '-') {
+        rows.push({
+            key: 'sent-by',
+            label: t('envoye_par'),
+            value: sender
+        });
+    }
+
+    if (rows.length === 1) {
+        rows.unshift({
+            key: 'current-location',
+            label: translate(t, 'emplacement_actuel', 'Emplacement actuel'),
+            value: getLocalizedServiceName({ idService: tx.currentServiceId, nomService: tx.currentServiceNom || tx.currentLocation }, i18n)
+        });
+    }
+
+    return rows;
 }
 
 function normalizeStatus(value) {
@@ -455,3 +479,4 @@ function getErrorMessage(error, fallback) {
 }
 
 export default Dashboard;
+

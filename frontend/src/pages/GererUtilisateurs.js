@@ -218,7 +218,7 @@ function GererUtilisateurs() {
     };
 
     return (
-        <div className="page-container" dir={isArabic ? 'rtl' : 'ltr'}>
+        <div className="page-container user-management-page" dir={isArabic ? 'rtl' : 'ltr'}>
             <h1 className="page-title">{t('gerer_utilisateurs')}</h1>
             {error && <div className="error-message">{error}</div>}
             <div className="filters">
@@ -253,7 +253,7 @@ function GererUtilisateurs() {
             </div>
 
             {showMapping && (
-                <div className="mapping-panel" style={{ marginTop: '1rem', padding: '1rem', border: '1px solid #ccc', background: '#f9f9f9', borderRadius: '1rem' }}>
+                <div className="mapping-panel user-mapping-panel">
                     <h4>{t('associer_colonnes')}</h4>
                     <div className="form-grid">
                         <div className="form-field">
@@ -285,7 +285,7 @@ function GererUtilisateurs() {
                 </div>
             )}
 
-            <div className="form-card">
+            <div className="form-card user-form-card">
                 <h3>{editingId ? t('modifier_utilisateur') : t('ajouter_utilisateur')}</h3>
                 <form onSubmit={handleSubmit}>
                     <div className="form-grid">
@@ -346,8 +346,8 @@ function GererUtilisateurs() {
                 </form>
             </div>
 
-            <div className="data-table-wrapper">
-                <table className="modern-table">
+            <div className="data-table-wrapper user-table-wrapper">
+                <table className="modern-table user-table">
                     <thead>
                         <tr>
                             <th><input type="checkbox" checked={selectAll} onChange={handleSelectAll} /></th>

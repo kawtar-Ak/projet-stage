@@ -8,7 +8,7 @@
 // axios : utilisé pour communiquer avec le backend/API.
 // GererCourriersJuridiques : composant séparé pour gérer les courriers juridiques.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import GererCourriersJuridiques from "./GererCourriersJuridiques";
@@ -41,6 +41,74 @@ const WARIDAT_SOURCES = [
   "آخر"
 ];
 
+
+const ADMIN_IMPORT_CONFIGS = {
+  [TYPE_WARIDAT]: {
+    apiType: "administratif_entrant",
+    required: ["serialNumber", "number", "letterDate", "arrivalDate", "senderName", "subject", "serviceName"],
+    fields: ["serialNumber", "number", "letterDate", "arrivalDate", "senderName", "subject", "serviceName"],
+  },
+  MorasalatEntrante: {
+    apiType: "morasalat_entrante",
+    required: ["serialNumber", "number", "letterDate", "senderName", "subject", "destinataire", "serviceName"],
+    fields: ["serialNumber", "number", "letterDate", "senderName", "subject", "destinataire", "serviceName"],
+  },
+  MorasalatSortante: {
+    apiType: "morasalat_sortante",
+    required: ["serialNumber", "number", "letterDate", "subject", "destinataire", "serviceName"],
+    fields: ["serialNumber", "number", "letterDate", "subject", "destinataire", "serviceName"],
+  },
+  MorasalatInterne: {
+    apiType: "morasalat_interne",
+    required: ["serialNumber", "number", "letterDate", "senderName", "subject", "destinataire", "serviceName"],
+    fields: ["serialNumber", "number", "letterDate", "senderName", "subject", "destinataire", "serviceName"],
+  },
+};
+
+const ADMIN_IMPORT_FIELD_LABELS = {
+  serialNumber: "رقم مكتب الضبط",
+  subject: "الموضوع",
+  senderName: "المصدر",
+  destinataire: "المرسل إليه",
+  arrivalDate: "تاريخ الوصول",
+  date: "التاريخ",
+  resultNote: "الوصف / الملاحظات",
+  number: "الرقم الابتدائي",
+  letterDate: "تاريخ الرسالة",
+  serviceName: "المصلحة المعنية",
+  etat: "الحالة",
+  transmissible: "قابل للإحالة",
+};
+
+const ADMIN_IMPORT_FIELD_PARAMS = {
+  serialNumber: "colSerialNumber",
+  subject: "colSubject",
+  senderName: "colSenderName",
+  destinataire: "colDestinataire",
+  arrivalDate: "colArrivalDate",
+  date: "colDate",
+  resultNote: "colResultNote",
+  number: "colNumber",
+  letterDate: "colLetterDate",
+  serviceName: "colService",
+  etat: "colEtat",
+  transmissible: "colTransmissible",
+};
+
+const ADMIN_IMPORT_HEADER_ALIASES = {
+  serialNumber: ["رقم مكتب الضبط", "رقم المراسلة", "numero bureau", "bureau ordre", "serial"],
+  subject: ["الموضوع", "الجواب / النتيجة", "الجواب", "النتيجة", "objet", "sujet", "subject"],
+  senderName: ["المصدر", "المرسل", "source", "expediteur", "sender"],
+  destinataire: ["المرسل إليه", "destinataire", "destination"],
+  arrivalDate: ["تاريخ الوصول", "تاريخ الإيداع", "date arrivee", "arrival"],
+  date: ["التاريخ", "date"],
+  resultNote: ["الوصف", "الملاحظات", "resultat", "note", "description"],
+  number: ["الرقم الداخلي", "الرقم الابتدائي", "الرقم", "numero initial", "numero interne", "number"],
+  letterDate: ["تاريخ الرسالة", "date lettre", "letter date"],
+  serviceName: ["المصلحة المعنية", "المصلحة", "service", "service concerne"],
+  etat: ["الحالة", "etat", "status"],
+  transmissible: ["قابل للإحالة", "transmissible", "transferable"],
+};
 
 // ==========================================================
 // BLOC 3 : COMPOSANT PRINCIPAL
@@ -123,6 +191,13 @@ function GererCourriers() {
   // Indique si un fichier Excel est en cours d'importation.
   const [importing, setImporting] = useState(false);
   const [administrativeImportType, setAdministrativeImportType] = useState(TYPE_WARIDAT);
+  const [isTemplateMenuOpen, setIsTemplateMenuOpen] = useState(false);
+  const templateMenuRef = useRef(null);
+  const importFileInputRef = useRef(null);
+  const [showImportMappingModal, setShowImportMappingModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importHeaders, setImportHeaders] = useState([]);
+  const [importMapping, setImportMapping] = useState({});
 
   // Indique si un document PDF/Word est en cours d'upload.
   const [uploadingDocument, setUploadingDocument] = useState(false);
@@ -215,6 +290,24 @@ function GererCourriers() {
     fetchSentAdministrativeTransactions();
   }, []);
 
+  useEffect(() => {
+    if (!isTemplateMenuOpen) {
+      return undefined;
+    }
+
+    const handleOutsideClick = (event) => {
+      if (templateMenuRef.current && !templateMenuRef.current.contains(event.target)) {
+        setIsTemplateMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [isTemplateMenuOpen]);
+
 
   // ==========================================================
   // BLOC 5 : RÉCUPÉRATION DES COURRIERS
@@ -243,6 +336,41 @@ function GererCourriers() {
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
+  };
+
+  const getAdministrativeImportConfig = () =>
+    ADMIN_IMPORT_CONFIGS[administrativeImportType] || ADMIN_IMPORT_CONFIGS[TYPE_WARIDAT];
+
+  const downloadAdministrativeTemplate = async (templateType = administrativeImportType) => {
+    const config = ADMIN_IMPORT_CONFIGS[templateType] || ADMIN_IMPORT_CONFIGS[TYPE_WARIDAT];
+
+    setAdministrativeImportType(templateType);
+    setIsTemplateMenuOpen(false);
+    setImporting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await axios.get(
+        `/api/courriers/template-excel?type=${encodeURIComponent(config.apiType)}&_=${Date.now()}`,
+        { responseType: "blob" }
+      );
+      downloadBlob(response.data, `modele-import-${config.apiType}.xlsx`);
+    } catch (err) {
+      setError(getErrorMessage(err, translate(t, "erreur_export", "Erreur pendant le telechargement du modele.")));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const closeImportMappingModal = () => {
+    setShowImportMappingModal(false);
+    setImportFile(null);
+    setImportHeaders([]);
+    setImportMapping({});
+    if (importFileInputRef.current) {
+      importFileInputRef.current.value = "";
+    }
   };
 
 
@@ -1020,30 +1148,20 @@ function GererCourriers() {
     setSuccess("");
 
     try {
-      const params = new URLSearchParams();
-      if (administrativeImportType === "MorasalatEntrante") {
-        params.set("typeRegistre", TYPE_MORASALAT);
-        params.set("typeCorrespondance", CORRESPONDANCE_ENTRANTE);
-      } else if (administrativeImportType === "MorasalatSortante") {
-        params.set("typeRegistre", TYPE_MORASALAT);
-        params.set("typeCorrespondance", CORRESPONDANCE_SORTANTE);
-      } else {
-        params.set("typeRegistre", TYPE_WARIDAT);
+      const response = await axios.post("/api/courriers/import/preview", formData);
+
+      const headers = Array.isArray(response.data) ? response.data : [];
+      const config = getAdministrativeImportConfig();
+
+      if (headers.length === 0) {
+        setError(translate(t, "aucune_colonne_excel", "Aucune colonne n'a ete trouvee dans le fichier Excel."));
+        return;
       }
 
-      const response = await axios.post(`/api/courriers/import/excel?${params.toString()}`, formData);
-
-      const imported = response.data?.imported || 0;
-      const errors = response.data?.errors || [];
-
-      setSuccess(t("import_registres", { count: imported }));
-
-      if (errors.length > 0) {
-        setError(t("import_termine_avec_erreurs", { errors: errors.join(" | ") }));
-      }
-
-      await fetchCourriers();
-      await fetchWaridat();
+      setImportFile(file);
+      setImportHeaders(headers);
+      setImportMapping(buildInitialImportMapping(headers, config.fields));
+      setShowImportMappingModal(true);
     } catch (err) {
       setError(getErrorMessage(err, t("erreur_import")));
     } finally {
@@ -1051,6 +1169,57 @@ function GererCourriers() {
 
       // Permet de choisir à nouveau le même fichier si nécessaire.
       e.target.value = "";
+    }
+  };
+
+  const executeAdministrativeImport = async () => {
+    if (!importFile) return;
+
+    const config = getAdministrativeImportConfig();
+    const missingFields = config.required.filter((field) => !importMapping[field]);
+
+    if (missingFields.length > 0) {
+      setError(
+        translate(t, "colonnes_obligatoires_manquantes", "Colonnes obligatoires manquantes : {{fields}}")
+          .replace("{{fields}}", missingFields.map((field) => ADMIN_IMPORT_FIELD_LABELS[field]).join(", "))
+      );
+      return;
+    }
+
+    const params = new URLSearchParams({ type: config.apiType });
+    Object.entries(ADMIN_IMPORT_FIELD_PARAMS).forEach(([field, paramName]) => {
+      if (importMapping[field]) {
+        params.set(paramName, importMapping[field]);
+      }
+    });
+
+    const formData = new FormData();
+    formData.append("file", importFile);
+
+    setImporting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await axios.post(`/api/courriers/import/execute?${params.toString()}`, formData);
+      const imported = response.data?.imported || 0;
+      const errors = response.data?.errors || [];
+
+      if (imported > 0) {
+        setSuccess(response.data?.message || t("import_registres", { count: imported }));
+      }
+
+      if (errors.length > 0) {
+        setError(t("import_termine_avec_erreurs", { errors: errors.join(" | ") }));
+      }
+
+      closeImportMappingModal();
+      await fetchCourriers();
+      await fetchWaridat();
+    } catch (err) {
+      setError(getErrorMessage(err, t("erreur_import")));
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -1131,23 +1300,44 @@ function GererCourriers() {
 
           {canCreateBusinessRecords && (
             <>
-              <select
-                className="export-scope-select"
-                value={administrativeImportType}
-                onChange={(event) => setAdministrativeImportType(event.target.value)}
-                disabled={importing}
-              >
-                <option value={TYPE_WARIDAT}>{translate(t, "import_entrees", "Entrées")}</option>
-                <option value="MorasalatEntrante">{translate(t, "import_correspondances_entrantes", "Correspondances entrantes")}</option>
-                <option value="MorasalatSortante">{translate(t, "import_correspondances_sortantes", "Correspondances sortantes")}</option>
-              </select>
+              <div className="template-download-menu" ref={templateMenuRef}>
+                <button
+                  type="button"
+                  className="btn-secondary icon-only-button"
+                  data-tooltip={t("telecharger_modele")}
+                  aria-label={t("telecharger_modele")}
+                  aria-haspopup="menu"
+                  aria-expanded={isTemplateMenuOpen}
+                  onClick={() => setIsTemplateMenuOpen((open) => !open)}
+                  disabled={importing}
+                >
+                  <ActionIcon name="fileText" />
+                </button>
 
+                {isTemplateMenuOpen && (
+                  <div className="template-download-options" role="menu">
+                    <button type="button" role="menuitem" onClick={() => downloadAdministrativeTemplate(TYPE_WARIDAT)}>
+                      {translate(t, "import_entrees", "الواردات الإدارية")}
+                    </button>
+                    <button type="button" role="menuitem" onClick={() => downloadAdministrativeTemplate("MorasalatEntrante")}>
+                      {translate(t, "modele_morasalat_entrante", "مراسلة واردة")}
+                    </button>
+                    <button type="button" role="menuitem" onClick={() => downloadAdministrativeTemplate("MorasalatSortante")}>
+                      {translate(t, "modele_morasalat_sortante", "مراسلة صادرة")}
+                    </button>
+                    <button type="button" role="menuitem" onClick={() => downloadAdministrativeTemplate("MorasalatInterne")}>
+                      {translate(t, "modele_morasalat_interne", "مراسلة داخلية")}
+                    </button>
+                  </div>
+                )}
+              </div>
               <label className="btn-secondary import-label icon-only-button" data-tooltip={importing ? t("import_en_cours") : t("importer_excel")} aria-label={importing ? t("import_en_cours") : t("importer_excel")}>
                 <ActionIcon name="upload" />
 
                 <input
+                  ref={importFileInputRef}
                   type="file"
-                  accept=".xlsx"
+                  accept=".xlsx,.xls"
                   onChange={handleFileSelect}
                 />
               </label>
@@ -1364,7 +1554,7 @@ function GererCourriers() {
 
   if (activeRegistre === "juridique") {
     return (
-      <div className="page-container" dir={isArabic ? 'rtl' : 'ltr'}>
+      <div className="page-container courrier-management-page" dir={isArabic ? 'rtl' : 'ltr'}>
         <h1 className="page-title">{t("gestion_courriers")}</h1>
 
         <div className="registry-choice">
@@ -1410,7 +1600,7 @@ function GererCourriers() {
   // - le tableau des courriers.
 
   return (
-    <div className="page-container" dir={isArabic ? 'rtl' : 'ltr'}>
+    <div className="page-container courrier-management-page" dir={isArabic ? 'rtl' : 'ltr'}>
       <h1 className="page-title">{t("gestion_courriers")}</h1>
 
       <div className="registry-choice">
@@ -1922,6 +2112,88 @@ function GererCourriers() {
         />
       )}
 
+      {showImportMappingModal && (
+        <>
+          <div className="modal-overlay" onClick={closeImportMappingModal} />
+          <div
+            className="modal form-card import-mapping-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="registry-panel-header">
+              <div>
+                <h3>{t("associer_colonnes")}</h3>
+                <p>{importFile?.name || "-"}</p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeImportMappingModal}
+              >
+                {t("fermer")}
+              </button>
+            </div>
+
+            <div className="import-mapping-grid">
+              {getAdministrativeImportConfig().fields.map((field) => (
+                <div className="import-mapping-row" key={field}>
+                  <div>
+                    <strong>{ADMIN_IMPORT_FIELD_LABELS[field]}</strong>
+                    {getAdministrativeImportConfig().required.includes(field) && (
+                      <span className="required-dot" title={translate(t, "obligatoire", "Obligatoire")}>*</span>
+                    )}
+                  </div>
+
+                  <select
+                    value={importMapping[field] || ""}
+                    onChange={(event) =>
+                      setImportMapping((prev) => ({
+                        ...prev,
+                        [field]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">{translate(t, "ignorer_colonne", "Ignorer")}</option>
+                    {importHeaders.map((header) => (
+                      <option key={header} value={header}>
+                        {header}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            <div className="import-preview-panel">
+              <span>{translate(t, "colonnes_detectees", "Colonnes detectees")}</span>
+              <div>
+                {importHeaders.map((header) => (
+                  <span key={header} className="import-header-chip">{header}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={executeAdministrativeImport}
+                disabled={importing}
+              >
+                {importing ? t("import_en_cours") : t("importer_excel")}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeImportMappingModal}
+                disabled={importing}
+              >
+                {t("annuler")}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {selectedTransferItem && (
         <>
           <div className="modal-overlay" onClick={closeTransferModal} />
@@ -2138,6 +2410,42 @@ function GererCourriers() {
 // BLOC 29 : INITIALISATION DU FORMULAIRE
 // ==========================================================
 // Cette fonction retourne un formulaire vide avec des valeurs par défaut.
+
+function buildInitialImportMapping(headers, fields) {
+  return fields.reduce((mapping, field) => {
+    mapping[field] = findMatchingImportHeader(headers, field);
+    return mapping;
+  }, {});
+}
+
+function findMatchingImportHeader(headers, field) {
+  const aliases = ADMIN_IMPORT_HEADER_ALIASES[field] || [];
+  const normalizedHeaders = headers.map((header) => ({
+    raw: header,
+    normalized: normalizeImportHeader(header),
+  }));
+
+  const exactMatch = normalizedHeaders.find((header) =>
+    aliases.some((alias) => header.normalized === normalizeImportHeader(alias))
+  );
+
+  if (exactMatch) return exactMatch.raw;
+
+  const partialMatch = normalizedHeaders.find((header) =>
+    aliases.some((alias) => header.normalized.includes(normalizeImportHeader(alias)))
+  );
+
+  return partialMatch?.raw || "";
+}
+
+function normalizeImportHeader(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .toLowerCase();
+}
 
 function getInitialForm(
   services = [],

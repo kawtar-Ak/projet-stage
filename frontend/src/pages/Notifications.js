@@ -240,36 +240,15 @@ function Notifications() {
                                     <span className="notification-badge">{t('en_attente')}</span>
                                 </div>
                                 <div className="notification-details">
-                                    {n.numeroBureauOrdre || n.numeroCourrier ? (
-                                        <div className="detail-row">
-                                            <span className="detail-label">{translate(t, 'numero_bureau_ordre', 'رقم مكتب الضبط')} :</span>
-                                            <span className="detail-value">{n.numeroBureauOrdre || n.numeroCourrier}</span>
+                                    {getNotificationDetailRows(n, t, i18n).map(row => (
+                                        <div
+                                            className={`detail-row ${row.key === 'dossier-judiciaire' ? 'dossier-number-row' : ''} ${row.key === 'bureau-ordre' ? 'bureau-number-row' : ''}`.trim()}
+                                            key={row.key}
+                                        >
+                                            <span className="detail-label">{row.label} :</span>
+                                            <span className="detail-value">{row.value}</span>
                                         </div>
-                                    ) : null}
-                                    <div className="detail-row">
-                                        <span className="detail-label">{t('etat')} :</span>
-                                        <span className="detail-value">{formatDocumentState(n, t)}</span>
-                                    </div>
-                                    {n.numeroDossierJudiciaire ? (
-                                        <div className="detail-row dossier-number-row">
-                                            <span className="detail-label">{t('numero_dossier_judiciaire')} :</span>
-                                            <span className="detail-value">{n.numeroDossierJudiciaire}</span>
-                                        </div>
-                                    ) : null}
-                                    <div className="detail-row">
-                                        <span className="detail-label">{translate(t, 'emetteur_service', 'المصلحة المرسلة')} :</span>
-                                        <span className="detail-value">{getLocalizedServiceName({ idService: n.sourceServiceId, nomService: n.sourceServiceNom }, i18n)}</span>
-                                    </div>
-                                    <div className="detail-row">
-                                        <span className="detail-label">{translate(t, 'envoye_le', 'تم الإرسال في')} :</span>
-                                        <span className="detail-value">{formatLocalizedDateTime(n.dateEnvoi, i18n)}</span>
-                                    </div>
-                                    {n.message ? (
-                                        <div className="detail-row">
-                                            <span className="detail-label">{t('message')} :</span>
-                                            <span className="detail-value">{n.message}</span>
-                                        </div>
-                                    ) : null}
+                                    ))}
                                 </div>
                                 <div className="notification-response">
                                     <textarea
@@ -313,6 +292,14 @@ function Notifications() {
                 </div>
                 <div className="data-table-wrapper search-results-table notification-table-wrapper">
                     <table className="modern-table registry-table notifications-table">
+                        <colgroup>
+                            <col className="processed-document-col" />
+                            <col className="processed-source-col" />
+                            <col className="processed-status-col" />
+                            <col className="processed-responder-col" />
+                            <col className="processed-date-col" />
+                            <col className="processed-note-col" />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th className="notification-document-col">{t('document')}</th>
@@ -330,7 +317,7 @@ function Notifications() {
                                 processedTransactions.map(tx => (
                                     <tr key={tx.id}>
                                         <td className="notification-document-cell">
-                                            <DocumentCell transaction={tx} />
+                                            <DocumentCell transaction={tx} t={t} />
                                         </td>
                                         <td>{formatSourceName(tx, i18n)}</td>
                                         <td>{formatStatus(tx.statut, t)}</td>
@@ -375,7 +362,7 @@ function Notifications() {
                                 pendingReturns.map(tx => (
                                     <tr key={tx.id}>
                                         <td className="notification-document-cell">
-                                            <DocumentCell transaction={tx} />
+                                            <DocumentCell transaction={tx} t={t} />
                                         </td>
                                         <td>{formatSourceName(tx, i18n)}</td>
                                         <td>{formatLocalizedDateTime(tx.dateEnvoi, i18n)}</td>
@@ -571,14 +558,24 @@ function getDocumentLabel(transaction) {
     return [transaction.documentSujet || transaction.document || '-', numero].filter(Boolean).join(' - ');
 }
 
-function DocumentCell({ transaction }) {
+function DocumentCell({ transaction, t }) {
     const title = transaction.documentSujet || transaction.document || '-';
-    const numero = transaction.numeroBureauOrdre || transaction.numeroCourrier || transaction.numeroDossierJudiciaire;
+    const bureauOrdre = transaction.numeroBureauOrdre || transaction.numeroCourrier;
+    const dossierJudiciaire = transaction.numeroDossierJudiciaire;
 
     return (
         <span className="notification-document-content">
             <span className="notification-document-title">{title}</span>
-            {numero && <span className="notification-document-number">{numero}</span>}
+            {dossierJudiciaire && (
+                <span className="notification-document-number dossier-document-number">
+                    {t('numero_dossier_judiciaire')} : {dossierJudiciaire}
+                </span>
+            )}
+            {bureauOrdre && (
+                <span className="notification-document-number bureau-document-number">
+                    {t('numero_bureau_ordre')} : {bureauOrdre}
+                </span>
+            )}
         </span>
     );
 }
@@ -589,6 +586,54 @@ function formatSourceName(transaction, i18n) {
         i18n
     );
     return transaction.senderUserName || service || '-';
+}
+
+function getNotificationDetailRows(transaction, t, i18n) {
+    const rows = [];
+    const bureauOrdre = transaction.numeroBureauOrdre || transaction.numeroCourrier;
+    const dossierJudiciaire = transaction.numeroDossierJudiciaire;
+    const sender = formatSourceName(transaction, i18n);
+    const processedAt = transaction.dateReponse || transaction.dateEnvoi;
+
+    if (dossierJudiciaire) {
+        rows.push({
+            key: 'dossier-judiciaire',
+            label: t('numero_dossier_judiciaire'),
+            value: dossierJudiciaire
+        });
+    }
+
+    if (bureauOrdre) {
+        rows.push({
+            key: 'bureau-ordre',
+            label: t('numero_bureau_ordre'),
+            value: bureauOrdre
+        });
+    }
+
+    rows.push({
+        key: 'etat',
+        label: t('etat'),
+        value: formatDocumentState(transaction, t)
+    });
+
+    if (processedAt) {
+        rows.push({
+            key: 'processed-at',
+            label: t('traite_le'),
+            value: formatLocalizedDateTime(processedAt, i18n)
+        });
+    }
+
+    if (sender && sender !== '-') {
+        rows.push({
+            key: 'sent-by',
+            label: t('envoye_par'),
+            value: sender
+        });
+    }
+
+    return rows;
 }
 
 function translate(t, key, fallback) {

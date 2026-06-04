@@ -4,12 +4,15 @@ import { useTranslation } from 'react-i18next';
 import DocumentModal from '../components/DocumentModal';
 import ActionIcon from '../components/ActionIcon';
 import ConseillerRapporteurSelect, { isConseillerRapporteurService } from '../components/ConseillerRapporteurSelect';
+import SyncedHorizontalScroll from '../components/SyncedHorizontalScroll';
 import { DEFAULT_SERVICES } from '../constants/defaultServices';
 import { useAuth } from '../context/AuthContext';
 import { getLocalizedServiceName } from '../utils/localization';
 
 function MesEntites() {
     const { t, i18n } = useTranslation();
+    const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
+    const dateLocale = isArabic ? 'ar-MA' : 'fr-FR';
     const { user } = useAuth();
     const [documents, setDocuments] = useState([]);
     const [services, setServices] = useState([]);
@@ -219,7 +222,7 @@ function MesEntites() {
     };
 
     return (
-        <div className="page-container">
+        <div className="page-container entities-management-page" dir={isArabic ? 'rtl' : 'ltr'}>
             <h1 className="page-title">{t('mes_entites')}</h1>
             {error && <div className="error-message">{error}</div>}
             {success && <div className="success-message">{success}</div>}
@@ -251,7 +254,7 @@ function MesEntites() {
                     </form>
                 </div>
 
-                <div className="data-table-wrapper search-results-table">
+                <div className="data-table-wrapper search-results-table mes-entities-results">
                     <div className="data-table-header">
                         <h3>{translate(t, 'tous_les_dossiers', 'Tous les dossiers')} ({filteredDocuments.length})</h3>
                         <div className="registry-tools table-registry-tools">
@@ -261,7 +264,8 @@ function MesEntites() {
                         </div>
                     </div>
 
-                    <table className="modern-table registry-table">
+                    <SyncedHorizontalScroll className="mes-entities-table-scroll">
+                    <table className="modern-table registry-table mes-entities-table">
                     <thead>
                         <tr>
                             <th className="selection-column">
@@ -312,8 +316,8 @@ function MesEntites() {
                                         <td>{doc.sujet || '-'}</td>
                                         <td>{doc.type}</td>
                                         <td>{doc.numeroCourrier || doc.numeroDossierJudiciaire || '-'}</td>
-                                        <td>{doc.dateCreation ? new Date(doc.dateCreation).toLocaleString('ar-MA') : '-'}</td>
-                                        <td>{doc.dateEnregistrement ? new Date(doc.dateEnregistrement).toLocaleString('ar-MA') : '-'}</td>
+                                        <td>{doc.dateCreation ? new Date(doc.dateCreation).toLocaleString(dateLocale) : '-'}</td>
+                                        <td>{doc.dateEnregistrement ? new Date(doc.dateEnregistrement).toLocaleString(dateLocale) : '-'}</td>
                                         <td>{doc.source || '-'}</td>
                                         <td>{doc.destinataire || '-'}</td>
                                         <td>{doc.serviceNom || doc.idService || '-'}</td>
@@ -340,7 +344,8 @@ function MesEntites() {
                             })
                         )}
                     </tbody>
-                </table>
+                    </table>
+                    </SyncedHorizontalScroll>
                 </div>
             </div>
 

@@ -5,7 +5,8 @@ import ActionIcon from '../components/ActionIcon';
 import { getLookupItems, itemsToOptions } from '../api/lookups';
 
 function GererEquipements() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
     const [equipements, setEquipements] = useState([]);
     const [services, setServices] = useState([]);
     const [form, setForm] = useState({ serial: '', type: '', etat: '', idService: '' });
@@ -190,7 +191,7 @@ function GererEquipements() {
     const etatMap = Object.fromEntries(etatOptions.map(option => [option.value, option.label]));
 
     return (
-        <div className="page-container">
+        <div className="page-container equipment-management-page" dir={isArabic ? 'rtl' : 'ltr'}>
             <h1 className="page-title">{t('gerer_equipements')}</h1>
             {error && <div className="error-message">{error}</div>}
             <div className="filters">
@@ -219,7 +220,7 @@ function GererEquipements() {
             </div>
 
             {showMapping && (
-                <div className="mapping-panel" style={{ marginTop: '1rem', padding: '1rem', border: '1px solid #ccc', background: '#f9f9f9', borderRadius: '1rem' }}>
+                <div className="mapping-panel equipment-mapping-panel">
                     <h4>{t('associer_colonnes')}</h4>
                     <div className="form-grid">
                         <div className="form-field">
@@ -258,7 +259,7 @@ function GererEquipements() {
                 </div>
             )}
 
-            <div className="form-card">
+            <div className="form-card equipment-form-card">
                 <h3>{editingId ? t('modifier_equipement') : t('ajouter_equipement')}</h3>
                 <form onSubmit={handleSubmit}>
                     <div className="form-grid">
@@ -274,8 +275,8 @@ function GererEquipements() {
                 </form>
             </div>
 
-            <div className="data-table-wrapper">
-                <table className="modern-table">
+            <div className="data-table-wrapper equipment-table-wrapper">
+                <table className="modern-table equipment-table">
                     <thead>
                         <tr>
                             <th><input type="checkbox" checked={selectAll} onChange={handleSelectAll} /></th>

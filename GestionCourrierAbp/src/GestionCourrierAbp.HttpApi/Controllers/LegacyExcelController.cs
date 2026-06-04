@@ -286,7 +286,205 @@ public class LegacyExcelController : ControllerBase
             }
         }
 
-        return Ok(new { imported, errors });
+        return Ok(new
+        {
+            imported,
+            errors,
+            message = $"{imported} courrier(s) administratif(s) importe(s) dans le registre."
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("api/courriers/template-excel")]
+    public IActionResult GetCourriersAdministratifsTemplate([FromQuery] string? type = null)
+    {
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("Import");
+        var normalizedType = NormalizeImportWizardType(type);
+
+        var headers = normalizedType switch
+        {
+            "morasalat_sortante" => new[]
+            {
+                "\u0631\u0642\u0645 \u0645\u0643\u062a\u0628 \u0627\u0644\u0636\u0628\u0637",
+                "\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a",
+                "\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0631\u0633\u0627\u0644\u0629",
+                "\u0627\u0644\u0645\u0648\u0636\u0648\u0639",
+                "\u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064a\u0647",
+                "\u0627\u0644\u0645\u0635\u0644\u062d\u0629 \u0627\u0644\u0645\u0639\u0646\u064a\u0629"
+            },
+            "morasalat_entrante" => new[]
+            {
+                "\u0631\u0642\u0645 \u0645\u0643\u062a\u0628 \u0627\u0644\u0636\u0628\u0637",
+                "\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a",
+                "\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0631\u0633\u0627\u0644\u0629",
+                "\u0627\u0644\u0645\u0631\u0633\u0644",
+                "\u0627\u0644\u062c\u0648\u0627\u0628 / \u0627\u0644\u0646\u062a\u064a\u062c\u0629",
+                "\u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064a\u0647",
+                "\u0627\u0644\u0645\u0635\u0644\u062d\u0629 \u0627\u0644\u0645\u0639\u0646\u064a\u0629"
+            },
+            "morasalat_interne" => new[]
+            {
+                "\u0631\u0642\u0645 \u0645\u0643\u062a\u0628 \u0627\u0644\u0636\u0628\u0637",
+                "\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a",
+                "\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0631\u0633\u0627\u0644\u0629",
+                "\u0627\u0644\u0645\u0631\u0633\u0644",
+                "\u0627\u0644\u0645\u0648\u0636\u0648\u0639",
+                "\u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064a\u0647",
+                "\u0627\u0644\u0645\u0635\u0644\u062d\u0629 \u0627\u0644\u0645\u0639\u0646\u064a\u0629"
+            },
+            _ => new[]
+            {
+                "\u0631\u0642\u0645 \u0645\u0643\u062a\u0628 \u0627\u0644\u0636\u0628\u0637",
+                "\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a",
+                "\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0631\u0633\u0627\u0644\u0629",
+                "\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0648\u0635\u0648\u0644",
+                "\u0627\u0644\u0645\u0631\u0633\u0644",
+                "\u0627\u0644\u0645\u0648\u0636\u0648\u0639",
+                "\u0627\u0644\u0645\u0635\u0644\u062d\u0629 \u0627\u0644\u0645\u0639\u0646\u064a\u0629"
+            }
+        };
+
+        for (var index = 0; index < headers.Length; index++)
+        {
+            ws.Cell(1, index + 1).Value = headers[index];
+        }
+
+        var samplePrefix = normalizedType switch
+        {
+            "morasalat_sortante" => "MS",
+            "morasalat_entrante" => "ME",
+            "morasalat_interne" => "MI",
+            _ => "WA"
+        };
+
+        void SetSampleText(string header, string value)
+        {
+            var column = Array.IndexOf(headers, header) + 1;
+            if (column > 0)
+            {
+                ws.Cell(2, column).Value = value;
+            }
+        }
+
+        void SetSampleDate(string header, DateTime value)
+        {
+            var column = Array.IndexOf(headers, header) + 1;
+            if (column > 0)
+            {
+                WriteExcelDate(ws.Cell(2, column), value);
+            }
+        }
+
+        SetSampleText("\u0631\u0642\u0645 \u0645\u0643\u062a\u0628 \u0627\u0644\u0636\u0628\u0637", $"{samplePrefix}-{DateTime.Now:yyyyMMddHHmmss}");
+        SetSampleText("\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0627\u0628\u062a\u062f\u0627\u0626\u064a", $"{samplePrefix}-{DateTime.Now:HHmmss}");
+        SetSampleDate("\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0631\u0633\u0627\u0644\u0629", DateTime.Today);
+        SetSampleDate("\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0648\u0635\u0648\u0644", DateTime.Today);
+        SetSampleText("\u0627\u0644\u0645\u0631\u0633\u0644", normalizedType == "morasalat_sortante" ? "\u0645\u0643\u062a\u0628 \u0627\u0644\u0636\u0628\u0637" : "\u0648\u0632\u0627\u0631\u0629 \u0627\u0644\u0639\u062f\u0644");
+        SetSampleText("\u0627\u0644\u0645\u0648\u0636\u0648\u0639", normalizedType == "morasalat_sortante" ? "\u062c\u0648\u0627\u0628 \u0639\u0644\u0649 \u0637\u0644\u0628" : "\u0637\u0644\u0628 \u0645\u0639\u0644\u0648\u0645\u0627\u062a");
+        SetSampleText("\u0627\u0644\u062c\u0648\u0627\u0628 / \u0627\u0644\u0646\u062a\u064a\u062c\u0629", "\u062a\u0648\u0635\u0644 \u0628\u0627\u0644\u062c\u0648\u0627\u0628");
+        SetSampleText("\u0627\u0644\u0645\u0631\u0633\u0644 \u0625\u0644\u064a\u0647", normalizedType == "morasalat_sortante" ? "\u0648\u0632\u0627\u0631\u0629 \u0627\u0644\u0639\u062f\u0644" : "\u0645\u0635\u0644\u062d\u0629 \u0625\u062f\u0627\u0631\u064a\u0629");
+        SetSampleText("\u0627\u0644\u0645\u0635\u0644\u062d\u0629 \u0627\u0644\u0645\u0639\u0646\u064a\u0629", "\u0645\u0643\u062a\u0628 \u0627\u0644\u0636\u0628\u0637");
+        SetSampleText("\u0627\u0644\u062d\u0627\u0644\u0629", "Nouveau");
+        SetSampleText("\u0642\u0627\u0628\u0644 \u0644\u0644\u0625\u062d\u0627\u0644\u0629", "\u0646\u0639\u0645");
+        SetSampleText("\u0645\u0644\u0627\u062d\u0638\u0629", "\u0645\u0644\u0627\u062d\u0638\u0629");
+
+        ApplyStandardExcelStyle(ws);
+        ws.SheetView.FreezeRows(1);
+        ws.RightToLeft = true;
+
+        Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        Response.Headers.Pragma = "no-cache";
+        Response.Headers.Expires = "0";
+
+        return ExcelFile(workbook, $"modele-import-{normalizedType}.xlsx");
+    }
+
+    [HttpPost("api/courriers/import/preview")]
+    public IActionResult PreviewCourriersAdministratifsImport(IFormFile file)
+    {
+        return PreviewHeaders(file);
+    }
+
+    [HttpPost("api/courriers/import/execute")]
+    public async Task<IActionResult> ExecuteCourriersAdministratifsImport(
+        IFormFile file,
+        [FromQuery] string? type,
+        [FromQuery] string? colSerialNumber,
+        [FromQuery] string? colSubject,
+        [FromQuery] string? colSenderName,
+        [FromQuery] string? colDestinataire,
+        [FromQuery] string? colArrivalDate,
+        [FromQuery] string? colDate,
+        [FromQuery] string? colResultNote,
+        [FromQuery] string? colNumber,
+        [FromQuery] string? colLetterDate,
+        [FromQuery] string? colService,
+        [FromQuery] string? colEtat,
+        [FromQuery] string? colTransmissible)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest("Fichier Excel requis.");
+
+        var normalizedType = NormalizeImportWizardType(type);
+        var importTarget = normalizedType switch
+        {
+            "morasalat_entrante" => new AdministrativeImportTarget("Morasalat", "Entrante", "Interne"),
+            "morasalat_sortante" => new AdministrativeImportTarget("Morasalat", "Sortante", "Sortant"),
+            "morasalat_interne" => new AdministrativeImportTarget("Morasalat", "Interne", "Interne"),
+            _ => new AdministrativeImportTarget("Waridat", null, "Entrant")
+        };
+
+        var services = await GetAllServices();
+        var imported = 0;
+        var errors = new List<string>();
+
+        using var stream = file.OpenReadStream();
+        using var workbook = new XLWorkbook(stream);
+        var ws = workbook.Worksheets.First();
+        var headers = ReadHeaders(ws);
+
+        foreach (var row in ws.RowsUsed().Skip(1))
+        {
+            if (row.IsEmpty())
+            {
+                continue;
+            }
+
+            try
+            {
+                await ImportMappedAdministrativeRow(
+                    row,
+                    headers,
+                    services,
+                    importTarget,
+                    normalizedType,
+                    colSerialNumber,
+                    colSubject,
+                    colSenderName,
+                    colDestinataire,
+                    colArrivalDate,
+                    colDate,
+                    colResultNote,
+                    colNumber,
+                    colLetterDate,
+                    colService,
+                    colEtat,
+                    colTransmissible);
+                imported++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Ligne {row.RowNumber()}: {ex.Message}");
+            }
+        }
+
+        return Ok(new
+        {
+            imported,
+            errors,
+            message = $"{imported} courrier(s) administratif(s) importe(s) dans le registre."
+        });
     }
 
     [HttpPost("api/courriers/upload-document")]
@@ -2069,6 +2267,147 @@ public class LegacyExcelController : ControllerBase
     }
 
     private sealed record AdministrativeImportTarget(string TypeRegistre, string? TypeCorrespondance, string Direction);
+
+    private static string NormalizeImportWizardType(string? type)
+    {
+        var normalized = (type ?? "administratif_entrant").Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "administratif" or "waridat" or "administratif_entrant" => "administratif_entrant",
+            "morasalat" or "morasalat_entrante" or "morasalatentrante" => "morasalat_entrante",
+            "sortant" or "morasalat_sortante" or "morasalatsortante" => "morasalat_sortante",
+            "interne" or "morasalat_interne" or "morasalatinterne" => "morasalat_interne",
+            _ => "administratif_entrant"
+        };
+    }
+
+    private async Task ImportMappedAdministrativeRow(
+        IXLRow row,
+        Dictionary<string, int> headers,
+        IReadOnlyList<ServiceDto> services,
+        AdministrativeImportTarget importTarget,
+        string normalizedType,
+        string? colSerialNumber,
+        string? colSubject,
+        string? colSenderName,
+        string? colDestinataire,
+        string? colArrivalDate,
+        string? colDate,
+        string? colResultNote,
+        string? colNumber,
+        string? colLetterDate,
+        string? colService,
+        string? colEtat,
+        string? colTransmissible)
+    {
+        var serialNumber = ReadMappedCell(row, headers, colSerialNumber);
+        var subject = ReadMappedCell(row, headers, colSubject);
+        var senderName = ReadMappedCell(row, headers, colSenderName);
+        var destinataire = ReadMappedCell(row, headers, colDestinataire);
+        var description = ReadMappedCell(row, headers, colResultNote);
+        var number = ReadMappedCell(row, headers, colNumber);
+        var letterDateText = ReadMappedCell(row, headers, colLetterDate);
+        var serviceName = ReadMappedCell(row, headers, colService);
+        var etat = EmptyToDefault(ReadMappedCell(row, headers, colEtat), "Nouveau");
+        var transmissible = ReadImportBoolean(ReadMappedCell(row, headers, colTransmissible), true);
+        var primaryDate = ReadDateFromMappedHeader(row, headers, colArrivalDate) ??
+                          ReadDateFromMappedHeader(row, headers, colDate) ??
+                          ReadDateFromMappedHeader(row, headers, colLetterDate) ??
+                          DateTime.Now;
+
+        if (string.IsNullOrWhiteSpace(serialNumber))
+        {
+            throw new UserFriendlyException("Numero bureau d'ordre obligatoire.");
+        }
+
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            throw new UserFriendlyException("Le sujet est obligatoire.");
+        }
+
+        if (normalizedType == "morasalat_sortante")
+        {
+            if (string.IsNullOrWhiteSpace(senderName))
+            {
+                senderName = "\u0645\u0643\u062a\u0628 \u0627\u0644\u0636\u0628\u0637";
+            }
+
+            if (string.IsNullOrWhiteSpace(destinataire))
+            {
+                throw new UserFriendlyException("Le destinataire est obligatoire.");
+            }
+        }
+        else if (normalizedType is "morasalat_interne")
+        {
+            if (string.IsNullOrWhiteSpace(senderName))
+            {
+                throw new UserFriendlyException("La source est obligatoire.");
+            }
+
+            if (string.IsNullOrWhiteSpace(destinataire))
+            {
+                throw new UserFriendlyException("Le destinataire est obligatoire.");
+            }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(senderName))
+            {
+                throw new UserFriendlyException("La source est obligatoire.");
+            }
+
+            if (string.IsNullOrWhiteSpace(destinataire))
+            {
+                destinataire = "\u0645\u062D\u0643\u0645\u0629 \u0627\u0644\u0627\u0633\u062A\u0626\u0646\u0627\u0641 \u0627\u0644\u0625\u062F\u0627\u0631\u064A\u0629 \u0641\u0627\u0633";
+            }
+
+            if (!string.IsNullOrWhiteSpace(letterDateText))
+            {
+                description = string.IsNullOrWhiteSpace(description)
+                    ? $"\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0631\u0633\u0627\u0644\u0629: {letterDateText}"
+                    : $"\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0631\u0633\u0627\u0644\u0629: {letterDateText} | {description}";
+            }
+        }
+
+        await _courrierAdministratifAppService.CreateAsync(new CreateUpdateCourrierAdministratifDto
+        {
+            IdBureauOrdre = serialNumber,
+            Date = primaryDate,
+            Source = senderName,
+            Sujet = subject,
+            Destinataire = destinataire,
+            Description = description,
+            Etat = etat,
+            LienPdf = string.Empty,
+            Direction = importTarget.Direction,
+            TypeRegistre = importTarget.TypeRegistre,
+            TypeCorrespondance = importTarget.TypeCorrespondance,
+            IdService = ResolveAdministrativeServiceId(serviceName, services),
+            NumeroDeCourrier = number,
+            EstTransmissible = transmissible
+        });
+    }
+
+    private static bool ReadImportBoolean(string value, bool defaultValue)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return defaultValue;
+        }
+
+        return normalized is "true" or "1" or "oui" or "yes" or "\u0646\u0639\u0645" or "\u0623\u062c\u0644";
+    }
+
+    private static DateTime? ReadDateFromMappedHeader(IXLRow row, Dictionary<string, int> headers, string? headerName)
+    {
+        if (string.IsNullOrWhiteSpace(headerName) || !headers.TryGetValue(headerName.Trim(), out var index))
+        {
+            return null;
+        }
+
+        return ReadDate(row.Cell(index));
+    }
 
     private static DateTime? ReadMappedDate(IXLRow row, Dictionary<string, int> headers, string headerName)
     {

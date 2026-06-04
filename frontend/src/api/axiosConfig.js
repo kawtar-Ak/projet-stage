@@ -22,6 +22,7 @@ axios.interceptors.request.use(config => {
   }
 
   const originalUrl = config.url;
+  config.__originalUrl = originalUrl;
   config.url = mapLegacyUrlToAbp(config.url);
   config.baseURL = shouldUseAbp(config.url, originalUrl) ? ABP_API_URL : LEGACY_API_URL;
   config.params = mapLegacyParamsToAbp(config.url, config.params);
@@ -42,7 +43,7 @@ axios.interceptors.response.use(
     return response;
   },
   error => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isTemplateDownloadRequest(error.config)) {
       localStorage.clear();
       delete axios.defaults.headers.common.Authorization;
 
@@ -62,6 +63,13 @@ axios.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+function isTemplateDownloadRequest(config = {}) {
+  const url = String(config.url || '');
+  const originalUrl = String(config.__originalUrl || '');
+
+  return url.includes('/template-excel') || originalUrl.includes('/template-excel');
+}
 
 function shouldUseAbp(url = '', originalUrl = '') {
   return url === '/connect/token' ||
@@ -108,7 +116,7 @@ function mapLegacyUrlToAbp(url = '') {
 
   return url
     .replace(/^\/api\/documents$/, `/api/documents?serviceId=${serviceId}`)
-    .replace(/^\/api\/courriers\/(export\/excel|import\/excel|upload-document)(\?.*)?$/, '/api/courriers/$1$2')
+    .replace(/^\/api\/courriers\/(export\/excel|import\/excel|template-excel|import\/preview|import\/execute|upload-document)(\?.*)?$/, '/api/courriers/$1$2')
     .replace(/^\/api\/courriers\/search(\?.*)?$/, '/api/app/courrier-administratif/search$1')
     .replace(/^\/api\/courriers\/waridat$/, '/api/app/courrier-administratif/waridat')
     .replace(/^\/api\/courriers\/archiver\/(\d+)$/, '/api/app/courrier-administratif/$1/archiver')

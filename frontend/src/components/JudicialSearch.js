@@ -146,6 +146,17 @@ function JudicialSearch() {
         ) : (
           <div className="data-table-wrapper judicial-search-table-wrapper" dir={(i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar') ? 'rtl' : 'ltr'}>
             <table className="modern-table judicial-search-table">
+              <colgroup>
+                <col className="search-dossier-col" />
+                <col className="search-bo-col" />
+                <col className="search-subject-col" />
+                <col className="search-status-col" />
+                <col className="search-service-col" />
+                <col className="search-location-col" />
+                <col className="search-movement-col" />
+                <col className="search-responder-col" />
+                <col className="search-actions-col" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>{translate(t, 'numero_dossier', 'Numero dossier')}</th>
