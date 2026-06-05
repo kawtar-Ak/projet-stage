@@ -37,11 +37,13 @@ function MainLayout({ children }) {
     const isOpeningFilesService = serviceId === 3 || serviceName.includes('ouverture');
     const isAudienceOrProcedure = [21, 22].includes(serviceId) || serviceName.includes('audience') || serviceName.includes('procedure') || serviceName.includes('procédure') || serviceName.includes('جلسات') || serviceName.includes('إجراءات') || serviceName.includes('اجراءات');
     const isCopyDelivery = [7, 10].includes(serviceId) || serviceName.includes('remise des copies') || serviceName.includes('تسليم النسخ') || (serviceName.includes('notification') && serviceName.includes('copies'));
+    const isAdminAccount = String(user?.login || '').trim().toLowerCase() === 'admin';
     const canManageCopies = isAdminService || isServiceChief || isAudienceOrProcedure || isCopyDelivery;
     const canUseCirculations = isAdminService || isBureauOrdre || isOpeningFilesService;
     const searchLink = { labelKey: 'menu_recherche', icon: 'search', path: '/recherche' };
     const gestionCopiesLink = { labelKey: 'gestion_copies', icon: 'folder', path: '/gestion-copies' };
     const circulationsLink = { labelKey: 'circulations', icon: 'send', path: '/circulations' };
+    const transactionRegistryLink = { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' };
 
     const commonLinks = [
       { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
@@ -49,12 +51,12 @@ function MainLayout({ children }) {
       { labelKey: 'menu_courriers', icon: 'mail', path: '/courriers' },
       { labelKey: 'menu_dossiers_juridiques', icon: 'folder', path: '/courriers-juridiques' },
       { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
-      { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' },
       { labelKey: 'notifications', icon: 'bell', path: '/notifications' }
     ];
 
     const adminLinks = [
       ...commonLinks,
+      ...(isAdminAccount ? [transactionRegistryLink] : []),
       ...(canUseCirculations ? [circulationsLink] : []),
       { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
       ...(canManageCopies ? [gestionCopiesLink] : []),
@@ -80,7 +82,6 @@ function MainLayout({ children }) {
         { labelKey: 'dashboard', icon: 'grid', path: '/dashboard' },
         searchLink,
         { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
-        { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' },
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
         gestionCopiesLink
       ];
@@ -92,8 +93,7 @@ function MainLayout({ children }) {
         searchLink,
         { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
-        { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' },
-        { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' }
+        { labelKey: 'menu_archives_juridiques', icon: 'archive', path: '/archives-juridiques' }
       ];
     }
 
@@ -105,8 +105,7 @@ function MainLayout({ children }) {
         { labelKey: 'mes_entites', icon: 'building', path: '/mes-entites' },
         circulationsLink,
         { labelKey: 'notifications', icon: 'bell', path: '/notifications' },
-        { labelKey: 'dossiers_acceptes_ouverture', icon: 'folder', path: '/dossiers-ouverture' },
-        { labelKey: 'registre_transactions', icon: 'send', path: '/transactions-outgoing' }
+        { labelKey: 'dossiers_acceptes_ouverture', icon: 'folder', path: '/dossiers-ouverture' }
       ];
     }
 

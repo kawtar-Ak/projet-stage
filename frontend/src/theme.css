@@ -6285,6 +6285,19 @@ button:disabled {
   text-align: start;
 }
 
+.transaction-registry-page .page-title {
+  margin-bottom: 0.85rem;
+  font-size: 1.35rem;
+  text-align: start;
+}
+
+.transaction-registry-page .filters,
+.transaction-registry-page .data-table-wrapper,
+.transaction-registry-page .modern-table {
+  direction: inherit;
+  text-align: start;
+}
+
 .equipment-management-page .filters {
   gap: 0.5rem;
   margin-bottom: 0.75rem;

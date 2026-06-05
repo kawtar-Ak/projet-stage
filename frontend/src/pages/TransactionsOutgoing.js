@@ -1,19 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ActionIcon from '../components/ActionIcon';
+import { useAuth } from '../context/AuthContext';
 import { formatLocalizedDateTime, getLocalizedServiceName, getLocalizedStatus } from '../utils/localization';
 
 function TransactionsOutgoing() {
     const { t, i18n } = useTranslation();
+    const { user } = useAuth();
     const isArabic = (i18n.resolvedLanguage || i18n.language || 'fr').startsWith('ar');
     const direction = isArabic ? 'rtl' : 'ltr';
-    const currentServiceId = Number(localStorage.getItem('idService') || 0);
+    const canUseTransactionRegistry = String(user?.login || '').trim().toLowerCase() === 'admin';
     const [transactionsByScope, setTransactionsByScope] = useState({
         service: [],
         all: []
     });
-    const [transactionScope, setTransactionScope] = useState('service');
+    const transactionScope = 'all';
     const [filtered, setFiltered] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [error, setError] = useState('');
@@ -25,32 +28,28 @@ function TransactionsOutgoing() {
     const selectAll = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
 
     const fetchTransactions = useCallback(() => {
-        Promise.all([
-            axios.get('/api/transactions/outgoing'),
-            axios.get('/api/app/transaction-workflow', {
-                params: { skipCount: 0, maxResultCount: 1000 }
-            }).catch(() => ({ data: [] }))
-        ])
-            .then(([outgoingRes, allRes]) => {
-                const outgoingTransactions = toArray(outgoingRes.data);
-                const allServiceTransactions = toArray(allRes.data).filter(tx =>
-                    Number(tx.sourceServiceId) === currentServiceId ||
-                    (Number(tx.destinationServiceId) === currentServiceId && isProcessedStatus(tx.statut))
-                );
-                const visibleTransactions = mergeTransactions(outgoingTransactions, allServiceTransactions)
-                    .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
-                const allTransactions = toArray(allRes.data)
+        if (!canUseTransactionRegistry) {
+            setTransactionsByScope({ service: [], all: [] });
+            setSelectedIds([]);
+            return;
+        }
+
+        axios.get('/api/app/transaction-workflow', {
+            params: { skipCount: 0, maxResultCount: 1000 }
+        })
+            .then((res) => {
+                const allTransactions = toArray(res.data)
                     .sort((a, b) => getTime(b.dateReponse || b.dateEnvoi) - getTime(a.dateReponse || a.dateEnvoi));
 
                 setTransactionsByScope({
-                    service: visibleTransactions,
+                    service: allTransactions,
                     all: allTransactions
                 });
                 setSelectedIds([]);
                 setError('');
             })
             .catch(() => setError(t('erreur_chargement')));
-    }, [currentServiceId, t]);
+    }, [canUseTransactionRegistry, t]);
 
     useEffect(() => {
         fetchTransactions();
@@ -90,10 +89,9 @@ function TransactionsOutgoing() {
         setSelectedIds([]);
     }, [searchTerm, transactionScope, transactionsByScope]);
 
-    const handleScopeChange = (scope) => {
-        setTransactionScope(scope);
-        setSelectedIds([]);
-    };
+    if (!canUseTransactionRegistry) {
+        return <Navigate to="/dashboard" replace />;
+    }
 
     const handleSelectAll = (event) => {
         event.stopPropagation();
@@ -155,8 +153,8 @@ function TransactionsOutgoing() {
     };
 
     return (
-        <div className="page-container" dir={direction}>
-            <h1 className="page-title">{translate(t, 'historique_transactions', 'Historique des transactions')}</h1>
+        <div className="page-container transaction-registry-page" dir={direction}>
+            <h1 className="page-title">{translate(t, 'registre_transactions', 'Registre des transactions')}</h1>
             {error && <div className="error-message">{error}</div>}
             {success && <div className="success-message">{success}</div>}
             <div className="filters">
@@ -177,22 +175,6 @@ function TransactionsOutgoing() {
                     onChange={handleImportExcel}
                     style={{ display: 'none' }}
                 />
-                <div className="scope-filter" role="group" aria-label={translate(t, 'filtre_transactions', 'Filtre transactions')}>
-                    <button
-                        type="button"
-                        className={transactionScope === 'service' ? 'btn-primary' : 'btn-secondary'}
-                        onClick={() => handleScopeChange('service')}
-                    >
-                        {translate(t, 'transactions_service', 'Transactions du service')}
-                    </button>
-                    <button
-                        type="button"
-                        className={transactionScope === 'all' ? 'btn-primary' : 'btn-secondary'}
-                        onClick={() => handleScopeChange('all')}
-                    >
-                        {translate(t, 'toutes_transactions', 'Toutes les transactions')}
-                    </button>
-                </div>
                 <input
                     type="text"
                     placeholder={t('rechercher')}
@@ -438,18 +420,6 @@ function isProcessedStatus(value) {
         status.includes('refus') ||
         status.includes('annul') ||
         status.includes('retourn');
-}
-
-function mergeTransactions(...groups) {
-    const result = new Map();
-
-    groups.flat().forEach(tx => {
-        if (tx?.id !== undefined && tx?.id !== null) {
-            result.set(tx.id, tx);
-        }
-    });
-
-    return Array.from(result.values());
 }
 
 function getTime(value) {
