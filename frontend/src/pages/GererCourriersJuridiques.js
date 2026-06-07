@@ -86,6 +86,7 @@ function GererCourriersJuridiques({ embedded = false }) {
     [dossiersJudiciaires, linkedDossierSearch]
   );
   const isLinkedJudicialDocument = isLinkedJudicialForm(form, judicialFormMode);
+  const isOpeningFilesNumberOnlyEdit = isOuvertureDossiersService && Boolean(editingId);
 
   useEffect(() => {
     fetchCourriers();
@@ -618,6 +619,7 @@ function GererCourriersJuridiques({ embedded = false }) {
                   onChange={handleLinkedDossierSearchChange}
                   placeholder={t("rechercher_dossier_judiciaire_lie")}
                   required
+                  disabled={isOpeningFilesNumberOnlyEdit}
                 />
                 <input type="hidden" name="courrierJudiciaireParentId" value={form.courrierJudiciaireParentId} />
                 {linkedDossierSearch.trim() && !form.courrierJudiciaireParentId && (
@@ -655,12 +657,25 @@ function GererCourriersJuridiques({ embedded = false }) {
 
             <div className="form-field">
               <label>{t("date")} *</label>
-              <input type="date" name="date" value={form.date} onChange={handleChange} required />
+              <input
+                type="date"
+                name="date"
+                value={form.date}
+                onChange={handleChange}
+                required
+                disabled={isOpeningFilesNumberOnlyEdit}
+              />
             </div>
 
             <div className="form-field">
               <label>{t("tribunal_source")} *</label>
-              <input name="tribunalSource" value={form.tribunalSource} onChange={handleChange} required />
+              <input
+                name="tribunalSource"
+                value={form.tribunalSource}
+                onChange={handleChange}
+                required
+                disabled={isOpeningFilesNumberOnlyEdit}
+              />
             </div>
 
             {isLinkedJudicialDocument && (
@@ -670,6 +685,7 @@ function GererCourriersJuridiques({ embedded = false }) {
                   name="typeDocumentJudiciaire"
                   value={form.typeDocumentJudiciaire}
                   onChange={handleChange}
+                  disabled={isOpeningFilesNumberOnlyEdit}
                 >
                   <option value="">{t("selectionner_type_document_judiciaire")}</option>
                   {documentTypeOptions.map((type) => (
@@ -681,22 +697,43 @@ function GererCourriersJuridiques({ embedded = false }) {
 
             <div className="form-field">
               <label>{t("numero_bureau_ordre")}</label>
-              <input name="idBureauOrdre" value={form.idBureauOrdre} onChange={handleChange} />
+              <input
+                name="idBureauOrdre"
+                value={form.idBureauOrdre}
+                onChange={handleChange}
+                disabled={isOpeningFilesNumberOnlyEdit}
+              />
             </div>
 
             <div className="form-field">
               <label>{t("objet")} *</label>
-              <input name="sujet" value={form.sujet} onChange={handleChange} required />
+              <input
+                name="sujet"
+                value={form.sujet}
+                onChange={handleChange}
+                required
+                disabled={isOpeningFilesNumberOnlyEdit}
+              />
             </div>
 
             <div className="form-field">
               <label>{t("destinataire")}</label>
-              <input name="destinataire" value={form.destinataire} onChange={handleChange} />
+              <input
+                name="destinataire"
+                value={form.destinataire}
+                onChange={handleChange}
+                disabled={isOpeningFilesNumberOnlyEdit}
+              />
             </div>
 
             <div className="form-field">
               <label>{t("service")} *</label>
-              <select name="idService" value={form.idService} onChange={handleChange} >
+              <select
+                name="idService"
+                value={form.idService}
+                onChange={handleChange}
+                disabled={isOpeningFilesNumberOnlyEdit}
+              >
                 <option value="">-- {t("selectionner_service")} --</option>
                 {services.map((service) => (
                   <option key={service.idService} value={service.idService}>
@@ -708,7 +745,12 @@ function GererCourriersJuridiques({ embedded = false }) {
 
             <div className="form-field">
               <label>{t("etat")}</label>
-              <select name="etatArchive" value={form.etatArchive} onChange={handleChange}>
+              <select
+                name="etatArchive"
+                value={form.etatArchive}
+                onChange={handleChange}
+                disabled={isOpeningFilesNumberOnlyEdit}
+              >
                 {etatOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -717,15 +759,25 @@ function GererCourriersJuridiques({ embedded = false }) {
 
             <div className="form-field">
               <label>{t("emplacement")}</label>
-              <input name="emplacement" value={form.emplacement} onChange={handleChange} />
+              <input
+                name="emplacement"
+                value={form.emplacement}
+                onChange={handleChange}
+                disabled={isOpeningFilesNumberOnlyEdit}
+              />
             </div>
 
             <div className="form-field full-width">
               <label>{t("document_pdf_word")}</label>
               <div className="document-control">
-                <label className="document-upload-button">
+                <label className={`document-upload-button${isOpeningFilesNumberOnlyEdit ? " disabled" : ""}`}>
                   {uploading ? t("upload_en_cours") : t("choisir_fichier")}
-                  <input type="file" accept=".pdf,.doc,.docx" onChange={handleDocumentSelect} />
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={handleDocumentSelect}
+                    disabled={isOpeningFilesNumberOnlyEdit}
+                  />
                 </label>
                 <div className={form.lienPdf ? "document-link-preview filled" : "document-link-preview"}>
                   <span title={form.lienPdf || ""}>{form.lienPdf ? getDocumentName(form.lienPdf) : t("aucun_fichier_selectionne")}</span>
@@ -740,7 +792,13 @@ function GererCourriersJuridiques({ embedded = false }) {
 
             <div className="form-field full-width">
               <label>{t("note")}</label>
-              <textarea name="description" value={form.description} onChange={handleChange} rows="3" />
+              <textarea
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                rows="3"
+                disabled={isOpeningFilesNumberOnlyEdit}
+              />
             </div>
           </div>
 

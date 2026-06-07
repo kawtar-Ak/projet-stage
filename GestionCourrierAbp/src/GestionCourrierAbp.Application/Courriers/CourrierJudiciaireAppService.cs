@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using GestionCourrierAbp.Circulations;
 using GestionCourrierAbp.Transactions;
+using GestionCourrierAbp.Utilisateurs;
 using GestionCourrierAbp.Workflows;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
@@ -25,17 +26,20 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
     private readonly IRepository<RetraitJudiciaire, int> _retraitRepository;
     private readonly IRepository<Transaction, int> _transactionRepository;
     private readonly IRepository<Circulation, int> _circulationRepository;
+    private readonly IRepository<Utilisateur, int> _utilisateurRepository;
 
     public CourrierJudiciaireAppService(
         IRepository<CourrierJudiciaire, int> repository,
         IRepository<RetraitJudiciaire, int> retraitRepository,
         IRepository<Transaction, int> transactionRepository,
-        IRepository<Circulation, int> circulationRepository)
+        IRepository<Circulation, int> circulationRepository,
+        IRepository<Utilisateur, int> utilisateurRepository)
     {
         _repository = repository;
         _retraitRepository = retraitRepository;
         _transactionRepository = transactionRepository;
         _circulationRepository = circulationRepository;
+        _utilisateurRepository = utilisateurRepository;
     }
 
     public async Task<CourrierJudiciaireDto> GetAsync(int id)
@@ -64,6 +68,12 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
     public async Task<CourrierJudiciaireDto> UpdateAsync(int id, CreateUpdateCourrierJudiciaireDto input)
     {
         var entity = await _repository.GetAsync(id);
+        if (await IsOpeningFilesUserAsync())
+        {
+            await UpdateNumeroDossierForOpeningFilesAsync(entity, input);
+            return await GetAsync(id);
+        }
+
         // Verifie les doublons en ignorant le dossier en cours de modification.
         await ApplyLinkedJudicialFileAsync(input, id);
         await ValidateUniqueNumbersAsync(input, id);
@@ -303,7 +313,14 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
 
         // Controle l'unicite du numero juridique compose de annee/nombre/sujet.
         var parsed = ParseNumeroDossier(input);
-        if (parsed.annee.HasValue && parsed.nombre.HasValue && parsed.sujet.HasValue)
+        await ValidateUniqueNumeroDossierAsync(parsed, currentId);
+    }
+
+    private async Task ValidateUniqueNumeroDossierAsync(
+        (int? annee, int? nombre, int? sujet) parsed,
+        int? currentId = null)
+    {
+        if (HasCompleteNumeroDossier(parsed))
         {
             var query = (await _repository.GetQueryableAsync())
                 .Where(x =>
@@ -321,6 +338,53 @@ public class CourrierJudiciaireAppService : GestionCourrierAbpAppService, ICourr
                 throw new UserFriendlyException("Le numéro juridique existe déjà. Veuillez saisir un numéro unique.");
             }
         }
+    }
+
+    private async Task<bool> IsOpeningFilesUserAsync()
+    {
+        var userName = CurrentUser.UserName?.Trim();
+        if (!CurrentUser.IsAuthenticated || string.IsNullOrWhiteSpace(userName))
+        {
+            return false;
+        }
+
+        var query = await _utilisateurRepository.GetQueryableAsync();
+        var utilisateur = await AsyncExecuter.FirstOrDefaultAsync(
+            query.Where(x => x.Login == userName));
+
+        return utilisateur?.ServiceId == OpeningFilesServiceId;
+    }
+
+    private async Task UpdateNumeroDossierForOpeningFilesAsync(
+        CourrierJudiciaire entity,
+        CreateUpdateCourrierJudiciaireDto input)
+    {
+        if (entity.ServiceId != OpeningFilesServiceId)
+        {
+            throw new UserFriendlyException(
+                "Le dossier doit être accepté par le service d'ouverture avant l'attribution du numéro juridique.");
+        }
+
+        if (entity.CourrierJudiciaireParentId.HasValue ||
+            entity.TypeEnregistrementJudiciaire == JudicialRecordDocumentLie)
+        {
+            throw new UserFriendlyException(
+                "Le numéro juridique doit être attribué au dossier principal.");
+        }
+
+        var parsed = ParseNumeroDossier(input);
+        if (!HasCompleteNumeroDossier(parsed))
+        {
+            throw new UserFriendlyException(
+                "Le numéro d'appel du dossier est obligatoire et doit respecter le format année/nombre/sujet.");
+        }
+
+        await ValidateUniqueNumeroDossierAsync(parsed, entity.Id);
+
+        entity.NumeroDossierAnnee = parsed.annee;
+        entity.NumeroDossierNombre = parsed.nombre;
+        entity.NumeroDossierSujet = parsed.sujet;
+        await _repository.UpdateAsync(entity, autoSave: true);
     }
 
     private async Task ApplyLinkedJudicialFileAsync(CreateUpdateCourrierJudiciaireDto input, int? currentId = null)
