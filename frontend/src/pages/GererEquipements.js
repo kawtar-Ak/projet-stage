@@ -65,11 +65,12 @@ function GererEquipements() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setError('');
         const serialNum = parseInt(form.serial, 10);
         const typeNum = parseInt(form.type, 10);
         const etatNum = parseInt(form.etat, 10);
         const serviceId = parseInt(form.idService, 10);
-        if (isNaN(serialNum) || isNaN(typeNum) || isNaN(etatNum) || isNaN(serviceId)) {
+        if ([serialNum, typeNum, etatNum, serviceId].some(value => !Number.isInteger(value) || value <= 0)) {
             setError(t('erreur_champs'));
             return;
         }
@@ -82,9 +83,9 @@ function GererEquipements() {
                 await axios.post('/api/equipements', payload);
             }
             resetForm();
-            fetchEquipements();
+            await fetchEquipements();
         } catch (err) {
-            setError(err.response?.data || t('erreur'));
+            setError(getErrorMessage(err, t('erreur')));
         }
     };
 
@@ -263,7 +264,7 @@ function GererEquipements() {
                 <h3>{editingId ? t('modifier_equipement') : t('ajouter_equipement')}</h3>
                 <form onSubmit={handleSubmit}>
                     <div className="form-grid">
-                        <div className="form-field"><label>{t('serie')} *</label><input type="number" value={form.serial} onChange={e => setForm({ ...form, serial: e.target.value })} required /></div>
+                        <div className="form-field"><label>{t('serie')} *</label><input type="number" min="1" step="1" value={form.serial} onChange={e => setForm({ ...form, serial: e.target.value })} required /></div>
                         <div className="form-field"><label>{t('type')} *</label><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} required><option value="">{t('type')}</option>{typeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
                         <div className="form-field"><label>{t('etat')} *</label><select value={form.etat} onChange={e => setForm({ ...form, etat: e.target.value })} required><option value="">{t('etat')}</option>{etatOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
                         <div className="form-field"><label>{t('service')} *</label><select value={form.idService} onChange={e => setForm({ ...form, idService: e.target.value })} required><option value="">{t('service')}</option>{services.map(s => <option key={s.idService} value={s.idService}>{s.nomService}</option>)}</select></div>
@@ -342,5 +343,21 @@ function getDefaultEtatOptions(t) {
         { value: '3', label: t('etat_reparer') },
         { value: '4', label: t('etat_hors_service') }
     ];
+}
+
+function getErrorMessage(error, fallback) {
+    const data = error.response?.data;
+    const apiError = data?.error;
+    const validationMessage = apiError?.validationErrors?.[0]?.message
+        || data?.validationErrors?.[0]?.message;
+
+    if (validationMessage) return validationMessage;
+    if (typeof apiError === 'string') return apiError;
+    if (apiError?.details) return apiError.details;
+    if (apiError?.message) return apiError.message;
+    if (typeof data === 'string') return data;
+    if (data?.message) return data.message;
+    if (error.message) return error.message;
+    return fallback;
 }
 
